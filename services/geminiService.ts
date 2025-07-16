@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource } from '../types';
 
@@ -49,26 +48,6 @@ const questionSchema = {
     required: ["questionType", "questionText", "explanation"]
 };
 
-// Defines the shape of the raw, unvalidated question object from the AI
-interface RawQuestion {
-    questionType: QuestionType;
-    questionText?: string;
-    question?: string; // Legacy support for older prompt versions
-    explanation: string;
-    options?: string[];
-    correctAnswerIndex?: number;
-    correctAnswerBoolean?: boolean;
-    answer?: boolean; // Legacy support
-    correctAnswerString?: string;
-    missingTerm?: string; // Legacy support
-    acceptableAnswers?: string[];
-}
-
-// Defines the shape of the raw, unvalidated quiz data from the AI
-interface RawQuizData {
-    questions: RawQuestion[];
-}
-
 const getInstructionText = (numberOfQuestions: number, knowledgeSource: KnowledgeSource): string => {
     let baseInstruction = `You are an expert educator. Create a high-quality, mixed-type quiz with exactly ${numberOfQuestions} questions. The quiz should include a mix of MULTIPLE_CHOICE, TRUE_FALSE, and FILL_IN_THE_BLANK questions. The questions should test key concepts, definitions, and important facts. Follow the provided JSON schema precisely.
 
@@ -84,7 +63,7 @@ const getInstructionText = (numberOfQuestions: number, knowledgeSource: Knowledg
              return `${baseInstruction}\n\nThe user has provided study materials as a topic. Use Google Search to find the most relevant and up-to-date information on this topic and generate the quiz based on your findings. The user's notes may be brief, so rely on search results to build the quiz.\n\nHere is the topic from the user's notes:\n---`;
         case KnowledgeSource.NOTES_ONLY:
         default:
-            return `${baseInstruction}\n\nBase the quiz STRICTLY on the following study materials, which may include text and images.\n\nHere are the study materials:\n---`;
+            return `${baseInstruction}\n\nBase the quiz STRICTLY on the following study materials, which may include text, images, and transcribed audio from files.\n\nHere are the study materials:\n---`;
     }
 };
 
@@ -134,10 +113,7 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
             config: apiConfig,
         });
 
-        if (!response.text) {
-            throw new Error("API response did not contain text.");
-        }
-        let jsonText = response.text.trim();
+        let jsonText = response.text ? response.text.trim() : "";
         if (knowledgeSource === KnowledgeSource.WEB_SEARCH) {
             const match = jsonText.match(/```json\n([\s\S]*)\n```/);
             if (match) {
@@ -149,7 +125,7 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
             throw new Error("API returned an empty response. The content might be too short or unsupported.");
         }
         
-        const rawQuizData: RawQuizData = JSON.parse(jsonText);
+        const rawQuizData = JSON.parse(jsonText);
 
         if (!rawQuizData.questions || rawQuizData.questions.length === 0) {
           throw new Error("The AI successfully responded but couldn't generate any questions from the provided text.");
@@ -159,7 +135,7 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
             ?.map((chunk: any) => chunk.web)
             .filter((web): web is WebSource => web && web.uri) || [];
         
-        const validatedQuestions: Question[] = rawQuizData.questions.map((q: RawQuestion): Question | null => {
+        const validatedQuestions: Question[] = rawQuizData.questions.map((q: any): Question | null => {
             const questionText = q.questionText || q.question;
 
             if (!q.questionType || !questionText || !q.explanation) {

@@ -1,6 +1,7 @@
-import React, { useState, useCallback } from 'react';
+
+import React, { useState, useCallback, useEffect } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import * as mammoth from 'mammoth/mammoth.browser';
+import * as mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import { StudyMode, StudySet, QuizConfig, PromptPart, KnowledgeSource } from '../types';
 import { useStudySets } from '../hooks/useStudySets';
@@ -13,11 +14,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs
 interface SetupScreenProps {
   onStart: (parts: PromptPart[], config: QuizConfig) => void;
   error: string | null;
+  initialContent?: string | null;
 }
 
 type Action = 'LIST' | 'CREATE_EDIT' | 'STUDY';
 
-const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error }) => {
+const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialContent }) => {
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
   const [action, setAction] = useState<Action>('LIST');
   
@@ -38,7 +40,6 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error }) => {
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
   const [progressPercent, setProgressPercent] = useState<number>(0);
 
-
   const resetFormState = useCallback(() => {
     setActiveSet(null);
     setSetName('');
@@ -52,6 +53,15 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error }) => {
     setProgressMessage(null);
     setProgressPercent(0);
   }, []);
+
+  useEffect(() => {
+    if (initialContent) {
+      // Pre-configure the screen for creating a new set with the provided content.
+      resetFormState();
+      setAction('CREATE_EDIT');
+      setSetContent(initialContent);
+    }
+  }, [initialContent, resetFormState]);
   
   const handleShowList = useCallback(() => {
     resetFormState();
@@ -111,6 +121,11 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error }) => {
                 parts.push({
                     inlineData: { mimeType: file.type, data: await toBase64(file) }
                 });
+            } else if (file.type.startsWith('audio/')) {
+                 parts.push({
+                    inlineData: { mimeType: file.type, data: await toBase64(file) }
+                });
+                combinedText += `\n\n[Content from audio file: ${file.name}]`;
             } else if (file.type === 'application/pdf') {
                 const arrayBuffer = await file.arrayBuffer();
                 const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
@@ -125,19 +140,17 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error }) => {
                     pdfText += textContent.items.map((item: any) => ('str' in item) ? item.str : '').join(' ');
                 }
                 combinedText += '\n\n' + pdfText;
-            } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+            } else if (file.name.endsWith('.docx')) {
                 const arrayBuffer = await file.arrayBuffer();
                 const result = await mammoth.extractRawText({ arrayBuffer });
                 combinedText += '\n\n' + result.value;
-            } else if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || file.type === 'text/csv') {
-                const arrayBuffer = await file.arrayBuffer();
-                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-                let content = '';
-                workbook.SheetNames.forEach(sheetName => {
-                    const worksheet = workbook.Sheets[sheetName];
-                    content += XLSX.utils.sheet_to_csv(worksheet);
-                });
-                combinedText += '\n\n' + content;
+            } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.csv')) {
+                 const arrayBuffer = await file.arrayBuffer();
+                 const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                 workbook.SheetNames.forEach(sheetName => {
+                     const csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
+                     combinedText += `\n\n--- Content from ${file.name} / Sheet: ${sheetName} ---\n${csvText}`;
+                 });
             } else if (file.type === 'text/plain') {
                  combinedText += '\n\n' + await file.text();
             }
@@ -171,6 +184,34 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error }) => {
         onStart(parts, { numberOfQuestions: numQuestions, mode: studyMode, knowledgeSource });
     } catch (err) {
         console.error("Error processing files:", err);
+        const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during file processing.";
+        setProcessingError(errorMessage);
+        setIsProcessing(false);
+    }
+  };
+  
+  const handleSaveOnly = async () => {
+    if (!setName.trim() || (!setContent.trim() && files.length === 0)) {
+        setProcessingError("Set name and content (pasted or from files) are required.");
+        return;
+    };
+    
+    setIsProcessing(true);
+    setProcessingError(null);
+
+    try {
+        const { combinedText } = await prepareQuizParts(setContent, files, onProgress);
+        
+        if (activeSet) {
+            updateSet({ ...activeSet, name: setName, content: combinedText.trim() });
+        } else {
+            addSet({ name: setName, content: combinedText.trim() });
+        }
+
+        handleShowList();
+
+    } catch (err) {
+        console.error("Error processing files for saving:", err);
         const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during file processing.";
         setProcessingError(errorMessage);
         setIsProcessing(false);
@@ -214,27 +255,52 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error }) => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-        setFiles(Array.from(e.target.files));
+        const newFiles = Array.from(e.target.files);
+        setFiles(prevFiles => {
+            const existingFileKeys = new Set(prevFiles.map(f => `${f.name}-${f.size}-${f.lastModified}`));
+            const uniqueNewFiles = newFiles.filter(f => !existingFileKeys.has(`${f.name}-${f.size}-${f.lastModified}`));
+            return [...prevFiles, ...uniqueNewFiles];
+        });
+        // Reset the input value to allow selecting the same file again after removing it.
+        e.target.value = '';
     }
+  };
+
+  const handleRemoveFile = (fileToRemove: File) => {
+    setFiles(prevFiles => prevFiles.filter(f => f !== fileToRemove));
   };
   
   const FileUploader = ({ onChange }: { onChange: (e: React.ChangeEvent<HTMLInputElement>) => void }) => (
     <div>
         <label htmlFor="fileUpload" className="block text-lg font-medium text-text-secondary mb-3">Upload Materials</label>
-        <p className="text-sm text-gray-400 mb-2">You can upload notes (.txt), documents (.pdf, .docx), spreadsheets (.xlsx, .csv), and images (.png, .jpg, .webp).</p>
-        <input
-            type="file"
-            id="fileUpload"
-            multiple
-            accept=".txt,.pdf,.docx,.xlsx,.csv,image/png,image/jpeg,image/webp"
+        <p className="text-sm text-gray-400 mb-2">Upload documents (.txt, .pdf, .docx), spreadsheets (.xlsx, .csv), images (.png, .jpg), and audio (.mp3, .m4a, .wav).</p>
+        <input 
+            type="file" 
+            id="fileUpload" 
+            multiple 
+            accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,audio/*"
             onChange={onChange}
             className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-primary file:text-white hover:file:bg-brand-secondary"
         />
         {files.length > 0 && (
           <div className="mt-4 text-left text-sm text-text-secondary bg-background-dark/50 p-3 rounded-md">
               <p className="font-bold mb-1">Selected files:</p>
-              <ul className="list-disc list-inside space-y-1">
-                  {files.map(f => <li key={f.name}>{f.name} <span className="text-gray-400">({Math.round(f.size / 1024)} KB)</span></li>)}
+              <ul className="space-y-2">
+                  {files.map((f) => (
+                    <li key={`${f.name}-${f.size}-${f.lastModified}`} className="flex justify-between items-center group bg-gray-700/50 p-2 rounded-md">
+                        <span className="truncate" title={f.name}>
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline-block mr-2 align-text-bottom" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                            {f.name} <span className="text-gray-400 ml-2">({Math.round(f.size / 1024)} KB)</span>
+                        </span>
+                        <button 
+                            onClick={() => handleRemoveFile(f)} 
+                            className="p-1 rounded-full text-gray-400 hover:bg-red-500 hover:text-white opacity-50 group-hover:opacity-100 transition-all ml-2 flex-shrink-0"
+                            aria-label={`Remove ${f.name}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </li>
+                  ))}
               </ul>
           </div>
         )}
@@ -359,11 +425,14 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error }) => {
               <span className="block sm:inline">{processingError}</span>
             </div>
           )}
-        <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
-            <button onClick={handleSaveAndStart} disabled={isProcessing || !setName.trim()} className="px-12 py-4 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+        <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
+            <button onClick={handleSaveAndStart} disabled={isProcessing || !setName.trim()} className="px-8 py-4 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {activeSet ? 'Update & Start' : 'Save & Start'}
             </button>
-            <button onClick={handleShowList} disabled={isProcessing} className="px-8 py-3 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-all disabled:opacity-50">Cancel</button>
+            <button onClick={handleSaveOnly} disabled={isProcessing || !setName.trim()} className="px-6 py-3 bg-brand-secondary text-white font-bold rounded-lg hover:bg-brand-primary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed">
+              {activeSet ? 'Save & Close' : 'Save Only'}
+            </button>
+            <button onClick={handleShowList} disabled={isProcessing} className="px-6 py-3 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-all disabled:opacity-50">Cancel</button>
         </div>
     </div>
   );

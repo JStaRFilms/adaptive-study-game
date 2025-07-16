@@ -26,6 +26,5 @@
     "paths": {
       "@/*" :  ["./*"]
     }
-  },
-  "include": ["./**/*.ts", "./**/*.tsx", "declarations.d.ts"]
+  }
 }

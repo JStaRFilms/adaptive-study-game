@@ -19,6 +19,43 @@
               'text-secondary': '#d1d5db', // Gray 300
               'correct': '#22c55e', // Green 500
               'incorrect': '#ef4444', // Red 500
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.5s ease-out forwards',
+              'fade-in-down': 'fadeInDown 0.6s ease-out forwards',
+              'background-pan': 'backgroundPan 15s linear infinite',
+              'float': 'float 6s ease-in-out infinite',
+              'pulse-glow': 'pulseGlow 4s ease-in-out infinite',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: 0 },
+                '100%': { opacity: 1 },
+              },
+              fadeInDown: {
+                '0%': { opacity: 0, transform: 'translateY(-20px)' },
+                '100%': { opacity: 1, transform: 'translateY(0)' },
+              },
+              backgroundPan: {
+                  '0%': { backgroundPosition: '0% 50%' },
+                  '50%': { backgroundPosition: '100% 50%' },
+                  '100%': { backgroundPosition: '0% 50%' },
+              },
+              float: {
+                '0%': { transform: 'translateY(0px)' },
+                '50%': { transform: 'translateY(-10px)' },
+                '100%': { transform: 'translateY(0px)' },
+              },
+              pulseGlow: {
+                '0%, 100%': {
+                  borderColor: 'rgba(20, 184, 166, 0.4)',
+                  boxShadow: '0 0 20px rgba(20, 184, 166, 0.2)',
+                },
+                '50%': {
+                  borderColor: 'rgba(20, 184, 166, 0.8)',
+                  boxShadow: '0 0 35px rgba(20, 184, 166, 0.5)',
+                },
+              },
             }
           }
         }
@@ -27,14 +64,27 @@
   <script type="importmap">
 {
   "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.9.0",
     "react/": "https://esm.sh/react@^19.1.0/",
     "react": "https://esm.sh/react@^19.1.0",
-    "@google/genai": "https://esm.sh/@google/genai@^1.9.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
-    "pdfjs-dist": "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs"
+    "xlsx": "https://esm.sh/xlsx@^0.18.5",
+    "mammoth": "https://esm.sh/mammoth@^1.9.1",
+    "pdfjs-dist": "https://esm.sh/pdfjs-dist@^5.3.93"
   }
 }
 </script>
+<style>
+  .fade-in-section {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+  }
+  .fade-in-section.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
 <link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-background-dark text-text-primary">

@@ -6,9 +6,12 @@ import StudyScreen from './components/StudyScreen';
 import ResultsScreen from './components/ResultsScreen';
 import ReviewScreen from './components/ReviewScreen';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import LandingPage from './components/LandingPage';
 import { generateQuiz } from './services/geminiService';
 
 const App: React.FC = () => {
+  const [showLanding, setShowLanding] = useState(true);
+  const [initialContent, setInitialContent] = useState<string | null>(null);
   const [appState, setAppState] = useState<AppState>(AppState.SETUP);
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -16,6 +19,16 @@ const App: React.FC = () => {
   const [maxPossibleScore, setMaxPossibleScore] = useState<number>(0);
   const [studyMode, setStudyMode] = useState<StudyMode>(StudyMode.PRACTICE);
   const [answerLog, setAnswerLog] = useState<AnswerLog[]>([]);
+
+  const handleLaunchApp = useCallback(() => {
+    setInitialContent(null);
+    setShowLanding(false);
+  }, []);
+
+  const handleLaunchWithContent = useCallback((content: string) => {
+    setInitialContent(content);
+    setShowLanding(false);
+  }, []);
 
   const handleStartStudy = useCallback(async (parts: PromptPart[], config: QuizConfig) => {
     setAppState(AppState.PROCESSING);
@@ -66,10 +79,10 @@ const App: React.FC = () => {
     setAppState(AppState.STUDYING);
   }, []);
   
-  const renderContent = () => {
+  const renderCoreApp = () => {
     switch (appState) {
       case AppState.SETUP:
-        return <SetupScreen onStart={handleStartStudy} error={error} />;
+        return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} />;
       case AppState.PROCESSING:
         return (
           <div className="flex flex-col items-center justify-center h-screen">
@@ -84,14 +97,18 @@ const App: React.FC = () => {
       case AppState.REVIEWING:
         return <ReviewScreen answerLog={answerLog} onRetakeSameQuiz={handleRetakeSameQuiz} onStartNewQuiz={handleRestart} />;
       default:
-        return <SetupScreen onStart={handleStartStudy} error={error} />;
+        return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} />;
     }
   };
+
+  if (showLanding) {
+    return <LandingPage onLaunch={handleLaunchApp} onLaunchWithContent={handleLaunchWithContent} />;
+  }
 
   return (
     <main className="min-h-screen bg-background-dark font-sans flex flex-col items-center p-4 sm:p-6 lg:p-8">
       <div className="w-full max-w-4xl">
-        {renderContent()}
+        {renderCoreApp()}
       </div>
     </main>
   );
