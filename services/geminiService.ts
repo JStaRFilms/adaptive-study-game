@@ -49,6 +49,26 @@ const questionSchema = {
     required: ["questionType", "questionText", "explanation"]
 };
 
+// Defines the shape of the raw, unvalidated question object from the AI
+interface RawQuestion {
+    questionType: QuestionType;
+    questionText?: string;
+    question?: string; // Legacy support for older prompt versions
+    explanation: string;
+    options?: string[];
+    correctAnswerIndex?: number;
+    correctAnswerBoolean?: boolean;
+    answer?: boolean; // Legacy support
+    correctAnswerString?: string;
+    missingTerm?: string; // Legacy support
+    acceptableAnswers?: string[];
+}
+
+// Defines the shape of the raw, unvalidated quiz data from the AI
+interface RawQuizData {
+    questions: RawQuestion[];
+}
+
 const getInstructionText = (numberOfQuestions: number, knowledgeSource: KnowledgeSource): string => {
     let baseInstruction = `You are an expert educator. Create a high-quality, mixed-type quiz with exactly ${numberOfQuestions} questions. The quiz should include a mix of MULTIPLE_CHOICE, TRUE_FALSE, and FILL_IN_THE_BLANK questions. The questions should test key concepts, definitions, and important facts. Follow the provided JSON schema precisely.
 
@@ -98,105 +118,123 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
 
   if (knowledgeSource === KnowledgeSource.WEB_SEARCH) {
     apiConfig.tools = [{googleSearch: {}}];
-    // The Gemini API requires that when tools are used, the response MIME type is not set to JSON.
-    // So we must prompt for JSON and parse it manually.
   } else {
     apiConfig.responseMimeType = "application/json";
     apiConfig.responseSchema = quizSchema;
   }
 
-  try {
-    const response: GenerateContentResponse = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: { parts: finalParts },
-      config: apiConfig,
-    });
+  const MAX_ATTEMPTS = 3;
+  let lastError: Error | null = null;
 
-    // In web search mode, the response is not guaranteed to be JSON, so we must be more careful.
-    let jsonText = response.text.trim();
-    if (knowledgeSource === KnowledgeSource.WEB_SEARCH) {
-        // Try to extract JSON from a markdown block if it exists
-        const match = jsonText.match(/```json\n([\s\S]*)\n```/);
-        if (match) {
-            jsonText = match[1];
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: finalParts },
+            config: apiConfig,
+        });
+
+        if (!response.text) {
+            throw new Error("API response did not contain text.");
         }
-    }
-
-    if (!jsonText) {
-        throw new Error("API returned an empty response. The content might be too short or unsupported.");
-    }
-    
-    const rawQuizData = JSON.parse(jsonText);
-
-    if (!rawQuizData.questions || rawQuizData.questions.length === 0) {
-      throw new Error("The AI successfully responded but couldn't generate any questions from the provided text.");
-    }
-
-    const webSources: WebSource[] = response.candidates?.[0]?.groundingMetadata?.groundingChunks
-        ?.map((chunk: any) => chunk.web)
-        .filter((web): web is WebSource => web && web.uri) || [];
-    
-    const validatedQuestions: Question[] = rawQuizData.questions.map((q: any): Question | null => {
-        if (!q.questionType || !q.questionText || !q.explanation) {
-            console.warn(`Skipping invalid question from AI (missing type, text, or explanation):`, q);
-            return null;
+        let jsonText = response.text.trim();
+        if (knowledgeSource === KnowledgeSource.WEB_SEARCH) {
+            const match = jsonText.match(/```json\n([\s\S]*)\n```/);
+            if (match) {
+                jsonText = match[1];
+            }
         }
-        switch (q.questionType) {
-            case QuestionType.MULTIPLE_CHOICE:
-                if (!q.options || !Array.isArray(q.options) || q.options.length < 2 || typeof q.correctAnswerIndex !== 'number' || q.correctAnswerIndex >= q.options.length ) {
-                    console.warn(`Skipping invalid MULTIPLE_CHOICE question from AI:`, q);
-                    return null;
-                }
-                return {
-                    questionType: q.questionType,
-                    questionText: q.questionText,
-                    options: q.options,
-                    correctAnswerIndex: q.correctAnswerIndex,
-                    explanation: q.explanation,
-                };
-            case QuestionType.TRUE_FALSE:
-                if (typeof q.correctAnswerBoolean !== 'boolean') {
-                    console.warn(`Skipping invalid TRUE_FALSE question from AI:`, q);
-                    return null;
-                }
-                return {
-                    questionType: q.questionType,
-                    questionText: q.questionText,
-                    correctAnswer: q.correctAnswerBoolean,
-                    explanation: q.explanation,
-                };
-            case QuestionType.FILL_IN_THE_BLANK:
-                if (typeof q.correctAnswerString !== 'string' || !q.questionText.includes('___')) {
-                    console.warn(`Skipping invalid FILL_IN_THE_BLANK question from AI:`, q);
-                    return null;
-                }
-                return {
-                    questionType: q.questionType,
-                    questionText: q.questionText,
-                    correctAnswer: q.correctAnswerString,
-                    explanation: q.explanation,
-                    acceptableAnswers: q.acceptableAnswers || [],
-                };
-            default:
-                 console.warn(`Skipping unknown question type from AI: ${q.questionType}`);
+
+        if (!jsonText) {
+            throw new Error("API returned an empty response. The content might be too short or unsupported.");
+        }
+        
+        const rawQuizData: RawQuizData = JSON.parse(jsonText);
+
+        if (!rawQuizData.questions || rawQuizData.questions.length === 0) {
+          throw new Error("The AI successfully responded but couldn't generate any questions from the provided text.");
+        }
+
+        const webSources: WebSource[] = response.candidates?.[0]?.groundingMetadata?.groundingChunks
+            ?.map((chunk: any) => chunk.web)
+            .filter((web): web is WebSource => web && web.uri) || [];
+        
+        const validatedQuestions: Question[] = rawQuizData.questions.map((q: RawQuestion): Question | null => {
+            const questionText = q.questionText || q.question;
+
+            if (!q.questionType || !questionText || !q.explanation) {
+                console.warn(`Skipping invalid question from AI (missing type, text, or explanation):`, q);
                 return null;
+            }
+            switch (q.questionType) {
+                case QuestionType.MULTIPLE_CHOICE:
+                    if (!q.options || !Array.isArray(q.options) || q.options.length < 2 || typeof q.correctAnswerIndex !== 'number' || q.correctAnswerIndex >= q.options.length ) {
+                        console.warn(`Skipping invalid MULTIPLE_CHOICE question from AI:`, q);
+                        return null;
+                    }
+                    return {
+                        questionType: q.questionType,
+                        questionText: questionText,
+                        options: q.options,
+                        correctAnswerIndex: q.correctAnswerIndex,
+                        explanation: q.explanation,
+                    };
+                case QuestionType.TRUE_FALSE:
+                    const correctAnswerBoolean = q.correctAnswerBoolean ?? q.answer;
+                    if (typeof correctAnswerBoolean !== 'boolean') {
+                        console.warn(`Skipping invalid TRUE_FALSE question from AI:`, q);
+                        return null;
+                    }
+                    return {
+                        questionType: q.questionType,
+                        questionText: questionText,
+                        correctAnswer: correctAnswerBoolean,
+                        explanation: q.explanation,
+                    };
+                case QuestionType.FILL_IN_THE_BLANK:
+                    const correctAnswerString = q.correctAnswerString || q.missingTerm;
+                    if (typeof correctAnswerString !== 'string' || !questionText.includes('___')) {
+                        console.warn(`Skipping invalid FILL_IN_THE_BLANK question from AI:`, q);
+                        return null;
+                    }
+                    return {
+                        questionType: q.questionType,
+                        questionText: questionText,
+                        correctAnswer: correctAnswerString,
+                        explanation: q.explanation,
+                        acceptableAnswers: q.acceptableAnswers || [],
+                    };
+                default:
+                     console.warn(`Skipping unknown question type from AI: ${q.questionType}`);
+                    return null;
+            }
+        }).filter((q: Question | null): q is Question => q !== null);
+
+        if (validatedQuestions.length > 0) {
+            return { questions: validatedQuestions, webSources }; // Success!
         }
-    }).filter((q): q is Question => q !== null);
+        
+        lastError = new Error("The AI responded, but none of the generated questions were valid.");
+        console.warn(`Attempt ${attempt}/${MAX_ATTEMPTS}: ${lastError.message}.`);
 
-    if (validatedQuestions.length === 0) {
-        throw new Error("The AI responded, but none of the generated questions were valid. Please try again with different content.");
+    } catch (error) {
+        lastError = error instanceof Error ? error : new Error("An unknown error occurred");
+        console.error(`Error on attempt ${attempt}/${MAX_ATTEMPTS} generating quiz:`, lastError);
     }
-
-    return { questions: validatedQuestions, webSources };
-
-  } catch (error) {
-    console.error("Error generating quiz from Gemini API:", error);
-    if (error instanceof Error) {
-        if (error.message.includes('json') || error.message.includes('JSON')) {
-            throw new Error("The AI returned an invalid format. Please try modifying your notes slightly and resubmitting.");
-        }
-        throw new Error(`An API error occurred: ${error.message}`);
+    
+    if (attempt < MAX_ATTEMPTS) {
+      await new Promise(res => setTimeout(res, 1000 * attempt)); // wait 1, 2 seconds before retrying
     }
-    throw new Error("An unknown error occurred while generating the quiz.");
   }
+
+  // If all attempts failed, throw the last recorded error.
+  console.error("All attempts to generate quiz failed.");
+  if (lastError) {
+      if (lastError.message.includes('json') || lastError.message.includes('JSON')) {
+          throw new Error("The AI returned an invalid format. Please try modifying your notes slightly and resubmitting.");
+      }
+      throw new Error(`An API error occurred after multiple attempts: ${lastError.message}`);
+  }
+
+  throw new Error("An unknown error occurred while generating the quiz after multiple attempts.");
 };

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { AnswerLog, Question, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion } from '../types';
 
@@ -5,6 +6,11 @@ interface ReviewScreenProps {
   answerLog: AnswerLog[];
   onRetakeSameQuiz: () => void;
   onStartNewQuiz: () => void;
+}
+
+interface ReviewCardProps {
+    log: AnswerLog;
+    index: number;
 }
 
 const getAnswerText = (question: Question, answer: any): string => {
@@ -22,7 +28,7 @@ const getAnswerText = (question: Question, answer: any): string => {
   }
 };
 
-const ReviewCard: React.FC<{ log: AnswerLog, index: number }> = ({ log, index }) => {
+const ReviewCard: React.FC<ReviewCardProps> = ({ log, index }) => {
   const { question, userAnswer, isCorrect } = log;
   const CorrectIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-correct" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
   const IncorrectIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-incorrect" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;

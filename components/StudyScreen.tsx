@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer } from '../types';
 import ProgressBar from './common/ProgressBar';
@@ -17,7 +18,7 @@ const SPEED_BONUS_POINTS = 5;
 const BASE_POINTS = 10;
 const STREAK_BONUS_MULTIPLIER = 2;
 
-const StudyScreen: React.FC<StudyScreenProps> = ({ quiz, onFinish, mode }) => {
+const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
@@ -74,7 +75,7 @@ const StudyScreen: React.FC<StudyScreenProps> = ({ quiz, onFinish, mode }) => {
       setStreak(0);
       setAnswerStatus('incorrect');
     }
-  }, [answerStatus, streak, timeLeft, isReviewMode, currentQuestion]);
+  }, [answerStatus, streak, timeLeft, isReviewMode, currentQuestion, setAnswerLog, setAnswerExplanation, setAnswerStatus, setScore, setStreak]);
 
   useEffect(() => {
     // Reset state for the new question
@@ -87,25 +88,28 @@ const StudyScreen: React.FC<StudyScreenProps> = ({ quiz, onFinish, mode }) => {
   }, [currentQuestionIndex]);
 
   useEffect(() => {
-    if (isReviewMode) return;
-
-    if (answerStatus !== 'unanswered') {
-      const delay = (timeLeft <= 0 && answerStatus === 'incorrect') ? 3500 : 2500;
-      const nextQuestionTimer = setTimeout(goToNextQuestion, delay);
-      return () => clearTimeout(nextQuestionTimer);
-    }
-
-    if (timeLeft <= 0) {
-      processAnswer(false, null); // Log 'null' for timed out unanswered questions
+    // This effect handles the countdown timer for practice mode.
+    // The transition to the next question is handled by the user clicking the 'Next' button.
+    
+    if (isReviewMode || answerStatus !== 'unanswered') {
+      // Don't run countdown if it's review mode or question is answered
       return;
     }
     
+    if (timeLeft <= 0) {
+      // Time ran out, process as incorrect and stop.
+      // User will then have to click "Next Question"
+      processAnswer(false, null); 
+      return;
+    }
+    
+    // Otherwise, continue the countdown.
     const countdownTimer = setTimeout(() => {
       setTimeLeft(t => t - 1);
     }, 1000);
 
     return () => clearTimeout(countdownTimer);
-  }, [answerStatus, timeLeft, processAnswer, goToNextQuestion, isReviewMode]);
+  }, [answerStatus, timeLeft, isReviewMode, processAnswer]);
 
   const handleMcSubmit = () => {
     if (selectedOptionIndex === null || currentQuestion.questionType !== QuestionType.MULTIPLE_CHOICE) return;
@@ -170,8 +174,10 @@ const StudyScreen: React.FC<StudyScreenProps> = ({ quiz, onFinish, mode }) => {
   const renderQuestionBody = () => {
     const isAnswered = answerStatus !== 'unanswered';
     if (isAnswered) {
+        // After an answer, we show a static version of the question's interactive elements.
         switch (currentQuestion.questionType) {
             case QuestionType.MULTIPLE_CHOICE:
+                // For MC, we show the options with highlighting.
                 return (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {currentQuestion.options.map((option, index) => {
@@ -190,12 +196,25 @@ const StudyScreen: React.FC<StudyScreenProps> = ({ quiz, onFinish, mode }) => {
                         })}
                     </div>
                 );
-            default:
-                 // For TF and FIB, the question text remains visible and feedback is shown below.
+            case QuestionType.FILL_IN_THE_BLANK:
+                // For answered FIB, we show the text with the filled-in, non-editable answer.
+                const [part1, part2] = currentQuestion.questionText.split('___');
+                return (
+                    <form onSubmit={(e) => e.preventDefault()} className="flex flex-col items-center gap-4">
+                        <p className="text-2xl sm:text-3xl font-bold text-text-primary text-center">
+                            {part1}
+                            <input type="text" value={fillBlankAnswer} className="mx-2 px-2 py-1 text-center w-48 bg-gray-900 border-b-2 border-brand-primary focus:outline-none focus:ring-0 text-brand-primary font-bold" readOnly />
+                            {part2}
+                        </p>
+                    </form>
+                );
+            default: // TRUE_FALSE
+                 // When TF is answered, the interactive buttons should just disappear.
                  return null;
         }
     }
 
+    // --- Unanswered question logic ---
     switch (currentQuestion.questionType) {
         case QuestionType.MULTIPLE_CHOICE:
             return (
@@ -262,7 +281,7 @@ const StudyScreen: React.FC<StudyScreenProps> = ({ quiz, onFinish, mode }) => {
   }
 
   return (
-    <div className="w-full max-w-3xl mx-auto p-4 flex flex-col animate-fade-in">
+    <div className="w-full max-w-3xl mx-auto p-4 flex flex-col animate-fade-in h-full">
       <header className="mb-6">
         <div className="grid grid-cols-3 items-center text-text-secondary mb-2">
           <span className="font-bold text-lg">Score: <span className="text-brand-primary">{score}</span></span>
@@ -283,22 +302,30 @@ const StudyScreen: React.FC<StudyScreenProps> = ({ quiz, onFinish, mode }) => {
         )}
       </header>
       
-      <div className="bg-surface-dark p-6 sm:p-8 rounded-xl shadow-2xl min-h-[350px] flex flex-col justify-center">
-        <h2 className="text-2xl sm:text-3xl font-bold mb-8 text-text-primary text-center" dangerouslySetInnerHTML={{ __html: currentQuestion.questionText }} />
+      <div className="bg-surface-dark p-6 sm:p-8 rounded-xl shadow-2xl flex flex-col justify-center flex-grow">
+        {/* Render question text for non-FIB questions. FIB text is part of its form. */}
+        {currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK && (
+            <h2 className="text-2xl sm:text-3xl font-bold mb-8 text-text-primary text-center" dangerouslySetInnerHTML={{ __html: currentQuestion.questionText }} />
+        )}
         
         {renderQuestionBody()}
-        {renderAnswerFeedback()}
+        
+        {/* Render the feedback/explanation block for ALL question types once answered */}
+        {answerStatus !== 'unanswered' && (
+            renderAnswerFeedback()
+        )}
       </div>
       
-      <div className="mt-6 h-16 flex items-center justify-center">
-        <div className="flex items-center">
-            {answerStatus === 'unanswered' ? null : renderFeedbackMessage()}
-            {isReviewMode && answerStatus !== 'unanswered' && (
+      <div className="mt-6 min-h-[8rem] flex items-center justify-center">
+        <div className="flex flex-col items-center justify-center gap-4 text-center">
+            {answerStatus !== 'unanswered' && renderFeedbackMessage()}
+            {answerStatus !== 'unanswered' && (
                 <button 
                     onClick={goToNextQuestion}
-                    className="ml-6 px-8 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-brand-primary transition-all text-lg animate-fade-in"
+                    className="px-8 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-brand-primary transition-all text-lg animate-fade-in"
+                    aria-label={currentQuestionIndex + 1 < totalQuestions ? 'Next Question' : 'Finish Quiz'}
                 >
-                    Next Question →
+                    {currentQuestionIndex + 1 < totalQuestions ? 'Next Question →' : 'Finish Quiz'}
                 </button>
             )}
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { StudySet } from '../types';
 
 const STORAGE_KEY = 'adaptive-study-game-sets';
@@ -34,13 +34,12 @@ export const useStudySets = (): [
   };
 
   const addSet = useCallback((newSet: Omit<StudySet, 'id' | 'createdAt'>) => {
-    const sets = studySets || [];
     const setWithId: StudySet = {
       ...newSet,
-      id: new Date().toISOString() + Math.random(),
+      id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
     };
-    saveSets([...sets, setWithId]);
+    saveSets([...studySets, setWithId]);
   }, [studySets]);
 
   const updateSet = useCallback((updatedSet: StudySet) => {

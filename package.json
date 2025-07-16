@@ -10,13 +10,17 @@
   },
   "dependencies": {
     "@google/genai": "^1.9.0",
+    "mammoth": "^1.9.1",
+    "pdfjs-dist": "latest",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
     "typescript": "~5.7.2",
-    "vercel": "^44.4.2",
     "vite": "^6.2.0"
   }
 }
