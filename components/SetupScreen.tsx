@@ -32,7 +32,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
   // State for Create/Edit/Study actions
   const [activeSet, setActiveSet] = useState<StudySet | null>(null);
   const [setName, setSetName] = useState('');
-  const [setContent, setSetContent] = useState('');
+  const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   
   // State for Config
@@ -49,7 +49,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
   const resetFormState = useCallback(() => {
     setActiveSet(null);
     setSetName('');
-    setSetContent('');
+    setContent('');
     setFiles([]);
     setNumQuestions(10);
     setStudyMode(StudyMode.PRACTICE);
@@ -65,7 +65,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
       // Pre-configure the screen for creating a new set with the provided content.
       resetFormState();
       setAction('CREATE_EDIT');
-      setSetContent(initialContent);
+      setContent(initialContent);
     }
   }, [initialContent, resetFormState]);
   
@@ -83,7 +83,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
     resetFormState();
     setActiveSet(set);
     setSetName(set.name);
-    setSetContent(set.content);
+    setContent(set.content);
     setAction('CREATE_EDIT');
   };
   
@@ -163,7 +163,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
                      const csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
                      combinedText += `\n\n--- Content from ${file.name} / Sheet: ${sheetName} ---\n${csvText}`;
                  });
-            } else if (file.type === 'text/plain') {
+            } else if (file.type === 'text/plain' || file.name.endsWith('.md') || file.type === 'text/markdown') {
                  combinedText += '\n\n' + await file.text();
             }
             processedFiles++;
@@ -204,7 +204,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
   };
   
   const handleSaveOnly = async () => {
-    if (!setName.trim() || (!setContent.trim() && files.length === 0)) {
+    if (!setName.trim() || (!content.trim() && files.length === 0)) {
         setProcessingError("Set name and content (pasted or from files) are required.");
         return;
     };
@@ -213,7 +213,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
     setProcessingError(null);
 
     try {
-        const { combinedText } = await prepareQuizParts(setContent, files, onProgress);
+        const { combinedText } = await prepareQuizParts(content, files, onProgress);
         
         if (activeSet) {
             updateSet({ ...activeSet, name: setName, content: combinedText.trim() });
@@ -232,7 +232,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
   };
 
   const handleSaveAndStart = async () => {
-    if (!setName.trim() || (!setContent.trim() && files.length === 0)) {
+    if (!setName.trim() || (!content.trim() && files.length === 0)) {
         setProcessingError("Set name and content (pasted or from files) are required.");
         return;
     };
@@ -242,7 +242,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
 
     try {
         // Call prepareQuizParts once to get both parts for the quiz and text for saving
-        const { parts, combinedText } = await prepareQuizParts(setContent, files, onProgress);
+        const { parts, combinedText } = await prepareQuizParts(content, files, onProgress);
         
         let savedSet: StudySet;
         // Save or update the set with the full text content
@@ -288,12 +288,12 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
   const FileUploader = ({ onChange }: { onChange: (e: React.ChangeEvent<HTMLInputElement>) => void }) => (
     <div>
         <label htmlFor="fileUpload" className="block text-lg font-medium text-text-secondary mb-3">Upload Materials</label>
-        <p className="text-sm text-gray-400 mb-2">Upload documents (.txt, .pdf, .docx), spreadsheets (.xlsx, .csv), images (.png, .jpg), and audio (.mp3, .m4a, .wav).</p>
+        <p className="text-sm text-gray-400 mb-2">Upload documents (.txt, .pdf, .docx, .md), spreadsheets (.xlsx, .csv), images (.png, .jpg), and audio (.mp3, .m4a, .wav).</p>
         <input 
             type="file" 
             id="fileUpload" 
             multiple 
-            accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,audio/*"
+            accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,audio/*,.md,text/markdown"
             onChange={onChange}
             className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-primary file:text-white hover:file:bg-brand-secondary"
         />
@@ -427,8 +427,8 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
                       <input type="text" id="setName" value={setName} onChange={e => setSetName(e.target.value)} placeholder="e.g., Biology Chapter 4" className="w-full p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"/>
                   </div>
                   <div>
-                      <label htmlFor="setContent" className="block text-lg font-medium text-text-secondary mb-2">Paste Notes</label>
-                      <textarea id="setContent" value={setContent} onChange={e => setSetContent(e.target.value)} placeholder="Paste your study material here, or upload files below." className="w-full h-40 p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"/>
+                      <label htmlFor="content" className="block text-lg font-medium text-text-secondary mb-2">Paste Notes</label>
+                      <textarea id="content" value={content} onChange={e => setContent(e.target.value)} placeholder="Paste your study material here, or upload files below." className="w-full h-40 p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"/>
                   </div>
                   <FileUploader onChange={handleFileChange} />
                   <div className="border-t border-gray-700 pt-8 space-y-8 text-center">

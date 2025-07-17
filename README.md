@@ -11,7 +11,7 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 - **AI-Powered Quiz Generation**: Automatically creates high-quality quizzes from your study materials, leveraging the power of the Gemini API.
 - **Multimodal Input**: Generate quizzes from a mix of sources:
   - Pasted text notes
-  - Documents (`.txt`, `.pdf`, `.docx`)
+  - Documents (`.txt`, `.pdf`, `.docx`, `.md`)
   - Spreadsheets (`.xlsx`, `.csv`)
   - Images (`.png`, `.jpg`, `.webp`)
   - Audio Files (`.mp3`, `.m4a`, `.wav`, etc.) - The AI transcribes the content for you.
@@ -37,7 +37,7 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 
 ## 🚀 How It Works
 
-1.  **Provide Your Material**: Paste notes directly on the landing page, or create a Study Set by uploading files (`.pdf`, `.docx`, images, audio, etc.).
+1.  **Provide Your Material**: Paste notes directly on the landing page, or create a Study Set by uploading files (`.pdf`, `.docx`, `.md`, images, audio, etc.).
 2.  **Manage Your Library**: Your study sets are saved in the browser. From the list, you can edit, delete, start a new quiz, or **view the quiz history** for any set.
 3.  **Configure Your Quiz**: Before starting, choose the number of questions, knowledge source (Notes Only, AI-supplemented, Web Search), and study mode (timed Practice vs. untimed Review).
 4.  **Take the Quiz**: The app processes your materials and uses the Gemini API to generate a custom quiz. Answer questions and get real-time feedback on your score and streaks.

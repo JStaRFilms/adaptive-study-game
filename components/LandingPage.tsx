@@ -163,7 +163,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
 
 const featureCards = [
     { icon: '🧠', title: 'AI Quiz Generation', description: 'Turns your passive study materials into active learning challenges automatically.' },
-    { icon: '📁', title: 'Multimodal Input', description: 'Supports PDFs, Docs, spreadsheets, images, and even transcribes audio files.' },
+    { icon: '📁', title: 'Multimodal Input', description: 'Supports PDFs, Docs, Markdown, spreadsheets, images, and even transcribes audio files.' },
     { icon: '🎲', title: 'Gamified Experience', description: 'Makes studying engaging with points, streaks, and speed bonuses to keep you motivated.' },
 ];
 
