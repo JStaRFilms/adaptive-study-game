@@ -54,7 +54,7 @@ const getInstructionText = (numberOfQuestions: number, knowledgeSource: Knowledg
 - For EVERY question, provide a brief 'explanation' for why the correct answer is correct.
 - For MULTIPLE_CHOICE questions, provide 4 options and the index of the correct one.
 - For TRUE_FALSE questions, provide a statement and whether it is true or false.
-- For FILL_IN_THE_BLANK questions, formulate a sentence with a key term replaced by '___', provide the missing term, and optionally provide a list of 'acceptableAnswers' for common misspellings, typos, or synonyms.`;
+- For FILL_IN_THE_BLANK questions, formulate a sentence with a key term replaced by '___' and provide the missing term. Crucially, provide a comprehensive list of 'acceptableAnswers'. This list MUST include common misspellings, plural/singular variations (e.g., if the answer is 'cat', include 'cats'), and different formats (e.g., if the answer is '5', include 'five'). Be generous with acceptable answers to avoid penalizing users for minor errors.`;
 
     switch (knowledgeSource) {
         case KnowledgeSource.GENERAL:
@@ -113,7 +113,7 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
             config: apiConfig,
         });
 
-        let jsonText = response.text ? response.text.trim() : "";
+        let jsonText = response.text?.trim() ?? "";
         if (knowledgeSource === KnowledgeSource.WEB_SEARCH) {
             const match = jsonText.match(/```json\n([\s\S]*)\n```/);
             if (match) {
@@ -136,7 +136,7 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
             .filter((web): web is WebSource => web && web.uri) || [];
         
         const validatedQuestions: Question[] = rawQuizData.questions.map((q: any): Question | null => {
-            const questionText = q.questionText || q.question;
+            const questionText = q.questionText ?? q.question;
 
             if (!q.questionType || !questionText || !q.explanation) {
                 console.warn(`Skipping invalid question from AI (missing type, text, or explanation):`, q);
@@ -168,7 +168,7 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
                         explanation: q.explanation,
                     };
                 case QuestionType.FILL_IN_THE_BLANK:
-                    const correctAnswerString = q.correctAnswerString || q.missingTerm;
+                    const correctAnswerString = q.correctAnswerString ?? q.missingTerm;
                     if (typeof correctAnswerString !== 'string' || !questionText.includes('___')) {
                         console.warn(`Skipping invalid FILL_IN_THE_BLANK question from AI:`, q);
                         return null;

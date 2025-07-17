@@ -80,4 +80,15 @@ export interface AnswerLog {
   isCorrect: boolean;
 }
 
+export interface QuizResult {
+    id: string;
+    studySetId: string;
+    date: string;
+    score: number;
+    accuracy: number;
+    answerLog: AnswerLog[];
+    webSources?: WebSource[];
+    mode: StudyMode;
+}
+
 export type PromptPart = { text: string } | { inlineData: { mimeType: string; data: string } };

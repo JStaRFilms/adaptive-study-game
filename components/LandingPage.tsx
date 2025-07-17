@@ -75,7 +75,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
             >
               🔥 Launch App (BETA)
             </button>
-            <p className="text-sm mt-4 text-gray-500">Powered by J Start Films</p>
+            <p className="text-sm mt-4 text-gray-500">Powered by JStaR Films</p>
           </div>
         </section>
 
@@ -148,9 +148,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
       <footer className="text-center py-10 bg-surface-dark/20 border-t border-gray-800">
         <div className="container mx-auto">
           <p className="font-bold text-lg">Made by John Oluleke-Oke</p>
-          <p className="text-text-secondary mb-4">🎬 Powered by J Start Films</p>
+          <p className="text-text-secondary mb-4">🎬 Powered by JStaR Films</p>
           <div className="flex justify-center items-center flex-wrap gap-x-6 gap-y-2">
-            <a href="https://wa.me/2348152657887" target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:underline font-medium">WhatsApp</a>
+            <a href="https://wa.me/248152657887" target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:underline font-medium">WhatsApp</a>
             <a href="https://www.youtube.com/@jstarfilms" target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:underline font-medium">YouTube</a>
             <a href="mailto:johnoke.work@gmail.com" className="text-brand-primary hover:underline font-medium">Email</a>
           </div>

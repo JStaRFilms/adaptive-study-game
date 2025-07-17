@@ -3,24 +3,30 @@ import React, { useState, useCallback, useEffect } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
-import { StudyMode, StudySet, QuizConfig, PromptPart, KnowledgeSource } from '../types';
+import { StudyMode, StudySet, QuizConfig, PromptPart, KnowledgeSource, AnswerLog } from '../types';
 import { useStudySets } from '../hooks/useStudySets';
+import { useQuizHistory } from '../hooks/useQuizHistory';
 import ProgressBar from './common/ProgressBar';
+import LoadingSpinner from './common/LoadingSpinner';
 
 // Configure the PDF.js worker to be loaded from a CDN. This is necessary for the library to process PDFs in a separate thread.
-// We are using a version that matches the main `pdfjs-dist` library imported via the import map in index.html.
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
-
-interface SetupScreenProps {
-  onStart: (parts: PromptPart[], config: QuizConfig) => void;
-  error: string | null;
-  initialContent?: string | null;
+// By using `pdfjsLib.version`, we ensure the worker version always matches the library version imported from the import map.
+if (pdfjsLib.version) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 }
 
-type Action = 'LIST' | 'CREATE_EDIT' | 'STUDY';
+interface SetupScreenProps {
+  onStart: (parts: PromptPart[], config: QuizConfig, studySetId: string) => void;
+  error: string | null;
+  initialContent?: string | null;
+  onReviewHistory: (log: AnswerLog[]) => void;
+}
 
-const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialContent }) => {
+type Action = 'LIST' | 'CREATE_EDIT' | 'STUDY' | 'HISTORY';
+
+const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialContent, onReviewHistory }) => {
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
+  const [, getHistoryForSet] = useQuizHistory();
   const [action, setAction] = useState<Action>('LIST');
   
   // State for Create/Edit/Study actions
@@ -87,6 +93,12 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
     setAction('STUDY');
   };
   
+  const handleShowHistory = (set: StudySet) => {
+    resetFormState();
+    setActiveSet(set);
+    setAction('HISTORY');
+  }
+
   const onProgress = useCallback((message: string, percent: number) => {
     setProgressMessage(message);
     setProgressPercent(percent);
@@ -169,10 +181,11 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
 
 
   const handleStartQuiz = async () => {
+    if (!activeSet) return;
     setIsProcessing(true);
     setProcessingError(null);
 
-    const baseText = activeSet ? activeSet.content : '';
+    const baseText = activeSet.content;
     
     try {
         const { parts } = await prepareQuizParts(baseText, files, onProgress);
@@ -181,7 +194,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
             setIsProcessing(false);
             return;
         }
-        onStart(parts, { numberOfQuestions: numQuestions, mode: studyMode, knowledgeSource });
+        onStart(parts, { numberOfQuestions: numQuestions, mode: studyMode, knowledgeSource }, activeSet.id);
     } catch (err) {
         console.error("Error processing files:", err);
         const errorMessage = err instanceof Error ? err.message : "An unknown error occurred during file processing.";
@@ -231,11 +244,13 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
         // Call prepareQuizParts once to get both parts for the quiz and text for saving
         const { parts, combinedText } = await prepareQuizParts(setContent, files, onProgress);
         
+        let savedSet: StudySet;
         // Save or update the set with the full text content
         if (activeSet) { // Editing existing set
-            updateSet({ ...activeSet, name: setName, content: combinedText.trim() });
+            savedSet = { ...activeSet, name: setName, content: combinedText.trim() };
+            updateSet(savedSet);
         } else { // Creating new set
-            addSet({ name: setName, content: combinedText.trim() });
+            savedSet = addSet({ name: setName, content: combinedText.trim() });
         }
 
         if (parts.length === 0) {
@@ -243,7 +258,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
             setIsProcessing(false);
             return;
         }
-        onStart(parts, { numberOfQuestions: numQuestions, mode: studyMode, knowledgeSource });
+        onStart(parts, { numberOfQuestions: numQuestions, mode: studyMode, knowledgeSource }, savedSet.id);
 
     } catch (err) {
         console.error("Error processing files:", err);
@@ -348,7 +363,8 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
 
   const ProcessingFilesView = () => (
     <div className="bg-surface-dark p-8 rounded-xl min-h-[40vh] flex flex-col justify-center items-center text-center animate-fade-in">
-        <p className="text-2xl font-bold text-text-primary mb-4">{progressMessage || 'Preparing your files...'}</p>
+        <LoadingSpinner />
+        <p className="text-2xl font-bold text-text-primary mt-6 mb-4">{progressMessage || 'Preparing your files...'}</p>
         <div className="w-full max-w-sm">
             <ProgressBar progress={progressPercent} />
         </div>
@@ -389,6 +405,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
               <div className="flex gap-2 flex-shrink-0 self-end sm:self-center">
                 <button onClick={() => handleEditSet(set)} className="p-2 rounded-md hover:bg-gray-600" aria-label="Edit"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
                 <button onClick={() => deleteSet(set.id)} className="p-2 rounded-md hover:bg-gray-600" aria-label="Delete"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
+                <button onClick={() => handleShowHistory(set)} className="px-4 py-2 bg-gray-600 text-white font-bold rounded-md hover:bg-gray-500 transition-all">History</button>
                 <button onClick={() => handleStudySet(set)} className="px-4 py-2 bg-brand-primary text-white font-bold rounded-md hover:bg-brand-secondary transition-all">Study</button>
               </div>
             </div>
@@ -399,25 +416,27 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
   );
   
   const renderCreateEditView = () => (
-    <div className="animate-fade-in w-full max-w-2xl mx-auto">
+    <div className="animate-fade-in w-full max-w-2xl mx-auto flex flex-col flex-grow">
         <h1 className="text-3xl sm:text-4xl font-bold text-text-primary mb-6 text-center">{activeSet ? 'Edit Study Set' : 'Create New Study Set'}</h1>
         
-        {isProcessing ? <ProcessingFilesView /> : (
-            <div className="space-y-8 bg-surface-dark p-6 sm:p-8 rounded-xl">
-                <div>
-                    <label htmlFor="setName" className="block text-lg font-medium text-text-secondary mb-2">Set Name</label>
-                    <input type="text" id="setName" value={setName} onChange={e => setSetName(e.target.value)} placeholder="e.g., Biology Chapter 4" className="w-full p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"/>
-                </div>
-                <div>
-                    <label htmlFor="setContent" className="block text-lg font-medium text-text-secondary mb-2">Paste Notes</label>
-                    <textarea id="setContent" value={setContent} onChange={e => setSetContent(e.target.value)} placeholder="Paste your study material here, or upload files below." className="w-full h-40 p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"/>
-                </div>
-                <FileUploader onChange={handleFileChange} />
-                <div className="border-t border-gray-700 pt-8 space-y-8 text-center">
-                    <QuizConfigurator />
-                </div>
-            </div>
-        )}
+        <div className="flex-grow">
+          {isProcessing ? <ProcessingFilesView /> : (
+              <div className="space-y-8 bg-surface-dark p-6 sm:p-8 rounded-xl h-full">
+                  <div>
+                      <label htmlFor="setName" className="block text-lg font-medium text-text-secondary mb-2">Set Name</label>
+                      <input type="text" id="setName" value={setName} onChange={e => setSetName(e.target.value)} placeholder="e.g., Biology Chapter 4" className="w-full p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"/>
+                  </div>
+                  <div>
+                      <label htmlFor="setContent" className="block text-lg font-medium text-text-secondary mb-2">Paste Notes</label>
+                      <textarea id="setContent" value={setContent} onChange={e => setSetContent(e.target.value)} placeholder="Paste your study material here, or upload files below." className="w-full h-40 p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"/>
+                  </div>
+                  <FileUploader onChange={handleFileChange} />
+                  <div className="border-t border-gray-700 pt-8 space-y-8 text-center">
+                      <QuizConfigurator />
+                  </div>
+              </div>
+          )}
+        </div>
         
          {processingError && !isProcessing && (
             <div className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg relative mt-6 w-full" role="alert">
@@ -471,11 +490,66 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, error, initialConten
     </div>
   );
 
+  const renderHistoryView = () => {
+    if (!activeSet) return renderListView();
+    const history = getHistoryForSet(activeSet.id);
+    
+    return (
+        <div className="animate-fade-in w-full max-w-2xl mx-auto">
+            <h1 className="text-3xl sm:text-4xl font-bold text-text-primary mb-2 text-center">Quiz History</h1>
+            <p className="text-text-secondary mb-8 text-center">For "{activeSet.name}"</p>
+
+            {history.length === 0 ? (
+                <div className="text-center py-16 px-6 bg-surface-dark rounded-xl">
+                    <h2 className="text-2xl font-semibold text-text-primary mb-2">No History Yet</h2>
+                    <p className="text-text-secondary mb-6">Complete a quiz for this set to see your history here.</p>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {history.map((result) => (
+                        <div key={result.id} className="bg-surface-dark p-4 rounded-lg flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <div>
+                                <p className="font-bold text-text-primary">{new Date(result.date).toLocaleString()}</p>
+                                <p className="text-sm text-text-secondary">Mode: {result.mode}</p>
+                            </div>
+                            <div className="flex items-center gap-6">
+                                <div>
+                                    <p className="text-xs text-text-secondary">Score</p>
+                                    <p className="font-bold text-xl text-brand-primary">{result.score}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-text-secondary">Accuracy</p>
+                                    <p className="font-bold text-xl text-brand-primary">{result.accuracy}%</p>
+                                </div>
+                                <button
+                                    onClick={() => onReviewHistory(result.answerLog)}
+                                    className="px-4 py-2 bg-brand-secondary text-white font-bold rounded-md hover:bg-brand-primary transition-all"
+                                >
+                                    Review
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+            
+             <div className="mt-8 flex justify-center">
+                <button onClick={handleShowList} className="px-8 py-3 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-all">
+                    Back to Study Sets
+                </button>
+            </div>
+        </div>
+    );
+  };
+
+
   switch (action) {
     case 'CREATE_EDIT':
       return renderCreateEditView();
     case 'STUDY':
       return renderStudyConfigView();
+    case 'HISTORY':
+      return renderHistoryView();
     case 'LIST':
     default:
       return renderListView();

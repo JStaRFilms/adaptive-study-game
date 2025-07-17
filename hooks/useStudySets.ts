@@ -5,7 +5,7 @@ const STORAGE_KEY = 'adaptive-study-game-sets';
 
 export const useStudySets = (): [
   StudySet[],
-  (set: Omit<StudySet, 'id' | 'createdAt'>) => void,
+  (set: Omit<StudySet, 'id' | 'createdAt'>) => StudySet,
   (set: StudySet) => void,
   (setId: string) => void
 ] => {
@@ -33,7 +33,7 @@ export const useStudySets = (): [
     }
   };
 
-  const addSet = useCallback((newSet: Omit<StudySet, 'id' | 'createdAt'>) => {
+  const addSet = useCallback((newSet: Omit<StudySet, 'id' | 'createdAt'>): StudySet => {
     const sets = studySets || [];
     const setWithId: StudySet = {
       ...newSet,
@@ -41,6 +41,7 @@ export const useStudySets = (): [
       createdAt: new Date().toISOString(),
     };
     saveSets([...sets, setWithId]);
+    return setWithId;
   }, [studySets]);
 
   const updateSet = useCallback((updatedSet: StudySet) => {

@@ -8,7 +8,6 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 
 ## ✨ Key Features
 
-- **Dynamic & Interactive Landing Page**: A visually engaging entry point with animations and an interactive text area to seamlessly start your first study session.
 - **AI-Powered Quiz Generation**: Automatically creates high-quality quizzes from your study materials, leveraging the power of the Gemini API.
 - **Multimodal Input**: Generate quizzes from a mix of sources:
   - Pasted text notes
@@ -20,40 +19,30 @@ An intelligent study tool that uses the Google Gemini API to transform your note
   - **Notes Only**: Strictly uses the materials you provide.
   - **Notes + AI Knowledge**: Supplements your notes with the AI's vast general knowledge for a more comprehensive quiz.
   - **Notes + Web Search**: Uses Google Search to find the latest information on your topic and includes source links with the results.
-- **Multiple Question Types**: Generates a mix of question formats to keep you engaged, including:
-  - Multiple Choice
-  - True/False
-  - Fill-in-the-Blank
+- **Multiple Question Types**: Generates a mix of question formats to keep you engaged, including Multiple Choice, True/False, and Fill-in-the-Blank.
 - **Flexible Answer Validation**: For fill-in-the-blank questions, the AI is prompted to accept common synonyms, typos, and misspellings, so you don't get marked incorrect for a minor mistake.
-- **Gamified Learning**:
-  - **Scoring System**: Earn points for correct answers.
-  - **Streak Bonuses**: Build a streak of correct answers for bonus points.
-  - **Speed Bonuses**: Answer quickly in Practice Mode for extra points.
+- **Gamified Learning**: Earn points for correct answers, build streaks for bonuses, and answer quickly in Practice Mode for extra points.
 - **Two Distinct Study Modes**:
   - **Practice Mode**: A timed challenge where you race against the clock for the highest score.
-  - **Review Mode**: A relaxed, untimed mode perfect for self-paced learning and reinforcing concepts without pressure.
-- **Persistent Study Sets**: Create, edit, and save study sets for later. Build your library of materials and study whenever you're ready. Your notes are saved in your browser's local storage for easy access.
-- **Detailed Feedback & Review**: After each quiz, you can access a comprehensive review screen showing:
-  - Each question and your answer.
-  - The correct answer.
-  - A clear explanation for every question.
-- **Retake or Start Anew**: From the review screen, choose to retake the exact same quiz to reinforce weak spots or generate a brand new quiz from your notes.
+  - **Review Mode**: A relaxed, untimed mode perfect for self-paced learning.
+- **Enhanced Review Mode**: In addition to being untimed, Review Mode now features **back-and-forth navigation**, allowing you to move freely between questions to solidify your understanding.
+- **Persistent Study Sets**: Create, edit, and save study sets. Your notes are saved in your browser's local storage for easy access anytime.
+- **Quiz History & Progress Tracking**: Every quiz session is automatically saved. Go back and review past attempts for any study set to track your scores, accuracy, and improvement over time.
+- **Detailed Feedback & Review**: After each quiz, access a comprehensive review screen showing each question, your answer, the correct answer, and a clear explanation.
+- **Retake or Start Anew**: From the review screen, choose to retake the exact same quiz to reinforce weak spots or generate a brand new quiz.
+- **Dynamic & Interactive Landing Page**: A visually engaging entry point with animations and an interactive text area to seamlessly start your first study session.
 - **Responsive Design**: A clean, modern, and fully responsive UI built with Tailwind CSS, ensuring a great experience on any device.
 
 ---
 
 ## 🚀 How It Works
 
-1.  **Experience the Magic**: Paste notes directly into the interactive text area on the animated landing page and click "Experience the Magic" to be transported directly into the app with your notes ready to go.
-2.  **Or Create a Study Set**: Alternatively, launch the app and create a new study set from scratch. Give it a name and add notes by pasting text or uploading files (Docs, PDFs, images, audio, etc.).
-3.  **Save or Configure**: You can "Save Only" to build your library of study sets for later, or proceed to configure your quiz:
-    -   **Number of Questions**: From 5 to 50.
-    -   **Knowledge Source**: Choose whether to use your notes only, supplement with AI knowledge, or use the web.
-    -   **Study Mode**: Choose between the timed "Practice" mode or the untimed "Review" mode.
-4.  **Start Studying**: The app processes your materials and sends them to the Gemini API, which generates a custom quiz based on your configuration.
-5.  **Take the Quiz**: Answer the questions. The interface provides immediate feedback and tracks your score and streaks in real-time.
-6.  **View Results**: Once the quiz is complete, you'll see a results screen with your final score and a performance summary. If you used web search, you'll see a list of sources.
-7.  **Review and Reinforce**: Click "Review Answers" to see a detailed breakdown of your performance. From here, you can either "Retake Same Quiz" or "Create New Quiz".
+1.  **Provide Your Material**: Paste notes directly on the landing page, or create a Study Set by uploading files (`.pdf`, `.docx`, images, audio, etc.).
+2.  **Manage Your Library**: Your study sets are saved in the browser. From the list, you can edit, delete, start a new quiz, or **view the quiz history** for any set.
+3.  **Configure Your Quiz**: Before starting, choose the number of questions, knowledge source (Notes Only, AI-supplemented, Web Search), and study mode (timed Practice vs. untimed Review).
+4.  **Take the Quiz**: The app processes your materials and uses the Gemini API to generate a custom quiz. Answer questions and get real-time feedback on your score and streaks.
+5.  **View Results & Sources**: After finishing, see a summary of your score and accuracy. If you used web search, all sources are cited.
+6.  **Review and Reinforce**: Dive into a detailed review of your answers. From here, you can retake the same quiz to improve, or start a new one.
 
 ---
 
@@ -107,6 +96,7 @@ The application's code (`services/geminiService.ts`) expects to access the key v
 │   ├── SetupScreen.tsx      # Initial screen for creating sets and configuring quizzes
 │   └── StudyScreen.tsx      # The main interactive quiz screen
 ├── hooks/
+│   ├── useQuizHistory.ts    # Custom hook for managing quiz history
 │   └── useStudySets.ts      # Custom hook for managing study sets in localStorage
 ├── services/
 │   └── geminiService.ts     # Handles all API calls to Google Gemini

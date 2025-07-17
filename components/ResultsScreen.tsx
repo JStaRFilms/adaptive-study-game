@@ -1,27 +1,29 @@
 
 import React from 'react';
-import { WebSource } from '../types';
+import { WebSource, AnswerLog } from '../types';
 
 interface ResultsScreenProps {
   score: number;
-  maxPossibleScore: number;
+  answerLog: AnswerLog[];
   onRestart: () => void;
   onReview: () => void;
   webSources?: WebSource[];
 }
 
-const ResultsScreen: React.FC<ResultsScreenProps> = ({ score, maxPossibleScore, onRestart, onReview, webSources }) => {
-  const percentage = maxPossibleScore > 0 ? Math.round((score / maxPossibleScore) * 100) : 0;
+const ResultsScreen: React.FC<ResultsScreenProps> = ({ score, answerLog, onRestart, onReview, webSources }) => {
+  const totalQuestions = answerLog.length;
+  const correctAnswers = answerLog.filter(log => log.isCorrect).length;
+  const accuracy = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
   
   let feedbackMessage = "";
   let feedbackEmoji = "";
-  if (percentage >= 90) {
+  if (accuracy >= 90) {
     feedbackMessage = "Excellent work! You've mastered this material.";
     feedbackEmoji = "🚀";
-  } else if (percentage >= 70) {
+  } else if (accuracy >= 70) {
     feedbackMessage = "Great job! You have a solid understanding of the topic.";
     feedbackEmoji = "👍";
-  } else if (percentage >= 50) {
+  } else if (accuracy >= 50) {
     feedbackMessage = "Good effort! A little more review could really help.";
     feedbackEmoji = "💪";
   } else {
@@ -36,21 +38,21 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ score, maxPossibleScore, 
         <p className="text-lg text-text-secondary mb-8">Here's how you did:</p>
         
         <div className="mb-6">
-            <div className="flex justify-center items-baseline gap-4">
+            <div className="flex justify-around items-baseline gap-4">
                 <div>
                     <p className="text-xl text-text-secondary">Your Score</p>
                     <p className="text-7xl font-bold text-brand-primary my-2">{score}</p>
                 </div>
                 <div>
                     <p className="text-xl text-text-secondary">Accuracy</p>
-                    <p className="text-7xl font-bold text-brand-primary my-2">{percentage}%</p>
+                    <p className="text-7xl font-bold text-brand-primary my-2">{accuracy}%</p>
                 </div>
             </div>
         </div>
         
         <p className="text-xl text-text-primary mb-10">{feedbackMessage} {feedbackEmoji}</p>
         
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col gap-4">
           <button
             onClick={onReview}
             className="w-full px-8 py-4 bg-brand-secondary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-primary transition-all duration-300 transform hover:scale-105"

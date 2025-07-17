@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer } from '../types';
 import ProgressBar from './common/ProgressBar';
@@ -6,7 +5,7 @@ import TimerBar from './common/TimerBar';
 
 interface StudyScreenProps {
   quiz: Quiz;
-  onFinish: (finalScore: number, maxPossibleScore: number, log: AnswerLog[]) => void;
+  onFinish: (finalScore: number, log: AnswerLog[]) => void;
   mode: StudyMode;
 }
 
@@ -29,30 +28,25 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
   const [bonusPointsAwarded, setBonusPointsAwarded] = useState(0);
   const [answerExplanation, setAnswerExplanation] = useState<string | null>(null);
   const [answerLog, setAnswerLog] = useState<AnswerLog[]>([]);
+  const [correctionFeedback, setCorrectionFeedback] = useState<string | null>(null);
 
   const isReviewMode = mode === StudyMode.REVIEW;
   const currentQuestion: Question = quiz.questions[currentQuestionIndex];
   const totalQuestions = quiz.questions.length;
 
-  const calculateMaxScore = useCallback(() => {
-    let max = 0;
-    for (let i = 0; i < totalQuestions; i++) {
-        max += BASE_POINTS; // Base points
-        max += i * STREAK_BONUS_MULTIPLIER; // Streak bonus
-        if (!isReviewMode) {
-            max += SPEED_BONUS_POINTS; // Speed bonus
-        }
-    }
-    return max;
-  }, [totalQuestions, isReviewMode]);
-
   const goToNextQuestion = useCallback(() => {
     if (currentQuestionIndex + 1 < totalQuestions) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
-      onFinish(score, calculateMaxScore(), answerLog);
+      onFinish(score, answerLog);
     }
-  }, [currentQuestionIndex, totalQuestions, onFinish, score, calculateMaxScore, answerLog]);
+  }, [currentQuestionIndex, totalQuestions, onFinish, score, answerLog]);
+
+  const goToPreviousQuestion = useCallback(() => {
+    if (currentQuestionIndex > 0) {
+        setCurrentQuestionIndex(currentQuestionIndex - 1);
+    }
+  }, [currentQuestionIndex]);
 
   const processAnswer = useCallback((isCorrect: boolean, userAnswer: UserAnswer) => {
     if (answerStatus !== 'unanswered') return;
@@ -77,15 +71,54 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
     }
   }, [answerStatus, streak, timeLeft, isReviewMode, currentQuestion, setAnswerLog, setAnswerExplanation, setAnswerStatus, setScore, setStreak]);
 
-  useEffect(() => {
-    // Reset state for the new question
-    setTimeLeft(QUESTION_TIME_LIMIT);
-    setBonusPointsAwarded(0);
-    setAnswerStatus('unanswered');
-    setSelectedOptionIndex(null);
-    setFillBlankAnswer('');
-    setAnswerExplanation(null);
-  }, [currentQuestionIndex]);
+    // This effect handles state restoration when navigating back and forth in review mode,
+    // and resetting state for new questions.
+    useEffect(() => {
+        const logEntry = answerLog.find(log => log.question === quiz.questions[currentQuestionIndex]);
+
+        if (logEntry) {
+            // This question has been answered before, so restore its state for viewing.
+            setAnswerStatus(logEntry.isCorrect ? 'correct' : 'incorrect');
+            setAnswerExplanation(logEntry.question.explanation);
+            setTimeLeft(0);
+            setBonusPointsAwarded(0);
+
+            // Restore the specific answer input for display purposes
+            if (logEntry.question.questionType === QuestionType.MULTIPLE_CHOICE) {
+                setSelectedOptionIndex(logEntry.userAnswer as number | null);
+                setFillBlankAnswer('');
+            } else if (logEntry.question.questionType === QuestionType.FILL_IN_THE_BLANK) {
+                setFillBlankAnswer(logEntry.userAnswer as string || '');
+                setSelectedOptionIndex(null);
+
+                // Re-evaluate correction feedback for soft-correct FIB answers
+                const typedQuestion = logEntry.question as FillInTheBlankQuestion;
+                const userAnswer = (logEntry.userAnswer as string || '').toLowerCase();
+                const correctAnswer = typedQuestion.correctAnswer.toLowerCase();
+                const acceptableAnswers = (typedQuestion.acceptableAnswers || []).map(a => a.toLowerCase());
+                const isAcceptable = userAnswer !== correctAnswer && acceptableAnswers.includes(userAnswer);
+                if (logEntry.isCorrect && isAcceptable) {
+                    setCorrectionFeedback(`We accepted your answer, but the ideal answer is: "${typedQuestion.correctAnswer}"`);
+                } else {
+                     setCorrectionFeedback(null);
+                }
+            } else { // True/False
+                setSelectedOptionIndex(null);
+                setFillBlankAnswer('');
+                setCorrectionFeedback(null);
+            }
+        } else {
+            // This is a new, unanswered question. Reset all state to default.
+            setTimeLeft(QUESTION_TIME_LIMIT);
+            setBonusPointsAwarded(0);
+            setAnswerStatus('unanswered');
+            setSelectedOptionIndex(null);
+            setFillBlankAnswer('');
+            setAnswerExplanation(null);
+            setCorrectionFeedback(null);
+        }
+    }, [currentQuestionIndex, answerLog, quiz.questions]);
+
 
   useEffect(() => {
     // This effect handles the countdown timer for practice mode.
@@ -131,8 +164,17 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
     const correctAnswer = typedQuestion.correctAnswer.toLowerCase();
     const acceptableAnswers = (typedQuestion.acceptableAnswers || []).map(a => a.toLowerCase());
 
-    const isCorrect = userAnswer === correctAnswer || acceptableAnswers.includes(userAnswer);
-    processAnswer(isCorrect, userAnswerStr);
+    const isPerfectMatch = userAnswer === correctAnswer;
+    const isAcceptable = !isPerfectMatch && acceptableAnswers.includes(userAnswer);
+
+    if (isPerfectMatch || isAcceptable) {
+        if (isAcceptable) {
+            setCorrectionFeedback(`We accepted your answer, but the ideal answer is: "${typedQuestion.correctAnswer}"`);
+        }
+        processAnswer(true, userAnswerStr);
+    } else {
+        processAnswer(false, userAnswerStr);
+    }
   };
   
   const renderAnswerFeedback = () => {
@@ -265,6 +307,9 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
       return (
         <div className="text-center">
             <p className="text-2xl font-bold text-correct animate-pulse">Correct! 🎉</p>
+            {correctionFeedback && (
+                <p className="text-base text-yellow-300 mt-2">{correctionFeedback}</p>
+            )}
             {!isReviewMode && bonusPointsAwarded > 0 && <p className="text-lg font-bold text-yellow-400">+{bonusPointsAwarded} Speed Bonus!</p>}
         </div>
       );
@@ -319,15 +364,28 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
       <div className="mt-6 min-h-[8rem] flex items-center justify-center">
         <div className="flex flex-col items-center justify-center gap-4 text-center">
             {answerStatus !== 'unanswered' && renderFeedbackMessage()}
-            {answerStatus !== 'unanswered' && (
-                <button 
-                    onClick={goToNextQuestion}
-                    className="px-8 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-brand-primary transition-all text-lg animate-fade-in"
-                    aria-label={currentQuestionIndex + 1 < totalQuestions ? 'Next Question' : 'Finish Quiz'}
-                >
-                    {currentQuestionIndex + 1 < totalQuestions ? 'Next Question →' : 'Finish Quiz'}
-                </button>
-            )}
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                {isReviewMode && currentQuestionIndex > 0 && (
+                    <button 
+                        onClick={goToPreviousQuestion}
+                        className="px-8 py-3 bg-gray-600 text-white font-bold rounded-lg shadow-md hover:bg-gray-500 transition-all text-lg animate-fade-in"
+                        aria-label="Previous Question"
+                    >
+                        ← Previous
+                    </button>
+                )}
+
+                {answerStatus !== 'unanswered' && (
+                    <button 
+                        onClick={goToNextQuestion}
+                        className="px-8 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-brand-primary transition-all text-lg animate-fade-in"
+                        aria-label={currentQuestionIndex + 1 < totalQuestions ? 'Next Question' : 'Finish Quiz'}
+                    >
+                        {currentQuestionIndex + 1 < totalQuestions ? 'Next Question →' : 'Finish Quiz'}
+                    </button>
+                )}
+            </div>
         </div>
       </div>
     </div>

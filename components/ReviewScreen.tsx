@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { AnswerLog, Question, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion } from '../types';
 
@@ -46,6 +45,18 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index }) => {
           break;
   }
 
+  const userAnswerText = getAnswerText(question, userAnswer);
+  let isPerfectMatch = false;
+
+  if (question.questionType === QuestionType.FILL_IN_THE_BLANK) {
+      const ua = userAnswer as string | null;
+      isPerfectMatch = ua?.trim().toLowerCase() === (question as FillInTheBlankQuestion).correctAnswer.trim().toLowerCase();
+  } else if (question.questionType === QuestionType.MULTIPLE_CHOICE) {
+      isPerfectMatch = userAnswer === (question as MultipleChoiceQuestion).correctAnswerIndex;
+  } else if (question.questionType === QuestionType.TRUE_FALSE) {
+      isPerfectMatch = userAnswer === (question as TrueFalseQuestion).correctAnswer;
+  }
+
   return (
     <div className="bg-surface-dark p-6 rounded-xl border border-gray-700">
       <div className="flex justify-between items-start mb-4">
@@ -55,8 +66,8 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index }) => {
       <p className="text-xl font-semibold text-text-primary mb-4" dangerouslySetInnerHTML={{__html: question.questionText}} />
       
       <div className="space-y-3 text-text-secondary">
-        <p>Your Answer: <span className={`font-bold ${isCorrect ? 'text-correct' : 'text-incorrect'}`}>{getAnswerText(question, userAnswer)}</span></p>
-        {!isCorrect && <p>Correct Answer: <span className="font-bold text-correct">{correctAnswerText}</span></p>}
+        <p>Your Answer: <span className={`font-bold ${isCorrect ? 'text-correct' : 'text-incorrect'}`}>{userAnswerText}</span></p>
+        {(!isCorrect || !isPerfectMatch) && <p>Correct Answer: <span className="font-bold text-correct">{correctAnswerText}</span></p>}
         <div className="pt-2">
             <p className="font-bold text-sm text-gray-400">EXPLANATION</p>
             <p>{question.explanation}</p>
