@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useCallback } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet } from './types';
 import SetupScreen from './components/SetupScreen';
@@ -123,9 +124,11 @@ const App: React.FC = () => {
       }
   }, []);
 
-  const handleReview = useCallback((logToReview?: AnswerLog[]) => {
-    if (logToReview) {
-      setAnswerLog(logToReview);
+  const handleReview = useCallback((resultToReview?: QuizResult) => {
+    if (resultToReview) {
+      setAnswerLog(resultToReview.answerLog);
+      setStudyMode(resultToReview.mode);
+      setQuiz({ questions: resultToReview.answerLog.map(l => l.question), webSources: resultToReview.webSources });
     }
     setAppState(AppState.REVIEWING);
   }, []);
@@ -133,8 +136,12 @@ const App: React.FC = () => {
   const handleRetakeSameQuiz = useCallback(() => {
     setFinalScore(0);
     setAnswerLog([]);
-    setAppState(AppState.STUDYING);
-  }, []);
+    if (studyMode === StudyMode.EXAM) {
+        setAppState(AppState.EXAM_IN_PROGRESS);
+    } else {
+        setAppState(AppState.STUDYING);
+    }
+  }, [studyMode]);
 
   const handleFinishExam = useCallback(async (submission: OpenEndedAnswer) => {
     if (!quiz) return;

@@ -1,6 +1,7 @@
 
+
 import React, { useState, useCallback, useEffect } from 'react';
-import { StudySet, QuizConfig, PromptPart, AnswerLog, FileInfo } from '../types';
+import { StudySet, QuizConfig, PromptPart, AnswerLog, FileInfo, QuizResult } from '../types';
 import { generateTopics } from '../services/geminiService';
 import { processFilesToParts } from '../utils/fileProcessor';
 import LoadingSpinner from './common/LoadingSpinner';
@@ -14,7 +15,7 @@ interface SetupScreenProps {
   onStart: (parts: PromptPart[], config: QuizConfig, studySetId: string) => void;
   error: string | null;
   initialContent?: string | null;
-  onReviewHistory: (log: AnswerLog[]) => void;
+  onReviewHistory: (result: QuizResult) => void;
   onPredict: (studySetId: string) => void;
   studySets: StudySet[];
   addSet: (set: Omit<StudySet, 'id' | 'createdAt'>) => StudySet;

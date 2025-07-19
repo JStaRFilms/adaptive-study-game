@@ -1,12 +1,13 @@
 
+
 import React from 'react';
-import { StudySet, QuizResult, AnswerLog } from '../../types';
+import { StudySet, QuizResult } from '../../types';
 import { useQuizHistory } from '../../hooks/useQuizHistory';
 
 interface QuizHistoryViewProps {
     activeSet: StudySet;
     onBack: () => void;
-    onReviewHistory: (log: AnswerLog[]) => void;
+    onReviewHistory: (result: QuizResult) => void;
 }
 
 const QuizHistoryView: React.FC<QuizHistoryViewProps> = ({ activeSet, onBack, onReviewHistory }) => {
@@ -31,7 +32,7 @@ const QuizHistoryView: React.FC<QuizHistoryViewProps> = ({ activeSet, onBack, on
                             <div className="flex items-center gap-6">
                                 <div><p className="text-xs text-text-secondary">Score</p><p className="font-bold text-xl text-brand-primary">{result.score}</p></div>
                                 <div><p className="text-xs text-text-secondary">Accuracy</p><p className="font-bold text-xl text-brand-primary">{result.accuracy}%</p></div>
-                                <button onClick={() => onReviewHistory(result.answerLog)} className="px-4 py-2 bg-brand-secondary text-white font-bold rounded-md hover:bg-brand-primary transition-all">Review</button>
+                                <button onClick={() => onReviewHistory(result)} className="px-4 py-2 bg-brand-secondary text-white font-bold rounded-md hover:bg-brand-primary transition-all">Review</button>
                             </div>
                         </div>
                     ))}
