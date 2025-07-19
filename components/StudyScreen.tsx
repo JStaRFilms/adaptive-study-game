@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer } from '../types';
 import ProgressBar from './common/ProgressBar';
 import TimerBar from './common/TimerBar';
+import { markdownToHtml } from '../utils/textUtils';
 
 interface StudyScreenProps {
   quiz: Quiz;
@@ -71,27 +73,21 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
     }
   }, [answerStatus, streak, timeLeft, isReviewMode, currentQuestion, setAnswerLog, setAnswerExplanation, setAnswerStatus, setScore, setStreak]);
 
-    // This effect handles state restoration when navigating back and forth in review mode,
-    // and resetting state for new questions.
     useEffect(() => {
         const logEntry = answerLog.find(log => log.question === quiz.questions[currentQuestionIndex]);
 
         if (logEntry) {
-            // This question has been answered before, so restore its state for viewing.
             setAnswerStatus(logEntry.isCorrect ? 'correct' : 'incorrect');
             setAnswerExplanation(logEntry.question.explanation);
             setTimeLeft(0);
             setBonusPointsAwarded(0);
 
-            // Restore the specific answer input for display purposes
             if (logEntry.question.questionType === QuestionType.MULTIPLE_CHOICE) {
                 setSelectedOptionIndex(logEntry.userAnswer as number | null);
                 setFillBlankAnswer('');
             } else if (logEntry.question.questionType === QuestionType.FILL_IN_THE_BLANK) {
                 setFillBlankAnswer(logEntry.userAnswer as string || '');
                 setSelectedOptionIndex(null);
-
-                // Re-evaluate correction feedback for soft-correct FIB answers
                 const typedQuestion = logEntry.question as FillInTheBlankQuestion;
                 const userAnswer = (logEntry.userAnswer as string || '').toLowerCase();
                 const correctAnswer = typedQuestion.correctAnswer.toLowerCase();
@@ -108,7 +104,6 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
                 setCorrectionFeedback(null);
             }
         } else {
-            // This is a new, unanswered question. Reset all state to default.
             setTimeLeft(QUESTION_TIME_LIMIT);
             setBonusPointsAwarded(0);
             setAnswerStatus('unanswered');
@@ -121,26 +116,12 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
 
 
   useEffect(() => {
-    // This effect handles the countdown timer for practice mode.
-    // The transition to the next question is handled by the user clicking the 'Next' button.
-    
-    if (isReviewMode || answerStatus !== 'unanswered') {
-      // Don't run countdown if it's review mode or question is answered
-      return;
-    }
-    
+    if (isReviewMode || answerStatus !== 'unanswered') return;
     if (timeLeft <= 0) {
-      // Time ran out, process as incorrect and stop.
-      // User will then have to click "Next Question"
       processAnswer(false, null); 
       return;
     }
-    
-    // Otherwise, continue the countdown.
-    const countdownTimer = setTimeout(() => {
-      setTimeLeft(t => t - 1);
-    }, 1000);
-
+    const countdownTimer = setTimeout(() => setTimeLeft(t => t - 1), 1000);
     return () => clearTimeout(countdownTimer);
   }, [answerStatus, timeLeft, isReviewMode, processAnswer]);
 
@@ -168,9 +149,7 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
     const isAcceptable = !isPerfectMatch && acceptableAnswers.includes(userAnswer);
 
     if (isPerfectMatch || isAcceptable) {
-        if (isAcceptable) {
-            setCorrectionFeedback(`We accepted your answer, but the ideal answer is: "${typedQuestion.correctAnswer}"`);
-        }
+        if (isAcceptable) setCorrectionFeedback(`We accepted your answer, but the ideal answer is: "${typedQuestion.correctAnswer}"`);
         processAnswer(true, userAnswerStr);
     } else {
         processAnswer(false, userAnswerStr);
@@ -181,16 +160,10 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
     if (answerStatus === 'unanswered') return null;
     
     let feedbackContent = null;
-
     switch(currentQuestion.questionType) {
       case QuestionType.FILL_IN_THE_BLANK:
         const userAnswerText = fillBlankAnswer.trim() ? `"${fillBlankAnswer}"` : "nothing";
-        feedbackContent = (
-          <>
-            <p className={`text-lg ${answerStatus === 'correct' ? 'text-text-secondary' : 'text-incorrect'}`}>You answered: {userAnswerText}</p>
-            {answerStatus === 'incorrect' && <p className="text-lg font-semibold mt-1">Correct answer: <span className="text-correct">{currentQuestion.correctAnswer}</span></p>}
-          </>
-        );
+        feedbackContent = <><p className={`text-lg ${answerStatus === 'correct' ? 'text-text-secondary' : 'text-incorrect'}`}>You answered: {userAnswerText}</p>{answerStatus === 'incorrect' && <p className="text-lg font-semibold mt-1">Correct answer: <span className="text-correct">{currentQuestion.correctAnswer}</span></p>}</>;
         break;
       case QuestionType.TRUE_FALSE:
         feedbackContent = answerStatus === 'incorrect' ? <p className="text-lg font-semibold">The correct answer was: <span className={currentQuestion.correctAnswer ? 'text-correct' : 'text-incorrect'}>{currentQuestion.correctAnswer ? 'True' : 'False'}</span></p> : null;
@@ -203,12 +176,7 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
     return (
       <div className="mt-6 space-y-4 text-center">
         {feedbackContent}
-        {answerExplanation && (
-          <div className="text-left bg-gray-900/50 p-4 rounded-lg border border-gray-700">
-            <h4 className="font-bold text-text-secondary">Explanation</h4>
-            <p className="text-text-secondary">{answerExplanation}</p>
-          </div>
-        )}
+        {answerExplanation && <div className="text-left bg-gray-900/50 p-4 rounded-lg border border-gray-700"><h4 className="font-bold text-text-secondary">Explanation</h4><p className="text-text-secondary">{answerExplanation}</p></div>}
       </div>
     );
   }
@@ -216,10 +184,8 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
   const renderQuestionBody = () => {
     const isAnswered = answerStatus !== 'unanswered';
     if (isAnswered) {
-        // After an answer, we show a static version of the question's interactive elements.
         switch (currentQuestion.questionType) {
             case QuestionType.MULTIPLE_CHOICE:
-                // For MC, we show the options with highlighting.
                 return (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {currentQuestion.options.map((option, index) => {
@@ -228,73 +194,36 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
                             let style = 'bg-surface-dark opacity-60 cursor-not-allowed';
                             if (isCorrect) style = 'bg-correct/80 ring-2 ring-correct animate-pulse cursor-not-allowed';
                             else if (isSelected) style = 'bg-incorrect/80 ring-2 ring-incorrect cursor-not-allowed';
-                            
-                            return (
-                                <button key={index} disabled className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${style}`}>
-                                    <span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span>
-                                    <span dangerouslySetInnerHTML={{ __html: option }} />
-                                </button>
-                            );
+                            return <button key={index} disabled className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${style}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><span dangerouslySetInnerHTML={{ __html: option }} /></button>;
                         })}
                     </div>
                 );
             case QuestionType.FILL_IN_THE_BLANK:
-                // For answered FIB, we show the text with the filled-in, non-editable answer.
                 const [part1, part2] = currentQuestion.questionText.split('___');
-                return (
-                    <form onSubmit={(e) => e.preventDefault()} className="flex flex-col items-center gap-4">
-                        <p className="text-2xl sm:text-3xl font-bold text-text-primary text-center">
-                            {part1}
-                            <input type="text" value={fillBlankAnswer} className="mx-2 px-2 py-1 text-center w-48 bg-gray-900 border-b-2 border-brand-primary focus:outline-none focus:ring-0 text-brand-primary font-bold" readOnly />
-                            {part2}
-                        </p>
-                    </form>
-                );
-            default: // TRUE_FALSE
-                 // When TF is answered, the interactive buttons should just disappear.
-                 return null;
+                return <form onSubmit={(e) => e.preventDefault()} className="flex flex-col items-center gap-4"><p className="text-2xl sm:text-3xl font-bold text-text-primary text-center" dangerouslySetInnerHTML={{__html: markdownToHtml(part1) + `<input type="text" value="${fillBlankAnswer}" class="mx-2 px-2 py-1 text-center w-40 sm:w-48 bg-gray-900 border-b-2 border-brand-primary focus:outline-none focus:ring-0 text-brand-primary font-bold" readonly />` + markdownToHtml(part2)}}/></form>;
+            default: return null;
         }
     }
 
-    // --- Unanswered question logic ---
     switch (currentQuestion.questionType) {
         case QuestionType.MULTIPLE_CHOICE:
             return (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {currentQuestion.options.map((option, index) => (
-                    <button key={index} onClick={() => setSelectedOptionIndex(index)} className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${selectedOptionIndex === index ? 'bg-brand-primary ring-2 ring-white' : 'bg-surface-dark hover:bg-gray-600'}`}>
-                      <span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span>
-                      <span dangerouslySetInnerHTML={{ __html: option }} />
-                    </button>
-                  ))}
+                  {currentQuestion.options.map((option, index) => <button key={index} onClick={() => setSelectedOptionIndex(index)} className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${selectedOptionIndex === index ? 'bg-brand-primary ring-2 ring-white' : 'bg-surface-dark hover:bg-gray-600'}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><span dangerouslySetInnerHTML={{ __html: option }} /></button>)}
                 </div>
-                <div className="mt-6 flex justify-center">
-                  <button onClick={handleMcSubmit} disabled={selectedOptionIndex === null} className="px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all duration-300 transform hover:scale-105 disabled:bg-gray-500 disabled:cursor-not-allowed disabled:transform-none">
-                    Submit
-                  </button>
-                </div>
+                <div className="mt-6 flex justify-center"><button onClick={handleMcSubmit} disabled={selectedOptionIndex === null} className="px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed">Submit</button></div>
               </>
             );
         case QuestionType.TRUE_FALSE:
-            return (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-                <button onClick={() => handleTfSubmit(true)} className="p-6 text-2xl font-bold bg-green-700 hover:bg-green-600 rounded-lg transition-colors duration-300">TRUE</button>
-                <button onClick={() => handleTfSubmit(false)} className="p-6 text-2xl font-bold bg-red-700 hover:bg-red-600 rounded-lg transition-colors duration-300">FALSE</button>
-              </div>
-            );
+            return <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6"><button onClick={() => handleTfSubmit(true)} className="p-6 text-2xl font-bold bg-green-700 hover:bg-green-600 rounded-lg transition-colors">TRUE</button><button onClick={() => handleTfSubmit(false)} className="p-6 text-2xl font-bold bg-red-700 hover:bg-red-600 rounded-lg transition-colors">FALSE</button></div>;
         case QuestionType.FILL_IN_THE_BLANK:
             const [part1, part2] = currentQuestion.questionText.split('___');
             return (
                 <form onSubmit={handleFibSubmit} className="flex flex-col items-center gap-4">
-                    <p className="text-2xl sm:text-3xl font-bold text-text-primary text-center">
-                        {part1}
-                        <input type="text" value={fillBlankAnswer} onChange={e => setFillBlankAnswer(e.target.value)} className="mx-2 px-2 py-1 text-center w-48 bg-gray-900 border-b-2 border-brand-primary focus:outline-none focus:ring-0 text-brand-primary font-bold" autoFocus aria-label="Fill in the blank answer"/>
-                        {part2}
-                    </p>
-                    <button type="submit" disabled={!fillBlankAnswer.trim()} className="px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all duration-300 transform hover:scale-105 disabled:bg-gray-500 disabled:cursor-not-allowed disabled:transform-none">
-                        Submit
-                    </button>
+                    <p className="text-2xl sm:text-3xl font-bold text-text-primary text-center" dangerouslySetInnerHTML={{__html: markdownToHtml(part1) + `<input type="text" value="${fillBlankAnswer}" oninput="this.size = this.value.length || 1" class="mx-2 px-2 py-1 text-center w-auto max-w-xs bg-gray-900 border-b-2 border-brand-primary focus:outline-none focus:ring-0 text-brand-primary font-bold" autoFocus aria-label="Fill in the blank answer"/>` + markdownToHtml(part2) }} />
+                    <input type="text" value={fillBlankAnswer} onChange={e => setFillBlankAnswer(e.target.value)} className="sr-only" />
+                    <button type="submit" disabled={!fillBlankAnswer.trim()} className="px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed">Submit</button>
                 </form>
             );
     }
@@ -302,89 +231,34 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
 
   const renderFeedbackMessage = () => {
     if (answerStatus === 'unanswered') return null;
-
-    if (answerStatus === 'correct') {
-      return (
-        <div className="text-center">
-            <p className="text-2xl font-bold text-correct animate-pulse">Correct! 🎉</p>
-            {correctionFeedback && (
-                <p className="text-base text-yellow-300 mt-2">{correctionFeedback}</p>
-            )}
-            {!isReviewMode && bonusPointsAwarded > 0 && <p className="text-lg font-bold text-yellow-400">+{bonusPointsAwarded} Speed Bonus!</p>}
-        </div>
-      );
-    }
-    
-    if (answerStatus === 'incorrect') {
-      return (
-        <p className="text-2xl font-bold text-incorrect">
-          {timeLeft <= 0 && !isReviewMode ? "Time's Up! ⌛" : "Incorrect 🙁"}
-        </p>
-      );
-    }
+    if (answerStatus === 'correct') return <div className="text-center"><p className="text-2xl font-bold text-correct animate-pulse">Correct! 🎉</p>{correctionFeedback && <p className="text-base text-yellow-300 mt-2">{correctionFeedback}</p>}{!isReviewMode && bonusPointsAwarded > 0 && <p className="text-lg font-bold text-yellow-400">+{bonusPointsAwarded} Speed Bonus!</p>}</div>;
+    if (answerStatus === 'incorrect') return <p className="text-2xl font-bold text-incorrect">{timeLeft <= 0 && !isReviewMode ? "Time's Up! ⌛" : "Incorrect 🙁"}</p>;
     return null;
   }
 
   return (
     <div className="w-full max-w-3xl mx-auto p-4 flex flex-col animate-fade-in h-full">
       <header className="mb-6">
-        <div className="grid grid-cols-3 items-center text-text-secondary mb-2">
-          <span className="font-bold text-lg">Score: <span className="text-brand-primary">{score}</span></span>
-          <div className="flex items-center justify-center gap-2 font-bold text-lg">
-             {!isReviewMode && <span className="text-yellow-400">{timeLeft}s</span>}
-             {isReviewMode && <span className="text-brand-secondary font-semibold">Review Mode</span>}
-          </div>
-          <div className="text-right">
-             <span className="text-sm mr-4">Streak: <span className="text-white">{streak}x</span></span>
-             <span className="font-bold text-lg">Q: {currentQuestionIndex + 1}/{totalQuestions}</span>
-          </div>
+        <div className="flex flex-wrap justify-between items-baseline text-text-secondary mb-2 gap-y-1 gap-x-4">
+            <div className="flex items-baseline gap-4"><span className="font-bold text-lg">Score: <span className="text-brand-primary">{score}</span></span><span className="text-sm">Streak: <span className="text-white">{streak}x</span></span></div>
+            <div className="flex items-baseline gap-4"><div className="flex items-center justify-center gap-2 font-bold text-lg">{!isReviewMode && <span className="text-yellow-400">{timeLeft}s</span>}{isReviewMode && <span className="text-brand-secondary font-semibold">Review Mode</span>}</div><span className="font-bold text-lg">Q: {currentQuestionIndex + 1}/{totalQuestions}</span></div>
         </div>
         <ProgressBar progress={((currentQuestionIndex + 1) / totalQuestions) * 100} />
-        {!isReviewMode && (
-          <div className="mt-2">
-            <TimerBar timeLeft={timeLeft} timeLimit={QUESTION_TIME_LIMIT} />
-          </div>
-        )}
+        {!isReviewMode && <div className="mt-2"><TimerBar timeLeft={timeLeft} timeLimit={QUESTION_TIME_LIMIT} /></div>}
       </header>
       
       <div className="bg-surface-dark p-6 sm:p-8 rounded-xl shadow-2xl flex flex-col justify-center flex-grow">
-        {/* Render question text for non-FIB questions. FIB text is part of its form. */}
-        {currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK && (
-            <h2 className="text-2xl sm:text-3xl font-bold mb-8 text-text-primary text-center" dangerouslySetInnerHTML={{ __html: currentQuestion.questionText }} />
-        )}
-        
+        {currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK && <h2 className="text-2xl sm:text-3xl font-bold mb-8 text-text-primary text-center prose" dangerouslySetInnerHTML={{ __html: markdownToHtml(currentQuestion.questionText) }} />}
         {renderQuestionBody()}
-        
-        {/* Render the feedback/explanation block for ALL question types once answered */}
-        {answerStatus !== 'unanswered' && (
-            renderAnswerFeedback()
-        )}
+        {answerStatus !== 'unanswered' && renderAnswerFeedback()}
       </div>
       
       <div className="mt-6 min-h-[8rem] flex items-center justify-center">
         <div className="flex flex-col items-center justify-center gap-4 text-center">
             {answerStatus !== 'unanswered' && renderFeedbackMessage()}
-
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                {isReviewMode && currentQuestionIndex > 0 && (
-                    <button 
-                        onClick={goToPreviousQuestion}
-                        className="px-8 py-3 bg-gray-600 text-white font-bold rounded-lg shadow-md hover:bg-gray-500 transition-all text-lg animate-fade-in"
-                        aria-label="Previous Question"
-                    >
-                        ← Previous
-                    </button>
-                )}
-
-                {answerStatus !== 'unanswered' && (
-                    <button 
-                        onClick={goToNextQuestion}
-                        className="px-8 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-brand-primary transition-all text-lg animate-fade-in"
-                        aria-label={currentQuestionIndex + 1 < totalQuestions ? 'Next Question' : 'Finish Quiz'}
-                    >
-                        {currentQuestionIndex + 1 < totalQuestions ? 'Next Question →' : 'Finish Quiz'}
-                    </button>
-                )}
+                {isReviewMode && currentQuestionIndex > 0 && <button onClick={goToPreviousQuestion} className="px-8 py-3 bg-gray-600 text-white font-bold rounded-lg shadow-md hover:bg-gray-500 transition-all text-lg animate-fade-in">← Previous</button>}
+                {answerStatus !== 'unanswered' && <button onClick={goToNextQuestion} className="px-8 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-brand-primary transition-all text-lg animate-fade-in">{currentQuestionIndex + 1 < totalQuestions ? 'Next Question →' : 'Finish Quiz'}</button>}
             </div>
         </div>
       </div>

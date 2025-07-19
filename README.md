@@ -8,7 +8,7 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 
 ## ✨ Key Features
 
-- **AI-Powered Quiz Generation**: Automatically creates high-quality quizzes from your study materials, leveraging the power of the Gemini API.
+- **AI-Powered Quiz Generation**: Automatically creates high-quality quizzes from your study materials.
 - **Multimodal Input**: Generate quizzes from a mix of sources:
   - Pasted text notes
   - Documents (`.txt`, `.pdf`, `.docx`, `.md`)
@@ -17,32 +17,31 @@ An intelligent study tool that uses the Google Gemini API to transform your note
   - Audio Files (`.mp3`, `.m4a`, `.wav`, etc.) - The AI transcribes the content for you.
 - **Flexible Knowledge Sources**: Choose how the AI generates questions:
   - **Notes Only**: Strictly uses the materials you provide.
-  - **Notes + AI Knowledge**: Supplements your notes with the AI's vast general knowledge for a more comprehensive quiz.
-  - **Notes + Web Search**: Uses Google Search to find the latest information on your topic and includes source links with the results.
-- **Multiple Question Types**: Generates a mix of question formats to keep you engaged, including Multiple Choice, True/False, and Fill-in-the-Blank.
-- **Flexible Answer Validation**: For fill-in-the-blank questions, the AI is prompted to accept common synonyms, typos, and misspellings, so you don't get marked incorrect for a minor mistake.
-- **Gamified Learning**: Earn points for correct answers, build streaks for bonuses, and answer quickly in Practice Mode for extra points.
-- **Two Distinct Study Modes**:
-  - **Practice Mode**: A timed challenge where you race against the clock for the highest score.
-  - **Review Mode**: A relaxed, untimed mode perfect for self-paced learning.
-- **Enhanced Review Mode**: In addition to being untimed, Review Mode now features **back-and-forth navigation**, allowing you to move freely between questions to solidify your understanding.
-- **Persistent Study Sets**: Create, edit, and save study sets. Your notes are saved in your browser's local storage for easy access anytime.
-- **Quiz History & Progress Tracking**: Every quiz session is automatically saved. Go back and review past attempts for any study set to track your scores, accuracy, and improvement over time.
-- **Detailed Feedback & Review**: After each quiz, access a comprehensive review screen showing each question, your answer, the correct answer, and a clear explanation.
-- **Retake or Start Anew**: From the review screen, choose to retake the exact same quiz to reinforce weak spots or generate a brand new quiz.
-- **Dynamic & Interactive Landing Page**: A visually engaging entry point with animations and an interactive text area to seamlessly start your first study session.
-- **Responsive Design**: A clean, modern, and fully responsive UI built with Tailwind CSS, ensuring a great experience on any device.
+  - **Notes + AI Knowledge**: Supplements your notes with the AI's vast general knowledge.
+  - **Notes + Web Search**: Uses Google Search to find the latest information on your topic.
+- **Multiple Question & Study Modes**:
+  - **Practice Mode**: Timed multiple choice, true/false, and fill-in-the-blank questions.
+  - **Review Mode**: Untimed, self-paced version of Practice Mode.
+  - **Exam Mode**: A simulated exam with open-ended questions requiring long-form answers.
+- **AI-Powered Exam Grading**: In Exam Mode, submit typed answers and **upload images of handwritten work**. The AI grades your responses against a rubric, providing a score and detailed feedback for each question.
+- **AI Exam Prediction**: A powerful tool where the AI acts as your teacher to predict likely exam questions. Prime the AI with your teacher's persona, past exams, and other materials for a highly tailored study guide.
+- **Gamified Learning**: Earn points, build streaks, and get speed bonuses in Practice Mode.
+- **Persistent Study Sets**: Create, edit, and save study sets. Your notes and associated files are saved in your browser's local storage.
+- **Quiz History & Progress Tracking**: Every quiz session is automatically saved. Review past attempts to track your scores, accuracy, and improvement over time.
+- **Detailed Feedback & Review**: After each quiz, access a comprehensive review screen showing each question, your answer, the correct answer, and a clear explanation or AI-generated feedback.
+- **Responsive Design**: A clean, modern, and fully responsive UI built with Tailwind CSS.
 
 ---
 
 ## 🚀 How It Works
 
-1.  **Provide Your Material**: Paste notes directly on the landing page, or create a Study Set by uploading files (`.pdf`, `.docx`, `.md`, images, audio, etc.).
-2.  **Manage Your Library**: Your study sets are saved in the browser. From the list, you can edit, delete, start a new quiz, or **view the quiz history** for any set.
-3.  **Configure Your Quiz**: Before starting, choose the number of questions, knowledge source (Notes Only, AI-supplemented, Web Search), and study mode (timed Practice vs. untimed Review).
-4.  **Take the Quiz**: The app processes your materials and uses the Gemini API to generate a custom quiz. Answer questions and get real-time feedback on your score and streaks.
-5.  **View Results & Sources**: After finishing, see a summary of your score and accuracy. If you used web search, all sources are cited.
-6.  **Review and Reinforce**: Dive into a detailed review of your answers. From here, you can retake the same quiz to improve, or start a new one.
+1.  **Create a Study Set**: Add your notes by pasting text or uploading files (`.pdf`, `.docx`, images, audio, etc.). Your sets are saved for later.
+2.  **Choose Your Path**:
+    - **Study**: The app analyzes your notes, identifies key topics, and lets you configure a quiz (Practice, Review, or Exam Mode).
+    - **Predict**: Enter the Exam Prediction mode. Provide details about your teacher's style, upload past exams or quizzes, and let the AI generate a list of probable exam questions to guide your studying.
+3.  **Take the Quiz**: Play through the generated quiz, score points, and actively learn the material. For exams, type your answers or upload photos of your work.
+4.  **Get AI-Graded Results**: After an exam, the AI evaluates your answers, providing scores and constructive feedback. For practice quizzes, see a summary of your score and accuracy.
+5.  **Review and Reinforce**: Dive into a detailed review of your answers. From here, you can retake the same quiz or start a new one.
 
 ---
 
@@ -81,35 +80,3 @@ The application's code (`services/geminiService.ts`) expects to access the key v
 1. Ensure the `API_KEY` environment variable is set.
 2. Serve the `index.html` file from the root of the project directory.
 3. Open the served URL in your web browser. The application will initialize and be ready to use.
-
----
-
-## 📂 Project Structure
-
-```
-/
-├── components/
-│   ├── common/              # Reusable UI components (ProgressBar, etc.)
-│   ├── LandingPage.tsx      # The animated, interactive landing page
-│   ├── ResultsScreen.tsx    # Screen displaying final quiz score
-│   ├── ReviewScreen.tsx     # Screen for detailed answer review
-│   ├── SetupScreen.tsx      # Initial screen for creating sets and configuring quizzes
-│   └── StudyScreen.tsx      # The main interactive quiz screen
-├── hooks/
-│   ├── useQuizHistory.ts    # Custom hook for managing quiz history
-│   └── useStudySets.ts      # Custom hook for managing study sets in localStorage
-├── services/
-│   └── geminiService.ts     # Handles all API calls to Google Gemini
-├── App.tsx                  # Main app component, manages state and views
-├── index.html               # Main HTML entry point, loads Tailwind and scripts
-├── index.tsx                # React root renderer
-├── metadata.json            # Project metadata
-├── types.ts                 # All TypeScript type and interface definitions
-└── README.md                # You are here!
-```
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License.

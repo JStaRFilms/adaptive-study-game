@@ -1,13 +1,14 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource } from '../types';
+import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, StudyMode, OpenEndedAnswer, OpenEndedQuestion, AnswerLog, PredictedQuestion } from '../types';
 
 const questionSchema = {
     type: Type.OBJECT,
     properties: {
         questionType: {
             type: Type.STRING,
-            description: "The type of the question. Must be one of 'MULTIPLE_CHOICE', 'TRUE_FALSE', or 'FILL_IN_THE_BLANK'.",
-            enum: ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK'],
+            description: "The type of the question. Must be one of 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', or 'OPEN_ENDED'.",
+            enum: ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'OPEN_ENDED'],
         },
         questionText: {
             type: Type.STRING,
@@ -15,7 +16,7 @@ const questionSchema = {
         },
         explanation: {
             type: Type.STRING,
-            description: "A brief, one-sentence explanation for why the correct answer is correct. This is required for all question types."
+            description: "A brief explanation for why the correct answer is correct. For OPEN_ENDED questions, this must be a detailed grading rubric outlining the key points for a complete answer. This is required for all question types."
         },
         options: {
             type: Type.ARRAY,
@@ -48,13 +49,26 @@ const questionSchema = {
     required: ["questionType", "questionText", "explanation"]
 };
 
-const getInstructionText = (numberOfQuestions: number, knowledgeSource: KnowledgeSource): string => {
-    let baseInstruction = `You are an expert educator. Create a high-quality, mixed-type quiz with exactly ${numberOfQuestions} questions. The quiz should include a mix of MULTIPLE_CHOICE, TRUE_FALSE, and FILL_IN_THE_BLANK questions. The questions should test key concepts, definitions, and important facts. Follow the provided JSON schema precisely.
+const getInstructionText = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[]): string => {
+    let baseInstruction = '';
+    
+    if (mode === StudyMode.EXAM) {
+        baseInstruction = `You are an expert educator. Create a high-quality, open-ended exam with exactly ${numberOfQuestions} questions. The questions should be thought-provoking and require detailed, paragraph-length answers. They should test a deep understanding of the key concepts, not just simple facts. Follow the provided JSON schema precisely. Use markdown for formatting, like **bold** for emphasis.
+
+- For EVERY question, the 'questionType' must be 'OPEN_ENDED'.
+- For EVERY question, provide a detailed 'explanation' that acts as a grading rubric. This rubric should list the key points, concepts, and details a comprehensive answer must include to be considered correct and complete. This is crucial for the AI that will grade the user's answers later.`;
+    } else {
+        baseInstruction = `You are an expert educator. Create a high-quality, mixed-type quiz with exactly ${numberOfQuestions} questions. The quiz should include a mix of MULTIPLE_CHOICE, TRUE_FALSE, and FILL_IN_THE_BLANK questions. The questions should test key concepts, definitions, and important facts. Follow the provided JSON schema precisely. Use markdown for formatting, like **bold** for emphasis.
 
 - For EVERY question, provide a brief 'explanation' for why the correct answer is correct.
 - For MULTIPLE_CHOICE questions, provide 4 options and the index of the correct one.
 - For TRUE_FALSE questions, provide a statement and whether it is true or false.
 - For FILL_IN_THE_BLANK questions, formulate a sentence with a key term replaced by '___' and provide the missing term. Crucially, provide a comprehensive list of 'acceptableAnswers'. This list MUST include common misspellings, plural/singular variations (e.g., if the answer is 'cat', include 'cats'), and different formats (e.g., if the answer is '5', include 'five'). Be generous with acceptable answers to avoid penalizing users for minor errors.`;
+    }
+    
+    if (topics && topics.length > 0) {
+        baseInstruction += `\n\nThe quiz should specifically focus on the following topics: ${topics.join(', ')}.`;
+    }
 
     switch (knowledgeSource) {
         case KnowledgeSource.GENERAL:
@@ -67,6 +81,53 @@ const getInstructionText = (numberOfQuestions: number, knowledgeSource: Knowledg
     }
 };
 
+const topicsSchema = {
+    type: Type.OBJECT,
+    properties: {
+        topics: {
+            type: Type.ARRAY,
+            description: "A list of main topics, concepts, or subjects found in the text. Each topic should be a concise string, no more than 5 words.",
+            items: { type: Type.STRING }
+        }
+    },
+    required: ["topics"]
+};
+
+export const generateTopics = async (userContentParts: PromptPart[]): Promise<string[]> => {
+    if (!process.env.API_KEY) {
+        throw new Error("API_KEY environment variable not set.");
+    }
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    const instruction = "You are an expert at analyzing text and identifying key themes. Based on the provided study materials (which can include text and images), identify the main topics or subjects discussed. Your response must be a JSON object containing a single key 'topics' which is an array of strings. Each string should be a concise topic name (e.g., 'Cellular Respiration', 'The Krebs Cycle', 'World War II Causes').";
+
+    const contents = { parts: [{ text: instruction }, ...userContentParts] };
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: contents,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: topicsSchema,
+                temperature: 0.2,
+            },
+        });
+
+        const jsonText = response.text.trim();
+        const result = JSON.parse(jsonText);
+
+        if (result.topics && Array.isArray(result.topics) && result.topics.length > 0) {
+            return result.topics as string[];
+        }
+        
+        return ["General Knowledge"];
+
+    } catch (error) {
+        console.error("Error generating topics:", error);
+        return ["General Knowledge"];
+    }
+};
 
 export const generateQuiz = async (userContentParts: PromptPart[], config: QuizConfig): Promise<Quiz | null> => {
   if (!process.env.API_KEY) {
@@ -74,21 +135,21 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
   }
   
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const { numberOfQuestions, knowledgeSource } = config;
+  const { numberOfQuestions, knowledgeSource, topics, mode } = config;
   
   const quizSchema = {
     type: Type.OBJECT,
     properties: {
       questions: {
         type: Type.ARRAY,
-        description: `An array of exactly ${numberOfQuestions} quiz questions. Generate a mix of MULTIPLE_CHOICE, TRUE_FALSE, and FILL_IN_THE_BLANK questions based on the provided instructions and materials.`,
+        description: `An array of exactly ${numberOfQuestions} quiz questions.`,
         items: questionSchema
       }
     },
     required: ["questions"]
   };
 
-  const instructionText = getInstructionText(numberOfQuestions, knowledgeSource);
+  const instructionText = getInstructionText(numberOfQuestions, knowledgeSource, mode, topics);
   const finalParts: PromptPart[] = [{ text: instructionText }, ...userContentParts];
 
   const apiConfig: any = {
@@ -113,7 +174,7 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
             config: apiConfig,
         });
 
-        let jsonText = (response.text ?? '').trim();
+        let jsonText = response.text.trim();
         if (knowledgeSource === KnowledgeSource.WEB_SEARCH) {
             const match = jsonText.match(/```json\n([\s\S]*)\n```/);
             if (match) {
@@ -144,66 +205,34 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
             }
             switch (q.questionType) {
                 case QuestionType.MULTIPLE_CHOICE:
-                    if (!q.options || !Array.isArray(q.options) || q.options.length < 2 || typeof q.correctAnswerIndex !== 'number' || q.correctAnswerIndex >= q.options.length ) {
-                        console.warn(`Skipping invalid MULTIPLE_CHOICE question from AI:`, q);
-                        return null;
-                    }
-                    return {
-                        questionType: q.questionType,
-                        questionText: questionText,
-                        options: q.options,
-                        correctAnswerIndex: q.correctAnswerIndex,
-                        explanation: q.explanation,
-                    };
+                    if (!q.options || !Array.isArray(q.options) || q.options.length < 2 || typeof q.correctAnswerIndex !== 'number' || q.correctAnswerIndex >= q.options.length ) return null;
+                    return { questionType: q.questionType, questionText, options: q.options, correctAnswerIndex: q.correctAnswerIndex, explanation: q.explanation };
                 case QuestionType.TRUE_FALSE:
                     const correctAnswerBoolean = q.correctAnswerBoolean ?? q.answer;
-                    if (typeof correctAnswerBoolean !== 'boolean') {
-                        console.warn(`Skipping invalid TRUE_FALSE question from AI:`, q);
-                        return null;
-                    }
-                    return {
-                        questionType: q.questionType,
-                        questionText: questionText,
-                        correctAnswer: correctAnswerBoolean,
-                        explanation: q.explanation,
-                    };
+                    if (typeof correctAnswerBoolean !== 'boolean') return null;
+                    return { questionType: q.questionType, questionText, correctAnswer: correctAnswerBoolean, explanation: q.explanation };
                 case QuestionType.FILL_IN_THE_BLANK:
                     const correctAnswerString = q.correctAnswerString || q.missingTerm;
-                    if (typeof correctAnswerString !== 'string' || !questionText.includes('___')) {
-                        console.warn(`Skipping invalid FILL_IN_THE_BLANK question from AI:`, q);
-                        return null;
-                    }
-                    return {
-                        questionType: q.questionType,
-                        questionText: questionText,
-                        correctAnswer: correctAnswerString,
-                        explanation: q.explanation,
-                        acceptableAnswers: q.acceptableAnswers || [],
-                    };
+                    if (typeof correctAnswerString !== 'string' || !questionText.includes('___')) return null;
+                    return { questionType: q.questionType, questionText, correctAnswer: correctAnswerString, explanation: q.explanation, acceptableAnswers: q.acceptableAnswers || [] };
+                case QuestionType.OPEN_ENDED:
+                     return { questionType: q.questionType, questionText, explanation: q.explanation };
                 default:
-                     console.warn(`Skipping unknown question type from AI: ${q.questionType}`);
                     return null;
             }
-        }).filter((q: Question | null): q is Question => q !== null);
+        }).filter((q): q is Question => q !== null);
 
         if (validatedQuestions.length > 0) {
             return { questions: validatedQuestions, webSources }; // Success!
         }
         
         lastError = new Error("The AI responded, but none of the generated questions were valid.");
-        console.warn(`Attempt ${attempt}/${MAX_ATTEMPTS}: ${lastError.message}.`);
-
     } catch (error) {
         lastError = error instanceof Error ? error : new Error("An unknown error occurred");
-        console.error(`Error on attempt ${attempt}/${MAX_ATTEMPTS} generating quiz:`, lastError);
     }
-    
-    if (attempt < MAX_ATTEMPTS) {
-      await new Promise(res => setTimeout(res, 1000 * attempt)); // wait 1, 2 seconds before retrying
-    }
+    if (attempt < MAX_ATTEMPTS) await new Promise(res => setTimeout(res, 1000 * attempt));
   }
 
-  // If all attempts failed, throw the last recorded error.
   console.error("All attempts to generate quiz failed.");
   if (lastError) {
       if (lastError.message.includes('json') || lastError.message.includes('JSON')) {
@@ -211,6 +240,177 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
       }
       throw new Error(`An API error occurred after multiple attempts: ${lastError.message}`);
   }
-
   throw new Error("An unknown error occurred while generating the quiz after multiple attempts.");
+};
+
+const gradingSchema = {
+    type: Type.OBJECT,
+    properties: {
+        isCorrect: { type: Type.BOOLEAN, description: "Whether the user's answer is substantially correct based on the rubric." },
+        score: { type: Type.INTEGER, description: "An integer score from 0 to 10, where 10 is a perfect answer." },
+        feedback: { type: Type.STRING, description: "Constructive, specific feedback for the user. Explain what they got right, what they missed, and how they could improve, referencing the rubric." },
+    },
+    required: ["isCorrect", "score", "feedback"],
+};
+
+export const gradeExam = async (questions: Question[], answers: OpenEndedAnswer[]): Promise<AnswerLog[]> => {
+    if (!process.env.API_KEY) throw new Error("API_KEY environment variable not set.");
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    const gradedLogs: AnswerLog[] = [];
+
+    for (let i = 0; i < questions.length; i++) {
+        const question = questions[i] as OpenEndedQuestion;
+        const answer = answers[i];
+
+        const instruction = `You are an impartial and expert grader. Your task is to evaluate a user's answer to an open-ended exam question.
+
+### Question:
+${question.questionText}
+
+### Grading Rubric:
+${question.explanation}
+
+### User's Answer:
+The user has provided a typed response and may have also included images of handwritten work. You must consider all parts of their answer.
+
+**Typed Answer:**
+${answer.text || "(No typed answer provided)"}
+
+**Images of Written Work:**
+${answer.images.length > 0 ? "(Images are attached)" : "(No images provided)"}
+
+---
+### Your Task:
+Based on the question, the detailed grading rubric, and all parts of the user's answer, provide your evaluation in a JSON object. The score should be an integer between 0 and 10. The feedback must be constructive.
+`;
+
+        const parts: PromptPart[] = [{ text: instruction }];
+        answer.images.forEach(img => {
+            parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+        });
+
+        try {
+            const response = await ai.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents: { parts },
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: gradingSchema,
+                    temperature: 0.3,
+                },
+            });
+
+            const jsonText = response.text.trim();
+            const result = JSON.parse(jsonText);
+
+            gradedLogs.push({
+                question: question,
+                userAnswer: answer,
+                isCorrect: result.isCorrect,
+                feedback: result.feedback,
+                questionScore: result.score,
+            });
+
+        } catch (error) {
+            console.error(`Error grading question ${i + 1}:`, error);
+            gradedLogs.push({
+                question: question,
+                userAnswer: answer,
+                isCorrect: false,
+                feedback: "Sorry, an error occurred while grading this answer. It has been marked as incorrect.",
+                questionScore: 0,
+            });
+        }
+    }
+    return gradedLogs;
+};
+
+const predictionSchema = {
+    type: Type.OBJECT,
+    properties: {
+        predictions: {
+            type: Type.ARRAY,
+            description: "An array of predicted exam questions.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    questionText: { type: Type.STRING, description: "The text of the predicted, open-ended exam question." },
+                    topic: { type: Type.STRING, description: "The main topic this question relates to." },
+                    reasoning: { type: Type.STRING, description: "A detailed explanation for why this question was predicted, citing specific examples from the provided materials (e.g., 'This is a variation of a question from Past Exam 1...' or 'The teacher's persona suggests they value synthesis, and this question combines Topic A and Topic B...')." }
+                },
+                required: ["questionText", "topic", "reasoning"]
+            }
+        }
+    },
+    required: ["predictions"]
+};
+
+export const generateExamPrediction = async (data: any): Promise<PredictedQuestion[]> => {
+    if (!process.env.API_KEY) throw new Error("API_KEY environment variable not set.");
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const { teacherName, persona, hints, coreNotesParts, pastQuestionsParts, pastTestsParts, otherMaterialsParts, numPredictions } = data;
+
+    const systemInstruction = `You are an expert educational analyst and predictor. Your task is to embody a specific teacher and predict likely exam questions based on a comprehensive set of materials. Analyze the teacher's persona, past questions, and other provided documents to make the most accurate predictions possible. The predictions should be insightful and challenging, suitable for a final exam.`;
+
+    const promptParts: PromptPart[] = [{text: systemInstruction}];
+
+    let userPrompt = `# Task: Predict Exam Questions
+
+You must generate a list of ${numPredictions} likely open-ended exam questions. For each question, provide your reasoning, citing which materials led to your prediction. Follow the JSON schema precisely.
+
+---
+## Teacher Profile
+**Name:** ${teacherName || "Not provided"}
+**Persona & Tendencies:**
+${persona || "Not provided"}
+
+---
+## Known Hints & Focus Areas
+${hints || "Not provided"}
+
+---
+`;
+    promptParts.push({text: userPrompt});
+    
+    if (coreNotesParts.length > 0) {
+        promptParts.push({ text: "\n## Core Study Materials (Lecture Notes, etc.)\n[Content below is from the main study set]\n" });
+        promptParts.push(...coreNotesParts);
+    }
+    if (pastQuestionsParts.length > 0) {
+        promptParts.push({ text: "\n## Past Exam Questions for Analysis\n[Content below is from past exams]\n" });
+        promptParts.push(...pastQuestionsParts);
+    }
+    if (pastTestsParts.length > 0) {
+        promptParts.push({ text: "\n## Past Quizzes/Tests for Analysis\n[Content below is from past quizzes]\n" });
+        promptParts.push(...pastTestsParts);
+    }
+    if (otherMaterialsParts.length > 0) {
+        promptParts.push({ text: "\n## Other Relevant Materials for Analysis\n[Content below is from other materials]\n" });
+        promptParts.push(...otherMaterialsParts);
+    }
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: promptParts },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: predictionSchema,
+                temperature: 0.8,
+            },
+        });
+
+        const jsonText = response.text.trim();
+        const result = JSON.parse(jsonText);
+        
+        if (result.predictions && Array.isArray(result.predictions)) {
+            return result.predictions;
+        }
+        throw new Error("Prediction API returned an invalid format.");
+
+    } catch(error) {
+        console.error("Error generating exam prediction:", error);
+        throw error;
+    }
 };

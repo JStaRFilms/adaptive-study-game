@@ -1,13 +1,21 @@
 
+
+export interface FileInfo {
+  name: string;
+  type: string;
+}
+
 export enum QuestionType {
   MULTIPLE_CHOICE = 'MULTIPLE_CHOICE',
   TRUE_FALSE = 'TRUE_FALSE',
   FILL_IN_THE_BLANK = 'FILL_IN_THE_BLANK',
+  OPEN_ENDED = 'OPEN_ENDED',
 }
 
 export enum StudyMode {
   PRACTICE = 'PRACTICE',
   REVIEW = 'REVIEW',
+  EXAM = 'EXAM',
 }
 
 export enum KnowledgeSource {
@@ -21,12 +29,14 @@ export interface StudySet {
   name: string;
   content: string;
   createdAt: string;
+  fileInfo?: FileInfo[];
 }
 
 export interface QuizConfig {
     numberOfQuestions: number;
     mode: StudyMode;
     knowledgeSource: KnowledgeSource;
+    topics?: string[];
 }
 
 export interface MultipleChoiceQuestion {
@@ -52,7 +62,13 @@ export interface FillInTheBlankQuestion {
   acceptableAnswers?: string[];
 }
 
-export type Question = MultipleChoiceQuestion | TrueFalseQuestion | FillInTheBlankQuestion;
+export interface OpenEndedQuestion {
+  questionType: QuestionType.OPEN_ENDED;
+  questionText: string;
+  explanation: string; // This will serve as the grading rubric for the AI
+}
+
+export type Question = MultipleChoiceQuestion | TrueFalseQuestion | FillInTheBlankQuestion | OpenEndedQuestion;
 
 export interface WebSource {
     uri: string;
@@ -70,14 +86,26 @@ export enum AppState {
   STUDYING,
   RESULTS,
   REVIEWING,
+  EXAM_IN_PROGRESS,
+  GRADING,
+  PREDICTION_SETUP,
+  PREDICTING,
+  PREDICTION_RESULTS,
 }
 
-export type UserAnswer = string | number | boolean | null;
+export interface OpenEndedAnswer {
+  text: string;
+  images: { mimeType: string; data: string }[];
+}
+
+export type UserAnswer = string | number | boolean | OpenEndedAnswer | null;
 
 export interface AnswerLog {
   question: Question;
   userAnswer: UserAnswer;
   isCorrect: boolean;
+  feedback?: string; // For AI grading feedback
+  questionScore?: number; // For AI-awarded score
 }
 
 export interface QuizResult {
@@ -89,6 +117,12 @@ export interface QuizResult {
     answerLog: AnswerLog[];
     webSources?: WebSource[];
     mode: StudyMode;
+}
+
+export interface PredictedQuestion {
+  questionText: string;
+  reasoning: string;
+  topic: string;
 }
 
 export type PromptPart = { text: string } | { inlineData: { mimeType: string; data: string } };

@@ -1,6 +1,8 @@
 {
   "name": "Adaptive Study Game",
   "description": "An intelligent study tool that uses AI to transform your notes into an interactive, gamified quiz to help you learn faster and more effectively.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": [
+    "camera"
+  ],
   "prompt": ""
 }

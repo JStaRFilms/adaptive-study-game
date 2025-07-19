@@ -41,11 +41,11 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ score, answerLog, onResta
             <div className="flex justify-around items-baseline gap-4">
                 <div>
                     <p className="text-xl text-text-secondary">Your Score</p>
-                    <p className="text-7xl font-bold text-brand-primary my-2">{score}</p>
+                    <p className="text-6xl sm:text-7xl font-bold text-brand-primary my-2">{score}</p>
                 </div>
                 <div>
                     <p className="text-xl text-text-secondary">Accuracy</p>
-                    <p className="text-7xl font-bold text-brand-primary my-2">{accuracy}%</p>
+                    <p className="text-6xl sm:text-7xl font-bold text-brand-primary my-2">{accuracy}%</p>
                 </div>
             </div>
         </div>

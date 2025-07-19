@@ -71,7 +71,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
           <div className="mt-10 animate-fade-in-down" style={{ animationDelay: '0.6s' }}>
             <button
               onClick={onLaunch}
-              className="px-10 py-4 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all duration-300 transform hover:scale-105 animate-pulse"
+              className="px-8 py-3 sm:px-10 sm:py-4 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all duration-300 transform hover:scale-105 animate-pulse"
             >
               🔥 Launch App (BETA)
             </button>
@@ -95,7 +95,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
                  <div className="text-center mt-8 animate-fade-in">
                      <button
                         onClick={() => onLaunchWithContent(noteContent)}
-                        className="px-10 py-4 bg-gradient-to-r from-brand-primary to-purple-600 text-white font-bold text-xl rounded-lg shadow-lg hover:shadow-purple-500/50 transition-all duration-300 transform hover:scale-105 animate-pulse"
+                        className="px-8 py-3 sm:px-10 sm:py-4 bg-gradient-to-r from-brand-primary to-purple-600 text-white font-bold text-xl rounded-lg shadow-lg hover:shadow-purple-500/50 transition-all duration-300 transform hover:scale-105 animate-pulse"
                      >
                         ✨ Experience the Magic ✨
                      </button>

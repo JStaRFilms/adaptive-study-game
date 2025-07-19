@@ -1,5 +1,6 @@
 import React from 'react';
-import { AnswerLog, Question, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion } from '../types';
+import { AnswerLog, Question, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedQuestion, OpenEndedAnswer } from '../types';
+import { markdownToHtml } from '../utils/textUtils';
 
 interface ReviewScreenProps {
   answerLog: AnswerLog[];
@@ -12,71 +13,102 @@ interface ReviewCardProps {
     index: number;
 }
 
-const getAnswerText = (question: Question, answer: any): string => {
-  if (answer === null) return 'Not answered';
-  switch (question.questionType) {
-    case QuestionType.MULTIPLE_CHOICE:
-      const mc = question as MultipleChoiceQuestion;
-      return typeof answer === 'number' ? mc.options[answer] : 'Invalid Answer';
-    case QuestionType.TRUE_FALSE:
-      return answer ? 'True' : 'False';
-    case QuestionType.FILL_IN_THE_BLANK:
-      return `"${answer}"`;
-    default:
-      return 'N/A';
-  }
-};
-
 const ReviewCard: React.FC<ReviewCardProps> = ({ log, index }) => {
-  const { question, userAnswer, isCorrect } = log;
+  const { question, userAnswer, isCorrect, feedback, questionScore } = log;
   const CorrectIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-correct" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
   const IncorrectIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-incorrect" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-  
-  let correctAnswerText = '';
-  switch (question.questionType) {
-      case QuestionType.MULTIPLE_CHOICE:
-          correctAnswerText = (question as MultipleChoiceQuestion).options[(question as MultipleChoiceQuestion).correctAnswerIndex];
-          break;
-      case QuestionType.TRUE_FALSE:
-          correctAnswerText = (question as TrueFalseQuestion).correctAnswer ? 'True' : 'False';
-          break;
-      case QuestionType.FILL_IN_THE_BLANK:
-          correctAnswerText = (question as FillInTheBlankQuestion).correctAnswer;
-          break;
-  }
 
-  const userAnswerText = getAnswerText(question, userAnswer);
-  let isPerfectMatch = false;
+  const renderUserAnswer = () => {
+    if (userAnswer === null) return <span className="text-incorrect font-bold">Not answered</span>;
 
-  if (question.questionType === QuestionType.FILL_IN_THE_BLANK) {
-      const ua = userAnswer as string | null;
-      isPerfectMatch = ua?.trim().toLowerCase() === (question as FillInTheBlankQuestion).correctAnswer.trim().toLowerCase();
-  } else if (question.questionType === QuestionType.MULTIPLE_CHOICE) {
-      isPerfectMatch = userAnswer === (question as MultipleChoiceQuestion).correctAnswerIndex;
-  } else if (question.questionType === QuestionType.TRUE_FALSE) {
-      isPerfectMatch = userAnswer === (question as TrueFalseQuestion).correctAnswer;
-  }
+    switch (question.questionType) {
+        case QuestionType.MULTIPLE_CHOICE:
+            const mc = question as MultipleChoiceQuestion;
+            const mcAnswer = typeof userAnswer === 'number' ? mc.options[userAnswer] : 'Invalid Answer';
+            return <span className={`font-bold ${isCorrect ? 'text-correct' : 'text-incorrect'}`}>{mcAnswer}</span>;
+        case QuestionType.TRUE_FALSE:
+            return <span className={`font-bold ${isCorrect ? 'text-correct' : 'text-incorrect'}`}>{userAnswer ? 'True' : 'False'}</span>;
+        case QuestionType.FILL_IN_THE_BLANK:
+            return <span className={`font-bold ${isCorrect ? 'text-correct' : 'text-incorrect'}`}>"{userAnswer as string}"</span>;
+        case QuestionType.OPEN_ENDED:
+            const oa = userAnswer as OpenEndedAnswer;
+            return (
+                <div className="space-y-4 mt-2">
+                    {oa.text && <p className="bg-gray-900 p-3 rounded-md whitespace-pre-wrap">{oa.text}</p>}
+                    {oa.images && oa.images.length > 0 && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {oa.images.map((img, i) => (
+                                <img key={i} src={`data:${img.mimeType};base64,${img.data}`} alt={`Submitted image ${i+1}`} className="rounded-md" />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        default:
+            return <span className="font-bold">N/A</span>;
+    }
+  };
+
+  const renderCorrectAnswer = () => {
+    if (isCorrect && question.questionType !== QuestionType.FILL_IN_THE_BLANK) return null;
+    let correctAnswerText = '';
+    switch (question.questionType) {
+        case QuestionType.MULTIPLE_CHOICE:
+            correctAnswerText = (question as MultipleChoiceQuestion).options[(question as MultipleChoiceQuestion).correctAnswerIndex];
+            break;
+        case QuestionType.TRUE_FALSE:
+            correctAnswerText = (question as TrueFalseQuestion).correctAnswer ? 'True' : 'False';
+            break;
+        case QuestionType.FILL_IN_THE_BLANK:
+            const fibUserAnswer = (userAnswer as string || '').trim().toLowerCase();
+            const fibCorrectAnswer = (question as FillInTheBlankQuestion).correctAnswer.trim().toLowerCase();
+            if (fibUserAnswer === fibCorrectAnswer) return null;
+            correctAnswerText = (question as FillInTheBlankQuestion).correctAnswer;
+            break;
+        default:
+            return null;
+    }
+    return <p>Correct Answer: <span className="font-bold text-correct">{correctAnswerText}</span></p>;
+  };
 
   return (
     <div className="bg-surface-dark p-6 rounded-xl border border-gray-700">
       <div className="flex justify-between items-start mb-4">
         <p className="text-text-secondary font-semibold">Question {index + 1}</p>
-        {isCorrect ? <CorrectIcon /> : <IncorrectIcon />}
+        <div className="flex items-center gap-2">
+            {question.questionType === QuestionType.OPEN_ENDED && typeof questionScore === 'number' && (
+                <span className={`font-bold text-lg ${questionScore >= 7 ? 'text-correct' : questionScore >= 4 ? 'text-yellow-400' : 'text-incorrect'}`}>
+                    {questionScore}/10
+                </span>
+            )}
+            {isCorrect ? <CorrectIcon /> : <IncorrectIcon />}
+        </div>
       </div>
-      <p className="text-xl font-semibold text-text-primary mb-4" dangerouslySetInnerHTML={{__html: question.questionText}} />
+      <div className="prose prose-invert max-w-none text-text-primary mb-4" dangerouslySetInnerHTML={{__html: markdownToHtml(question.questionText)}} />
       
       <div className="space-y-3 text-text-secondary">
-        <p>Your Answer: <span className={`font-bold ${isCorrect ? 'text-correct' : 'text-incorrect'}`}>{userAnswerText}</span></p>
-        {(!isCorrect || !isPerfectMatch) && <p>Correct Answer: <span className="font-bold text-correct">{correctAnswerText}</span></p>}
-        <div className="pt-2">
-            <p className="font-bold text-sm text-gray-400">EXPLANATION</p>
+        <div className="border-t border-gray-700 pt-3">
+            <p className="font-bold text-sm text-gray-400 mb-1">YOUR ANSWER</p>
+            {renderUserAnswer()}
+        </div>
+        
+        {renderCorrectAnswer()}
+
+        {feedback && (
+             <div className="border-t border-gray-700 pt-3">
+                <p className="font-bold text-sm text-gray-400 mb-1">AI FEEDBACK</p>
+                <p>{feedback}</p>
+            </div>
+        )}
+        
+        <div className="border-t border-gray-700 pt-3">
+            <p className="font-bold text-sm text-gray-400 mb-1">{question.questionType === QuestionType.OPEN_ENDED ? "GRADING RUBRIC" : "EXPLANATION"}</p>
             <p>{question.explanation}</p>
         </div>
       </div>
     </div>
   );
 };
-
 
 const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, onRetakeSameQuiz, onStartNewQuiz }) => {
   return (
@@ -90,19 +122,9 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, onRetakeSameQuiz
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 justify-center sticky bottom-4">
-          <button
-            onClick={onRetakeSameQuiz}
-            className="w-full sm:w-auto px-8 py-4 bg-brand-secondary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-primary transition-all duration-300 transform hover:scale-105"
-          >
-            Retake Same Quiz
-          </button>
-          <button
-            onClick={onStartNewQuiz}
-            className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all duration-300 transform hover:scale-105"
-          >
-            Create New Quiz
-          </button>
-        </div>
+          <button onClick={onRetakeSameQuiz} className="w-full sm:w-auto px-8 py-4 bg-brand-secondary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-primary transition-all">Retake Quiz</button>
+          <button onClick={onStartNewQuiz} className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all">Create New Quiz</button>
+      </div>
     </div>
   );
 };
