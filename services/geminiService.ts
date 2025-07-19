@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, StudyMode, OpenEndedAnswer, OpenEndedQuestion, AnswerLog, PredictedQuestion } from '../types';
 
@@ -243,88 +244,126 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
   throw new Error("An unknown error occurred while generating the quiz after multiple attempts.");
 };
 
-const gradingSchema = {
+const batchGradingSchema = {
     type: Type.OBJECT,
     properties: {
-        isCorrect: { type: Type.BOOLEAN, description: "Whether the user's answer is substantially correct based on the rubric." },
-        score: { type: Type.INTEGER, description: "An integer score from 0 to 10, where 10 is a perfect answer." },
-        feedback: { type: Type.STRING, description: "Constructive, specific feedback for the user. Explain what they got right, what they missed, and how they could improve, referencing the rubric." },
+        grades: {
+            type: Type.ARRAY,
+            description: "An array of grading results, one for each question provided in the prompt.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    questionIndex: {
+                        type: Type.INTEGER,
+                        description: "The 0-based index of the question being graded, corresponding to the original list of questions."
+                    },
+                    isCorrect: {
+                        type: Type.BOOLEAN,
+                        description: "Whether the user's answer is substantially correct based on the rubric."
+                    },
+                    score: {
+                        type: Type.INTEGER,
+                        description: "An integer score from 0 to 10, where 10 is a perfect answer."
+                    },
+                    feedback: {
+                        type: Type.STRING,
+                        description: "Constructive, specific feedback for the user. Explain what they got right, what they missed, and how they could improve, referencing the rubric."
+                    },
+                },
+                required: ["questionIndex", "isCorrect", "score", "feedback"],
+            }
+        }
     },
-    required: ["isCorrect", "score", "feedback"],
+    required: ["grades"],
 };
 
-export const gradeExam = async (questions: Question[], answers: OpenEndedAnswer[]): Promise<AnswerLog[]> => {
+export const gradeExam = async (questions: Question[], submission: OpenEndedAnswer): Promise<AnswerLog[]> => {
     if (!process.env.API_KEY) throw new Error("API_KEY environment variable not set.");
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-    const gradedLogs: AnswerLog[] = [];
+    const questionTextForPrompt = questions.map((q, i) => `
+### Question ${i + 1} (index: ${i})
+**Question Text:**
+${(q as OpenEndedQuestion).questionText}
 
-    for (let i = 0; i < questions.length; i++) {
-        const question = questions[i] as OpenEndedQuestion;
-        const answer = answers[i];
-
-        const instruction = `You are an impartial and expert grader. Your task is to evaluate a user's answer to an open-ended exam question.
-
-### Question:
-${question.questionText}
-
-### Grading Rubric:
-${question.explanation}
-
-### User's Answer:
-The user has provided a typed response and may have also included images of handwritten work. You must consider all parts of their answer.
-
-**Typed Answer:**
-${answer.text || "(No typed answer provided)"}
-
-**Images of Written Work:**
-${answer.images.length > 0 ? "(Images are attached)" : "(No images provided)"}
-
+**Grading Rubric:**
+${(q as OpenEndedQuestion).explanation}
 ---
-### Your Task:
-Based on the question, the detailed grading rubric, and all parts of the user's answer, provide your evaluation in a JSON object. The score should be an integer between 0 and 10. The feedback must be constructive.
+`).join('\n');
+
+    const instruction = `You are an impartial and expert grader. A user has completed an exam. Below are all the questions with their grading rubrics, followed by the user's single submission which contains both typed text and images of handwritten work.
+
+Your task is to evaluate the user's answer for EVERY question. You must find the answer for each question within the user's submission (the user was instructed to number their answers). Evaluate each answer against its specific rubric.
+
+Your response MUST be a single JSON object matching the required schema. It must contain a 'grades' array with an entry for EVERY question, from index 0 to ${questions.length - 1}.
+
+<hr>
+## Exam Questions & Rubrics
+${questionTextForPrompt}
+<hr>
+
+## User's Submission
+**Typed Answer Section:**
+${submission.text || "(No typed answer provided)"}
+
+**Images of Handwritten Work:**
+${submission.images.length > 0 ? "(Images are attached as subsequent parts of this prompt)" : "(No images provided)"}
 `;
 
-        const parts: PromptPart[] = [{ text: instruction }];
-        answer.images.forEach(img => {
-            parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+    const parts: PromptPart[] = [{ text: instruction }];
+    submission.images.forEach(img => {
+        parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+    });
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: batchGradingSchema,
+                temperature: 0.3,
+            },
         });
 
-        try {
-            const response = await ai.models.generateContent({
-                model: "gemini-2.5-flash",
-                contents: { parts },
-                config: {
-                    responseMimeType: "application/json",
-                    responseSchema: gradingSchema,
-                    temperature: 0.3,
-                },
-            });
+        const jsonText = response.text.trim();
+        const result = JSON.parse(jsonText);
+        const grades = result.grades as { questionIndex: number; isCorrect: boolean; score: number; feedback: string }[];
 
-            const jsonText = response.text.trim();
-            const result = JSON.parse(jsonText);
-
-            gradedLogs.push({
+        const gradedLogs: AnswerLog[] = questions.map((question, index) => {
+            const grade = grades.find(g => g.questionIndex === index);
+            if (grade) {
+                return {
+                    question: question,
+                    userAnswer: submission,
+                    isCorrect: grade.isCorrect,
+                    feedback: grade.feedback,
+                    questionScore: grade.score,
+                };
+            }
+            return {
                 question: question,
-                userAnswer: answer,
-                isCorrect: result.isCorrect,
-                feedback: result.feedback,
-                questionScore: result.score,
-            });
-
-        } catch (error) {
-            console.error(`Error grading question ${i + 1}:`, error);
-            gradedLogs.push({
-                question: question,
-                userAnswer: answer,
+                userAnswer: submission,
                 isCorrect: false,
-                feedback: "Sorry, an error occurred while grading this answer. It has been marked as incorrect.",
+                feedback: "The AI did not return a grade for this question.",
                 questionScore: 0,
-            });
-        }
+            };
+        });
+
+        return gradedLogs;
+
+    } catch (error) {
+        console.error(`Batch grading error:`, error);
+        return questions.map(q => ({
+            question: q,
+            userAnswer: submission,
+            isCorrect: false,
+            feedback: "Sorry, a system error occurred during the grading process. This answer has been marked as incorrect.",
+            questionScore: 0,
+        }));
     }
-    return gradedLogs;
 };
+
 
 const predictionSchema = {
     type: Type.OBJECT,

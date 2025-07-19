@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet } from './types';
 import SetupScreen from './components/SetupScreen';
@@ -134,11 +135,11 @@ const App: React.FC = () => {
     setAppState(AppState.STUDYING);
   }, []);
 
-  const handleFinishExam = useCallback(async (answers: OpenEndedAnswer[]) => {
+  const handleFinishExam = useCallback(async (submission: OpenEndedAnswer) => {
     if (!quiz) return;
     setAppState(AppState.GRADING);
     try {
-        const gradedLog = await gradeExam(quiz.questions, answers);
+        const gradedLog = await gradeExam(quiz.questions, submission);
         const totalScore = gradedLog.reduce((sum, log) => sum + (log.questionScore || 0), 0);
         handleFinishStudy(totalScore, gradedLog);
     } catch (err) {
