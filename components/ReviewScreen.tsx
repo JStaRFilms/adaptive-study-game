@@ -97,13 +97,13 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index }) => {
         {feedback && (
              <div className="border-t border-gray-700 pt-3">
                 <p className="font-bold text-sm text-gray-400 mb-1">AI FEEDBACK</p>
-                <p>{feedback}</p>
+                <div className="prose prose-invert max-w-none text-text-secondary" dangerouslySetInnerHTML={{__html: markdownToHtml(feedback)}} />
             </div>
         )}
         
         <div className="border-t border-gray-700 pt-3">
             <p className="font-bold text-sm text-gray-400 mb-1">{question.questionType === QuestionType.OPEN_ENDED ? "GRADING RUBRIC" : "EXPLANATION"}</p>
-            <p>{question.explanation}</p>
+            <div className="prose prose-invert max-w-none text-text-secondary" dangerouslySetInnerHTML={{__html: markdownToHtml(question.explanation)}} />
         </div>
       </div>
     </div>

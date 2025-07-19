@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useCallback } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet } from './types';
 import SetupScreen from './components/SetupScreen';
@@ -28,7 +29,7 @@ const App: React.FC = () => {
   const [predictionResults, setPredictionResults] = useState<PredictedQuestion[] | null>(null);
   
   const [addQuizResult] = useQuizHistory();
-  const [studySets] = useStudySets();
+  const [studySets, addSet, updateSet, deleteSet] = useStudySets();
 
   const handleLaunchApp = useCallback(() => {
     setInitialContent(null);
@@ -152,7 +153,17 @@ const App: React.FC = () => {
   const renderCoreApp = () => {
     switch (appState) {
       case AppState.SETUP:
-        return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handleGoToPrediction} />;
+        return <SetupScreen 
+                    onStart={handleStartStudy} 
+                    error={error} 
+                    initialContent={initialContent} 
+                    onReviewHistory={handleReview} 
+                    onPredict={handleGoToPrediction}
+                    studySets={studySets}
+                    addSet={addSet}
+                    updateSet={updateSet}
+                    deleteSet={deleteSet}
+                />;
       case AppState.PROCESSING:
         return (
           <div className="flex flex-col items-center justify-center h-screen">
@@ -187,7 +198,17 @@ const App: React.FC = () => {
       case AppState.PREDICTION_RESULTS:
           return predictionResults ? <PredictionResultsScreen results={predictionResults} onBack={handleRestart} /> : null;
       default:
-        return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handleGoToPrediction}/>;
+        return <SetupScreen 
+                    onStart={handleStartStudy} 
+                    error={error} 
+                    initialContent={initialContent} 
+                    onReviewHistory={handleReview} 
+                    onPredict={handleGoToPrediction}
+                    studySets={studySets}
+                    addSet={addSet}
+                    updateSet={updateSet}
+                    deleteSet={deleteSet}
+                />;
     }
   };
 
