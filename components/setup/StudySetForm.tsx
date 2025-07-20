@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { StudySet } from '../../types';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -53,8 +54,8 @@ interface StudySetFormProps {
     processingError: string | null;
     progressMessage: string | null;
     progressPercent: number;
-    onSave: (text: string, files: File[]) => void;
-    onSaveOnly: (text: string, files: File[]) => void;
+    onSave: (data: { name: string; content: string; files: File[] }) => void;
+    onSaveOnly: (data: { name: string; content: string; files: File[] }) => void;
     onCancel: () => void;
 }
 
@@ -102,14 +103,14 @@ const StudySetForm: React.FC<StudySetFormProps> = ({
         setInternalError(null);
         if (!name.trim()) { setInternalError("Please provide a name for your new study set."); return; }
         if (!content.trim() && files.length === 0) { setInternalError("Please provide some study material to analyze."); return; }
-        onSave(content, files);
+        onSave({ name, content, files });
     };
 
     const handleSaveOnlyClick = () => {
         setInternalError(null);
         if (!name.trim()) { setInternalError("Please provide a name."); return; }
         if (!content.trim() && files.length === 0) { setInternalError("Please provide some study material to save."); return; }
-        onSaveOnly(content, files);
+        onSaveOnly({ name, content, files });
     };
     
     return (

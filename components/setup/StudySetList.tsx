@@ -1,6 +1,7 @@
 
+
 import React, { useState } from 'react';
-import { StudySet, AnswerLog } from '../../types';
+import { StudySet } from '../../types';
 import Modal from '../common/Modal';
 
 interface StudySetListProps {
@@ -57,9 +58,9 @@ const StudySetList: React.FC<StudySetListProps> = ({
         <div className="space-y-4">
           {studySets.map(set => (
             <div key={set.id} className="bg-surface-dark p-4 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center transition-shadow hover:shadow-lg gap-4">
-              <div className="flex-grow">
+              <div className="flex-grow min-w-0">
                 <h3 className="font-bold text-xl text-text-primary">{set.name}</h3>
-                <p className="text-sm text-text-secondary flex items-center gap-2">
+                <p className="text-sm text-text-secondary hidden sm:flex items-center gap-2">
                     {set.fileInfo && set.fileInfo.length > 0 && <><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a3 3 0 10-6 0v4a3 3 0 106 0V7a1 1 0 112 0v4a5 5 0 01-10 0V7a3 3 0 013-3z" clipRule="evenodd" /></svg>{set.fileInfo.length} files</>}
                     <span className="truncate">{set.content.substring(0, 100)}...</span>
                 </p>

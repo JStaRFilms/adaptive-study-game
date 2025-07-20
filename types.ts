@@ -30,6 +30,7 @@ export interface StudySet {
   content: string;
   createdAt: string;
   fileInfo?: FileInfo[];
+  topics?: string[];
 }
 
 export interface QuizConfig {

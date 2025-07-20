@@ -115,7 +115,11 @@ export const generateTopics = async (userContentParts: PromptPart[]): Promise<st
             },
         });
 
-        const jsonText = response.text.trim();
+        const jsonText = response.text?.trim();
+        if (!jsonText) {
+            console.error("Error generating topics: AI returned empty response.");
+            return ["General Knowledge"];
+        }
         const result = JSON.parse(jsonText);
 
         if (result.topics && Array.isArray(result.topics) && result.topics.length > 0) {
@@ -175,7 +179,7 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
             config: apiConfig,
         });
 
-        let jsonText = response.text.trim();
+        let jsonText = response.text?.trim() || '';
         if (knowledgeSource === KnowledgeSource.WEB_SEARCH) {
             const match = jsonText.match(/```json\n([\s\S]*)\n```/);
             if (match) {
@@ -221,7 +225,7 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
                 default:
                     return null;
             }
-        }).filter((q): q is Question => q !== null);
+        }).filter((q: Question | null): q is Question => q !== null);
 
         if (validatedQuestions.length > 0) {
             return { questions: validatedQuestions, webSources }; // Success!
@@ -326,7 +330,10 @@ ${submission.images.length > 0 ? "(Images are attached as subsequent parts of th
             },
         });
 
-        const jsonText = response.text.trim();
+        const jsonText = response.text?.trim();
+        if (!jsonText) {
+            throw new Error("Grading API returned empty response.");
+        }
         const result = JSON.parse(jsonText);
         const grades = result.grades as { questionIndex: number; isCorrect: boolean; score: number; feedback: string }[];
 
@@ -440,7 +447,10 @@ ${hints || "Not provided"}
             },
         });
 
-        const jsonText = response.text.trim();
+        const jsonText = response.text?.trim();
+        if (!jsonText) {
+            throw new Error("Prediction API returned empty response.");
+        }
         const result = JSON.parse(jsonText);
         
         if (result.predictions && Array.isArray(result.predictions)) {

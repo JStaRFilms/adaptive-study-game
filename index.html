@@ -5,12 +5,40 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Adaptive Study Game</title>
+    <script>
+      // Polyfill for Promise.withResolvers() to support older browsers
+      if (typeof Promise.withResolvers !== 'function') {
+        Promise.withResolvers = function withResolvers() {
+          let resolve, reject;
+          const promise = new Promise((res, rej) => {
+            resolve = res;
+            reject = rej;
+          });
+          return { promise, resolve, reject };
+        };
+      }
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
           extend: {
             colors: {
+              // New theme colors from user's CSS
+              'case-desk': '#4a3b31',
+              'case-paper': '#fdfaf1',
+              'case-paper-lines': '#e0d9c9',
+              'case-text-primary': '#2c251e',
+              'case-text-secondary': '#7a6a5b',
+              'case-accent-red': '#b71c1c',
+              'case-cork': '#c5a98b',
+              'case-folder-bg': '#e6d8b1',
+              'case-folder-border': '#d1b88a',
+              
+              // Original theme colors
               'brand-primary': '#14b8a6', // Teal 500
               'brand-secondary': '#0f766e', // Teal 700
               'background-dark': '#111827', // Gray 900
@@ -19,6 +47,11 @@
               'text-secondary': '#d1d5db', // Gray 300
               'correct': '#22c55e', // Green 500
               'incorrect': '#ef4444', // Red 500
+            },
+            fontFamily: {
+              'display': ['"Special Elite"', 'monospace'],
+              'serif': ['"Merriweather"', 'serif'],
+              'sans': ['ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', '"Noto Sans"', 'sans-serif', '"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"', '"Noto Color Emoji"'],
             },
             animation: {
               'fade-in': 'fadeIn 0.5s ease-out forwards',
@@ -70,7 +103,8 @@
     "@google/genai": "https://esm.sh/@google/genai@^1.10.0",
     "mammoth": "https://esm.sh/mammoth@^1.9.1",
     "xlsx": "https://esm.sh/xlsx@^0.18.5",
-    "pdfjs-dist": "https://esm.sh/pdfjs-dist@^5.3.93"
+    "pdfjs-dist": "https://esm.sh/pdfjs-dist@^5.3.93",
+    "html2canvas": "https://esm.sh/html2canvas@^1.4.1"
   }
 }
 </script>
@@ -84,10 +118,60 @@
     opacity: 1;
     transform: translateY(0);
   }
+  .bg-pattern {
+    background-color: #4a3b31;
+    background-image: url("data:image/svg+xml,%3Csvg width='52' height='26' viewBox='0 0 52 26' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%233a2e26' fill-opacity='0.4'%3E%3Cpath d='M10 10c0-2.21-1.79-4-4-4-3.314 0-6-2.686-6-6h2c0 2.21 1.79 4 4 4 3.314 0 6 2.686 6 6 0 2.21 1.79 4 4 4 3.314 0 6 2.686 6 6 0 2.21 1.79 4 4 4v2c-3.314 0-6-2.686-6-6 0-2.21-1.79-4-4-4-3.314 0-6-2.686-6-6zm25.464-1.95l8.486 8.486-1.414 1.414-8.486-8.486 1.414-1.414z' /%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+  
+  /* Custom Range Slider Styles from Mockup */
+  input[type="range"].case-slider {
+      -webkit-appearance: none; appearance: none;
+      width: 100%;
+      height: 6px;
+      background: #e0d9c9;
+      outline: none;
+      border-radius: 3px;
+      border: 1px solid #ccc;
+  }
+  input[type="range"].case-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 20px;
+      height: 20px;
+      background: #b71c1c;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid white;
+      box-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+  }
+  
+  /* Evidence Board Styles */
+  .cork-board {
+    background-color: #c5a98b;
+    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAMAAAAp4XiGAAABAlBMVEUAAADVQwDQRQDQRQDPRgDPRgDPRgDPQwDPRgDPRQDRRADQRgDQRQDRRgDPRQDQRgDQRgDPRQDQRgDPRQDPRgDQRQDRRgDPRQDQRQDTQwDRRgDSRAAVGAAYHQAWIgAcJgAfLgAmNAAvPQBCXgBGZgBJbQBOeQBRggBUjQBamgBfqQCGwwCKxwCOyQCTzQCW0gCY0wCa1wCh2gCl3ACp3wCs4gC15gC56gC97ADF7wDG8ADJ8QDN9ADU9wDX+ADe+gDk/ADo/QDq/QDw/gD1/wD3/wD8/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wCVxoZ/AAAAV3RSTlMAAQIDBAUGBwgJCgsMDQ4PEBITFBUWFxgZGhscHR4fICEiIyQlJicpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ucG5S2gQJAAAAlklEQVRIx+3Wxw2DQBCF4XkACUqgBAoQhXr//1fUksJaK2tbz+a+ZGe3zVwAANhms3fbr3u4W5g5jMv2h9dGihV2D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsdAAA2s3s2z/a4m5g5hMv2h9tGig12D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsdAAD2srs2z/a4m5g5hMv2h9tGig12D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsdAAD2srs2z/a4m5g5hMv2h9tGig12D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsdAAD2srs2z/a4m5g5hMv2h9tGig12D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsd+AHUrQDwA25bUgAAAABJRU5ErkJggg==);
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.4);
+  }
+  
+  .evidence-folder {
+      background-color: #e6d8b1;
+      border: 1px solid #d1b88a;
+      box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+  }
+  
+  .folder-tab {
+      top: -1px;
+      left: 1rem;
+      background-color: inherit;
+      border: 1px solid #d1b88a;
+      border-bottom: none;
+      transform: translateY(-100%);
+  }
+
+  .paper-section textarea {
+      background-image: repeating-linear-gradient(#fdfaf1 0px, #fdfaf1 24px, #e0d9c9 25px);
+  }
 </style>
-<link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-background-dark text-text-primary">
+  <body class="bg-background-dark text-text-primary font-sans">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

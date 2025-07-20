@@ -1,13 +1,14 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer } from '../types';
 import ProgressBar from './common/ProgressBar';
 import TimerBar from './common/TimerBar';
-import { markdownToHtml } from '../utils/textUtils';
+import Markdown from './common/Markdown';
+import Modal from './common/Modal';
 
 interface StudyScreenProps {
   quiz: Quiz;
   onFinish: (finalScore: number, log: AnswerLog[]) => void;
+  onQuit: () => void;
   mode: StudyMode;
 }
 
@@ -19,7 +20,7 @@ const SPEED_BONUS_POINTS = 5;
 const BASE_POINTS = 10;
 const STREAK_BONUS_MULTIPLIER = 2;
 
-const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
+const StudyScreen = ({ quiz, onFinish, onQuit, mode }: StudyScreenProps) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
@@ -31,6 +32,7 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
   const [answerExplanation, setAnswerExplanation] = useState<string | null>(null);
   const [answerLog, setAnswerLog] = useState<AnswerLog[]>([]);
   const [correctionFeedback, setCorrectionFeedback] = useState<string | null>(null);
+  const [isQuitModalOpen, setIsQuitModalOpen] = useState(false);
 
   const isReviewMode = mode === StudyMode.REVIEW;
   const currentQuestion: Question = quiz.questions[currentQuestionIndex];
@@ -176,33 +178,61 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
     return (
       <div className="mt-6 space-y-4 text-center">
         {feedbackContent}
-        {answerExplanation && <div className="text-left bg-gray-900/50 p-4 rounded-lg border border-gray-700"><h4 className="font-bold text-text-secondary">Explanation</h4><p className="text-text-secondary">{answerExplanation}</p></div>}
+        {answerExplanation && (
+          <div className="text-left bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+            <h4 className="font-bold text-text-secondary">Explanation</h4>
+            <Markdown content={answerExplanation} className="prose prose-invert max-w-none text-text-secondary" />
+          </div>
+        )}
       </div>
     );
   }
 
   const renderQuestionBody = () => {
     const isAnswered = answerStatus !== 'unanswered';
+    
+    if (currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
+        const [part1, ...rest] = currentQuestion.questionText.split('___');
+        const part2 = rest.join('___');
+        const inputSize = fillBlankAnswer.length > 0 ? fillBlankAnswer.length : 1;
+        
+        return (
+             <form onSubmit={isAnswered ? (e) => e.preventDefault() : handleFibSubmit} className="flex flex-col items-center gap-4">
+                <div className="text-2xl sm:text-3xl font-bold text-text-primary text-center flex flex-wrap items-center justify-center gap-2">
+                    <Markdown content={part1} as="span"/>
+                    <input
+                        type="text"
+                        value={fillBlankAnswer}
+                        onChange={isAnswered ? undefined : e => setFillBlankAnswer(e.target.value)}
+                        readOnly={isAnswered}
+                        className="mx-2 px-2 py-1 text-center w-auto max-w-xs bg-gray-900 border-b-2 border-brand-primary focus:outline-none focus:ring-0 text-brand-primary font-bold"
+                        autoFocus={!isAnswered}
+                        aria-label="Fill in the blank answer"
+                        size={inputSize}
+                    />
+                    <Markdown content={part2} as="span"/>
+                </div>
+                {!isAnswered && <button type="submit" disabled={!fillBlankAnswer.trim()} className="px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed">Submit</button>}
+            </form>
+        );
+    }
+    
     if (isAnswered) {
-        switch (currentQuestion.questionType) {
-            case QuestionType.MULTIPLE_CHOICE:
-                return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {currentQuestion.options.map((option, index) => {
-                            const isCorrect = index === currentQuestion.correctAnswerIndex;
-                            const isSelected = index === selectedOptionIndex;
-                            let style = 'bg-surface-dark opacity-60 cursor-not-allowed';
-                            if (isCorrect) style = 'bg-correct/80 ring-2 ring-correct animate-pulse cursor-not-allowed';
-                            else if (isSelected) style = 'bg-incorrect/80 ring-2 ring-incorrect cursor-not-allowed';
-                            return <button key={index} disabled className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${style}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><span dangerouslySetInnerHTML={{ __html: option }} /></button>;
-                        })}
-                    </div>
-                );
-            case QuestionType.FILL_IN_THE_BLANK:
-                const [part1, part2] = currentQuestion.questionText.split('___');
-                return <form onSubmit={(e) => e.preventDefault()} className="flex flex-col items-center gap-4"><p className="text-2xl sm:text-3xl font-bold text-text-primary text-center" dangerouslySetInnerHTML={{__html: markdownToHtml(part1) + `<input type="text" value="${fillBlankAnswer}" class="mx-2 px-2 py-1 text-center w-40 sm:w-48 bg-gray-900 border-b-2 border-brand-primary focus:outline-none focus:ring-0 text-brand-primary font-bold" readonly />` + markdownToHtml(part2)}}/></form>;
-            default: return null;
+        if (currentQuestion.questionType === QuestionType.MULTIPLE_CHOICE) {
+            return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {currentQuestion.options.map((option, index) => {
+                        const isCorrect = index === currentQuestion.correctAnswerIndex;
+                        const isSelected = index === selectedOptionIndex;
+                        let style = 'bg-surface-dark opacity-60 cursor-not-allowed';
+                        if (isCorrect) style = 'bg-correct/80 ring-2 ring-correct animate-pulse cursor-not-allowed';
+                        else if (isSelected) style = 'bg-incorrect/80 ring-2 ring-incorrect cursor-not-allowed';
+                        return <button key={index} disabled className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${style}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><Markdown content={option} as="span" /></button>;
+                    })}
+                </div>
+            );
         }
+        return null;
     }
 
     switch (currentQuestion.questionType) {
@@ -210,22 +240,13 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
             return (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {currentQuestion.options.map((option, index) => <button key={index} onClick={() => setSelectedOptionIndex(index)} className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${selectedOptionIndex === index ? 'bg-brand-primary ring-2 ring-white' : 'bg-surface-dark hover:bg-gray-600'}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><span dangerouslySetInnerHTML={{ __html: option }} /></button>)}
+                  {currentQuestion.options.map((option, index) => <button key={index} onClick={() => setSelectedOptionIndex(index)} className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${selectedOptionIndex === index ? 'bg-brand-primary ring-2 ring-white' : 'bg-surface-dark hover:bg-gray-600'}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><Markdown content={option} as="span" /></button>)}
                 </div>
                 <div className="mt-6 flex justify-center"><button onClick={handleMcSubmit} disabled={selectedOptionIndex === null} className="px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed">Submit</button></div>
               </>
             );
         case QuestionType.TRUE_FALSE:
             return <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6"><button onClick={() => handleTfSubmit(true)} className="p-6 text-2xl font-bold bg-green-700 hover:bg-green-600 rounded-lg transition-colors">TRUE</button><button onClick={() => handleTfSubmit(false)} className="p-6 text-2xl font-bold bg-red-700 hover:bg-red-600 rounded-lg transition-colors">FALSE</button></div>;
-        case QuestionType.FILL_IN_THE_BLANK:
-            const [part1, part2] = currentQuestion.questionText.split('___');
-            return (
-                <form onSubmit={handleFibSubmit} className="flex flex-col items-center gap-4">
-                    <p className="text-2xl sm:text-3xl font-bold text-text-primary text-center" dangerouslySetInnerHTML={{__html: markdownToHtml(part1) + `<input type="text" value="${fillBlankAnswer}" oninput="this.size = this.value.length || 1" class="mx-2 px-2 py-1 text-center w-auto max-w-xs bg-gray-900 border-b-2 border-brand-primary focus:outline-none focus:ring-0 text-brand-primary font-bold" autoFocus aria-label="Fill in the blank answer"/>` + markdownToHtml(part2) }} />
-                    <input type="text" value={fillBlankAnswer} onChange={e => setFillBlankAnswer(e.target.value)} className="sr-only" />
-                    <button type="submit" disabled={!fillBlankAnswer.trim()} className="px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed">Submit</button>
-                </form>
-            );
     }
   }
 
@@ -239,7 +260,8 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
   return (
     <div className="w-full max-w-3xl mx-auto p-4 flex flex-col animate-fade-in h-full">
       <header className="mb-6">
-        <div className="flex flex-wrap justify-between items-baseline text-text-secondary mb-2 gap-y-1 gap-x-4">
+        <div className="flex flex-wrap justify-between items-center text-text-secondary mb-2 gap-y-1 gap-x-4">
+            <button onClick={() => setIsQuitModalOpen(true)} className="text-sm font-semibold text-gray-400 hover:text-white hover:underline transition-colors">End Session</button>
             <div className="flex items-baseline gap-4"><span className="font-bold text-lg">Score: <span className="text-brand-primary">{score}</span></span><span className="text-sm">Streak: <span className="text-white">{streak}x</span></span></div>
             <div className="flex items-baseline gap-4"><div className="flex items-center justify-center gap-2 font-bold text-lg">{!isReviewMode && <span className="text-yellow-400">{timeLeft}s</span>}{isReviewMode && <span className="text-brand-secondary font-semibold">Review Mode</span>}</div><span className="font-bold text-lg">Q: {currentQuestionIndex + 1}/{totalQuestions}</span></div>
         </div>
@@ -248,7 +270,7 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
       </header>
       
       <div className="bg-surface-dark p-6 sm:p-8 rounded-xl shadow-2xl flex flex-col justify-center flex-grow">
-        {currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK && <h2 className="text-2xl sm:text-3xl font-bold mb-8 text-text-primary text-center prose" dangerouslySetInnerHTML={{ __html: markdownToHtml(currentQuestion.questionText) }} />}
+        {currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK && <Markdown as="h2" content={currentQuestion.questionText} className="text-2xl sm:text-3xl font-bold mb-8 text-text-primary text-center prose" />}
         {renderQuestionBody()}
         {answerStatus !== 'unanswered' && renderAnswerFeedback()}
       </div>
@@ -262,6 +284,15 @@ const StudyScreen = ({ quiz, onFinish, mode }: StudyScreenProps) => {
             </div>
         </div>
       </div>
+      <Modal isOpen={isQuitModalOpen} onClose={() => setIsQuitModalOpen(false)} title="End Study Session?">
+        <div className="text-text-secondary">
+          <p>Are you sure you want to end this session? Your progress will not be saved, and you will be returned to the main menu.</p>
+          <div className="mt-6 flex justify-end gap-4">
+            <button onClick={() => setIsQuitModalOpen(false)} className="px-4 py-2 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-colors">Continue Studying</button>
+            <button onClick={onQuit} className="px-4 py-2 bg-incorrect text-white font-bold rounded-lg hover:bg-red-600 transition-colors">End Session</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

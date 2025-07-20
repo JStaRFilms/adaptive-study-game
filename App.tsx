@@ -1,8 +1,4 @@
-
-
-
-
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet } from './types';
 import SetupScreen from './components/SetupScreen';
 import StudyScreen from './components/StudyScreen';
@@ -31,6 +27,23 @@ const App: React.FC = () => {
   
   const [addQuizResult] = useQuizHistory();
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
+  
+  const isPredictionFlow = [
+    AppState.PREDICTION_SETUP,
+    AppState.PREDICTING,
+    AppState.PREDICTION_RESULTS,
+  ].includes(appState);
+
+  useEffect(() => {
+    if (isPredictionFlow) {
+        document.body.classList.remove('bg-background-dark', 'font-sans');
+        document.body.classList.add('bg-pattern', 'font-serif');
+    } else {
+        document.body.classList.remove('bg-pattern', 'font-serif');
+        document.body.classList.add('bg-background-dark', 'font-sans');
+    }
+  }, [isPredictionFlow]);
+
 
   const handleLaunchApp = useCallback(() => {
     setInitialContent(null);
@@ -173,22 +186,22 @@ const App: React.FC = () => {
                 />;
       case AppState.PROCESSING:
         return (
-          <div className="flex flex-col items-center justify-center h-screen">
+          <div className="flex flex-col items-center justify-center h-full bg-background-dark/80">
             <LoadingSpinner />
             <p className="mt-4 text-lg text-text-secondary">Analyzing your notes and building your custom quiz...</p>
           </div>
         );
       case AppState.GRADING:
         return (
-            <div className="flex flex-col items-center justify-center h-screen">
+            <div className="flex flex-col items-center justify-center h-full bg-background-dark/80">
                 <LoadingSpinner />
                 <p className="mt-4 text-lg text-text-secondary">Grading your exam answers...</p>
             </div>
         );
       case AppState.STUDYING:
-        return quiz ? <StudyScreen quiz={quiz} onFinish={handleFinishStudy} mode={studyMode} /> : null;
+        return quiz ? <StudyScreen quiz={quiz} onFinish={handleFinishStudy} mode={studyMode} onQuit={handleRestart} /> : null;
       case AppState.EXAM_IN_PROGRESS:
-        return quiz ? <ExamScreen quiz={quiz} onFinish={handleFinishExam} /> : null;
+        return quiz ? <ExamScreen quiz={quiz} onFinish={handleFinishExam} onCancel={handleRestart} /> : null;
       case AppState.RESULTS:
         return <ResultsScreen score={finalScore} answerLog={answerLog} onRestart={handleRestart} onReview={() => handleReview()} webSources={quiz?.webSources} />;
       case AppState.REVIEWING:
@@ -197,9 +210,9 @@ const App: React.FC = () => {
         return currentStudySet ? <PredictionSetupScreen studySet={currentStudySet} onGenerate={handleGeneratePrediction} onCancel={handleRestart} error={error} /> : null;
       case AppState.PREDICTING:
         return (
-            <div className="flex flex-col items-center justify-center h-screen">
+            <div className="flex flex-col items-center justify-center h-full">
                 <LoadingSpinner />
-                <p className="mt-4 text-lg text-text-secondary">Generating exam predictions...</p>
+                <p className="mt-4 text-lg text-case-text-light font-display">Analyzing case file... generating predictions...</p>
             </div>
         );
       case AppState.PREDICTION_RESULTS:
@@ -224,8 +237,8 @@ const App: React.FC = () => {
   }
 
   return (
-    <main className="min-h-screen bg-background-dark font-sans flex flex-col items-center p-4 sm:p-6 lg:p-8">
-      <div className="w-full max-w-4xl flex-grow flex flex-col">
+    <main className="min-h-screen flex flex-col items-center p-4 sm:p-6 lg:p-8">
+      <div className="w-full max-w-6xl flex-grow flex flex-col">
         {renderCoreApp()}
       </div>
     </main>

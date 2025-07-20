@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { PredictedQuestion } from '../types';
-import { markdownToHtml } from '../utils/textUtils';
+import Markdown from './common/Markdown';
+import html2canvas from 'html2canvas';
+import LoadingSpinner from './common/LoadingSpinner';
 
 interface PredictionResultsScreenProps {
   results: PredictedQuestion[];
@@ -8,44 +10,102 @@ interface PredictionResultsScreenProps {
 }
 
 const PredictionResultsScreen: React.FC<PredictionResultsScreenProps> = ({ results, onBack }) => {
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    const reportElement = reportRef.current;
+    if (!reportElement || !results || results.length === 0) return;
+
+    setIsDownloading(true);
+    try {
+        const canvas = await html2canvas(reportElement, {
+            scale: 2,
+            backgroundColor: '#fdfaf1',
+            useCORS: true,
+            logging: false,
+        } as any);
+        
+        const image = canvas.toDataURL('image/png', 1.0);
+        const link = document.createElement('a');
+        link.href = image;
+        link.download = 'exam-prediction-report.png';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+    } catch (error) {
+        console.error("Error generating image:", error);
+        alert("Sorry, an error occurred while generating the image.");
+    } finally {
+        setIsDownloading(false);
+    }
+  };
+
   return (
-    <div className="animate-fade-in w-full max-w-3xl mx-auto">
-      <h1 className="text-3xl sm:text-4xl font-bold text-text-primary text-center mb-2">Exam Prediction Results</h1>
-      <p className="text-text-secondary text-center mb-8">The AI has analyzed your materials and generated these likely exam questions.</p>
+    <div className="animate-fade-in w-full max-w-4xl mx-auto font-serif">
+      <header className="text-center mb-12">
+          <div className="inline-block border-2 border-case-paper/50 p-2 mb-4">
+              <h1 className="text-2xl md:text-3xl font-display text-case-paper tracking-widest">ANALYSIS COMPLETE</h1>
+          </div>
+          <h2 className="text-xl font-display text-case-paper/80 font-normal">PREDICTION REPORT</h2>
+      </header>
 
-      {results.length > 0 ? (
-        <div className="space-y-4">
-          {results.map((item, index) => (
-            <div key={index} className="bg-surface-dark p-6 rounded-xl border border-gray-700">
-              <p className="text-sm font-bold text-brand-primary mb-1">PREDICTED QUESTION {index + 1}</p>
-              <h2
-                className="text-xl font-semibold text-text-primary mb-3 prose prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: markdownToHtml(item.questionText) }}
-              />
+      <div ref={reportRef} className="bg-case-paper text-case-text-primary p-8 md:p-12 shadow-2xl rounded-sm">
+        {results.length > 0 ? (
+          <div className="space-y-12">
+            {results.map((item, index) => (
+              <div key={index} className="pl-6 border-l-2 border-case-paper-lines">
+                  <p className="font-display text-case-text-secondary font-bold text-xs tracking-widest mb-3">
+                    PREDICTION #{index + 1} // TOPIC: {item.topic}
+                  </p>
+                  <Markdown
+                    as="h2"
+                    content={item.questionText}
+                    className="text-2xl font-bold text-case-text-primary leading-tight"
+                  />
+                  
+                  <hr className="my-6 border-t border-case-paper-lines/80" />
 
-              <div className="border-t border-gray-600 pt-3 space-y-3">
-                 <div>
-                    <h3 className="text-sm font-bold text-text-secondary">Topic</h3>
-                    <p className="text-text-secondary">{item.topic}</p>
-                 </div>
-                 <div>
-                    <h3 className="text-sm font-bold text-text-secondary">AI's Reasoning</h3>
-                    <p className="text-text-secondary">{item.reasoning}</p>
-                 </div>
+                  <h3 className="font-display text-sm font-bold text-case-text-secondary tracking-widest uppercase mb-2">
+                    Analyst's Reasoning
+                  </h3>
+                  <Markdown
+                    as="p"
+                    content={item.reasoning}
+                    className="text-base text-case-text-primary/90 leading-relaxed"
+                  />
               </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-16 px-6 bg-surface-dark rounded-xl">
-          <h2 className="text-2xl font-semibold text-text-primary mb-2">No Predictions Generated</h2>
-          <p className="text-text-secondary">The AI was unable to generate predictions from the provided materials. Please try again with more detailed content.</p>
-        </div>
-      )}
+            ))}
+          </div>
+        ) : (
+          <div className="text-center">
+            <h2 className="text-2xl font-semibold font-display mb-2">Analysis Yielded No Results</h2>
+            <p>The AI was unable to generate predictions from the provided case file. Please try again with more detailed evidence.</p>
+          </div>
+        )}
+      </div>
 
-      <div className="mt-8 flex justify-center">
-        <button onClick={onBack} className="px-8 py-3 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-all">
-          Back to Study Sets
+      <div className="text-center mt-12 flex flex-col sm:flex-row justify-center items-center gap-6">
+        <button
+          onClick={handleDownload}
+          disabled={isDownloading || !results || results.length === 0}
+          className="font-display text-white bg-case-accent-red hover:bg-red-800 transition-all px-8 py-3 rounded-md shadow-lg font-bold disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2 w-48"
+        >
+          {isDownloading ? (
+            <LoadingSpinner />
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 9.707a1 1 0 011.414 0L9 11.086V3a1 1 0 112 0v8.086l1.293-1.379a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              Download Image
+            </>
+          )}
+        </button>
+        <button onClick={onBack} className="font-display text-case-paper hover:underline transition-all">
+          Return to Main Menu
         </button>
       </div>
     </div>

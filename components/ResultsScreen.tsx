@@ -63,7 +63,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ score, answerLog, onResta
             onClick={onRestart}
             className="w-full px-8 py-4 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all duration-300 transform hover:scale-105"
           >
-            Create New Quiz
+            Back to Study Sets
           </button>
         </div>
       </div>

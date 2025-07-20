@@ -17,30 +17,23 @@ interface PredictionSetupScreenProps {
   error: string | null;
 }
 
-// --- Internal Components for the new design ---
-
-const SectionHeader: React.FC<{ number: string; title: string }> = ({ number, title }) => (
-    <div className="flex items-center gap-4 mb-4">
-        <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-slate-700 text-cyan-400 font-bold rounded-full border-2 border-slate-600">
-            {number}
-        </div>
-        <h2 className="text-xl font-bold text-text-primary tracking-wide">{title}</h2>
-    </div>
+const SectionTitle: React.FC<{ step: string; title: string; }> = ({ step, title }) => (
+    <h3 className="font-display border-b-2 border-case-paper-lines pb-2 mb-6 text-xl">
+        <span className="bg-case-accent-red text-white py-1 px-2.5 mr-2 font-serif font-bold text-xs rounded-sm">
+            {step}
+        </span>
+        {title}
+    </h3>
 );
 
-const FileIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-cyan-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
-const BuildingIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-cyan-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>;
-const ToolIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-cyan-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>;
-
-
-const FileDropzone: React.FC<{
+const EvidenceFolder: React.FC<{
   id: string;
-  icon: React.ReactNode;
   title: string;
   description: string;
   files: File[];
   onFilesChange: (files: File[]) => void;
-}> = ({ id, icon, title, description, files, onFilesChange }) => {
+  rotation?: string;
+}> = ({ id, title, description, files, onFilesChange, rotation = '' }) => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -51,7 +44,6 @@ const FileDropzone: React.FC<{
     } else if (e.target && 'files' in e.target && e.target.files) {
         newFiles = Array.from(e.target.files);
     }
-
     onFilesChange([...files, ...newFiles]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -72,37 +64,32 @@ const FileDropzone: React.FC<{
   };
 
   return (
-    <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
-      <div className="flex items-center gap-4 mb-3">
-        {icon}
-        <div>
-          <h3 className="font-bold text-text-primary">{title}</h3>
-          <p className="text-sm text-text-secondary">{description}</p>
+    <div className={`evidence-folder rounded relative mb-6 p-4 pt-6 ${rotation}`}>
+        <div className="folder-tab absolute rounded-t-md font-bold text-sm px-4 py-1">{title}</div>
+        <div
+            onDragOver={(e) => handleDragEvents(e, true)}
+            onDragLeave={(e) => handleDragEvents(e, false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`p-4 border-2 border-dashed rounded-sm text-center cursor-pointer transition-colors ${isDragging ? 'border-case-accent-red bg-red-100/50' : 'border-case-text-secondary hover:border-case-text-primary'}`}
+        >
+            <input type="file" id={id} multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,.md" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+            <p className="text-case-text-secondary pointer-events-none">{description}</p>
         </div>
-      </div>
-      <div
-        onDragOver={(e) => handleDragEvents(e, true)}
-        onDragLeave={(e) => handleDragEvents(e, false)}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        className={`p-6 border-2 border-dashed rounded-md text-center cursor-pointer transition-colors ${isDragging ? 'border-cyan-400 bg-cyan-900/20' : 'border-slate-600 hover:border-slate-500'}`}
-      >
-        <input type="file" id={id} multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,.md" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-        <p className="text-text-secondary">Drag & Drop Files or Click to Browse</p>
-      </div>
       {files.length > 0 && (
-        <div className="mt-3 text-left text-sm text-text-secondary bg-slate-900/50 p-2 rounded-md max-h-28 overflow-y-auto">
-          <ul className="space-y-1">
+        <ul className="mt-2 space-y-1 list-none p-0 max-h-24 overflow-y-auto">
             {files.map((f, i) => (
-              <li key={`${f.name}-${i}`} className="flex justify-between items-center group bg-slate-700/50 p-1.5 rounded-md">
-                <span className="truncate" title={f.name}>{f.name}</span>
-                <button onClick={() => handleRemoveFile(f)} className="p-1 rounded-full text-gray-400 hover:bg-red-500 hover:text-white ml-2 flex-shrink-0" aria-label={`Remove ${f.name}`}>
+              <li key={`${f.name}-${i}`} className="flex justify-between items-center group bg-case-paper text-sm p-1.5 shadow-sm">
+                <span className="truncate flex items-center" title={f.name}>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" className="mr-1.5 fill-current text-case-text-secondary flex-shrink-0"><path d="M6,2A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2H6M13,3.5L18.5,9H13V3.5Z" /></svg>
+                    {f.name}
+                </span>
+                <button onClick={() => handleRemoveFile(f)} className="p-0.5 text-gray-500 hover:bg-case-accent-red hover:text-white ml-2 flex-shrink-0" aria-label={`Remove ${f.name}`}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </li>
             ))}
           </ul>
-        </div>
       )}
     </div>
   );
@@ -110,11 +97,11 @@ const FileDropzone: React.FC<{
 
 
 const PredictionSetupScreen: React.FC<PredictionSetupScreenProps> = ({ studySet, onGenerate, onCancel, error }) => {
+    const [numPredictions, setNumPredictions] = useState(10);
+    const [isProcessing, setIsProcessing] = useState(false);
     const [teacherName, setTeacherName] = useState('');
     const [persona, setPersona] = useState('');
     const [hints, setHints] = useState('');
-    const [numPredictions, setNumPredictions] = useState(10);
-    const [isProcessing, setIsProcessing] = useState(false);
 
     const [files, setFiles] = useState<{ core: File[], past: File[], related: File[] }>({
         core: [],
@@ -147,6 +134,14 @@ const PredictionSetupScreen: React.FC<PredictionSetupScreenProps> = ({ studySet,
             } else if (file.name.endsWith('.docx')) {
                 const arrayBuffer = await file.arrayBuffer();
                 combinedText += (await mammoth.extractRawText({ arrayBuffer })).value;
+            } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.csv')) {
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = XLSX.read(arrayBuffer, { type: 'buffer' });
+                workbook.SheetNames.forEach(sheetName => {
+                    const worksheet = workbook.Sheets[sheetName];
+                    const csv = XLSX.utils.sheet_to_csv(worksheet);
+                    combinedText += csv + '\n';
+                });
             } else {
                 combinedText += await file.text();
             }
@@ -160,7 +155,6 @@ const PredictionSetupScreen: React.FC<PredictionSetupScreenProps> = ({ studySet,
         setIsProcessing(true);
         
         try {
-            // Original study set content always forms the base of the core notes
             const coreNotesParts = await processFilesToParts(files.core);
             coreNotesParts.unshift({text: studySet.content });
 
@@ -168,89 +162,114 @@ const PredictionSetupScreen: React.FC<PredictionSetupScreenProps> = ({ studySet,
             const otherMaterialsParts = await processFilesToParts(files.related);
 
             onGenerate({
-                teacherName, persona, hints, numPredictions,
+                teacherName, 
+                persona, 
+                hints,
+                numPredictions,
                 coreNotesParts, 
-                pastQuestionsParts, // For exams/quizzes
-                pastTestsParts: [], // Keep prop for compatibility, but merge logic
-                otherMaterialsParts // For syllabus, etc.
+                pastQuestionsParts,
+                pastTestsParts: [], 
+                otherMaterialsParts
             });
 
         } catch (err) {
             console.error("Error processing files for prediction", err);
-        } finally {
-            // The parent component handles the state change, so we might not need to set it back here
-            // setIsProcessing(false);
         }
     };
     
     if (isProcessing) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[50vh]">
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-case-paper font-display">
                <LoadingSpinner />
-               <p className="mt-4 text-lg text-text-secondary">Building case file and initiating analysis...</p>
+               <p className="mt-4 text-lg">Building case file... initiating analysis...</p>
             </div>
         );
     }
     
     return (
-        <div className="animate-fade-in w-full max-w-6xl mx-auto">
-            <header className="text-center mb-10">
-                <h1 className="text-4xl font-bold text-cyan-400 tracking-widest">EXAM PREDICTOR // CASE FILE BUILDER</h1>
-                <p className="text-text-secondary">Based on your study set: <span className="font-bold text-text-primary">"{studySet.name}"</span></p>
+        <div className="animate-fade-in w-full max-w-6xl mx-auto font-serif text-case-text-primary">
+            <header className="text-center mb-8">
+                <div className="inline-block border-2 border-white/50 p-2 mb-4">
+                    <h1 className="text-2xl md:text-3xl font-display text-case-paper tracking-widest">CONFIDENTIAL // EXAM ANALYSIS DIVISION</h1>
+                </div>
+                <h2 className="text-xl font-serif text-white/70 font-normal">CASE FILE BUILDER FOR: "{studySet.name}"</h2>
             </header>
 
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                {/* Left Column */}
-                <div className="lg:col-span-2 flex flex-col gap-8">
-                    {/* Profile Section */}
-                    <section className="bg-slate-800 p-6 rounded-lg border border-slate-700">
-                        <SectionHeader number="01" title="Profile the Target" />
-                        <div className="space-y-4">
-                            <div>
-                                <label htmlFor="teacherName" className="text-sm font-bold text-text-secondary mb-1 block">Target's Name (Optional)</label>
-                                <input type="text" id="teacherName" value={teacherName} onChange={e => setTeacherName(e.target.value)} placeholder="e.g., Prof. Alistair Finch" className="w-full p-2 bg-slate-900 border-2 border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-                            </div>
-                            <div>
-                                <label htmlFor="persona" className="text-sm font-bold text-text-secondary mb-1 block">Teaching Style & Tendencies</label>
-                                <textarea id="persona" value={persona} onChange={e => setPersona(e.target.value)} placeholder="Describe the target's style. Do they love theory or memorization? Are questions usually multi-part? Do they focus on textbook chapters or their own lecture slides?" className="w-full h-28 p-2 bg-slate-900 border-2 border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-                            </div>
-                             <div>
-                                <label htmlFor="hints" className="text-sm font-bold text-text-secondary mb-1 block">Known Hints & Clues</label>
-                                <textarea id="hints" value={hints} onChange={e => setHints(e.target.value)} placeholder="Log any direct intelligence. e.g., 'Chapter 5 will be on the test for sure', or 'Make sure you understand the main theme...'" className="w-full h-24 p-2 bg-slate-900 border-2 border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-                            </div>
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+                
+                {/* Step 1 */}
+                <section className="paper-section bg-case-paper p-8 shadow-2xl rounded-sm lg:col-span-3">
+                    <SectionTitle step="STEP 1" title="Profile the Suspect" />
+                    <div className="space-y-4">
+                        <div>
+                            <label htmlFor="teacher-name" className="font-display text-case-text-secondary block mb-1">Suspect's Alias:</label>
+                            <input type="text" id="teacher-name" value={teacherName} onChange={e => setTeacherName(e.target.value)} placeholder="e.g., Professor Moriarty" className="w-full bg-transparent border-0 border-b border-case-paper-lines p-2 focus:outline-none focus:ring-0 focus:border-b-2 focus:border-case-accent-red"/>
                         </div>
-                    </section>
+                            <div>
+                            <label htmlFor="persona" className="font-display text-case-text-secondary block mb-1">Modus Operandi (Teaching Style):</label>
+                            <textarea id="persona" value={persona} onChange={e => setPersona(e.target.value)} rows={5} placeholder="Detail the suspect's patterns. Theory or memorization? Multi-part questions? Favors textbook chapters or lecture slides?" className="w-full bg-transparent border-0 border-b border-case-paper-lines p-2 focus:outline-none focus:ring-0 focus:border-b-2 focus:border-case-accent-red resize-y leading-relaxed"/>
+                        </div>
+                        <div>
+                            <label htmlFor="known-hints" className="font-display text-case-text-secondary block mb-1">Intercepted Intel (Hints & Clues):</label>
+                            <textarea id="known-hints" value={hints} onChange={e => setHints(e.target.value)} rows={4} placeholder="Log any direct chatter. e.g., 'Chapter 5 is key,' or 'Remember the underlying theme...'" className="w-full bg-transparent border-0 border-b border-case-paper-lines p-2 focus:outline-none focus:ring-0 focus:border-b-2 focus:border-case-accent-red resize-y leading-relaxed"/>
+                        </div>
+                    </div>
+                </section>
+                
+                {/* Step 2 */}
+                <aside className="lg:col-span-2 lg:row-span-2 cork-board rounded p-6 pt-12 relative">
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-yellow-50 p-2 px-4 shadow-md font-display z-10">
+                            <span className="bg-case-accent-red text-white text-xs py-0.5 px-1.5 mr-2 font-serif font-bold">STEP 2</span>
+                            Gather the Evidence
+                    </div>
+                    <EvidenceFolder 
+                        id="core-notes"
+                        title="Core Notes" 
+                        description={`Drop "Crime Scene" files here`}
+                        files={files.core} 
+                        onFilesChange={(f) => setFiles(p => ({...p, core: f}))} 
+                        rotation="transform rotate-1"
+                    />
+                    <EvidenceFolder 
+                        id="past-offenses" 
+                        title="Past Offenses"
+                        description="Drop past exams/quizzes" 
+                        files={files.past} 
+                        onFilesChange={(f) => setFiles(p => ({...p, past: f}))} 
+                        rotation="transform -rotate-2"
+                    />
+                    <EvidenceFolder 
+                        id="related-docs" 
+                        title="Related Docs"
+                        description="Drop syllabus, guides, etc."
+                        files={files.related} 
+                        onFilesChange={(f) => setFiles(p => ({...p, related: f}))} 
+                        rotation="transform rotate-1"
+                    />
+                </aside>
 
-                    {/* Request Section */}
-                    <section className="bg-slate-800 p-6 rounded-lg border border-slate-700">
-                        <SectionHeader number="03" title="Request the Analysis" />
-                        <div className="space-y-4">
-                            <div>
-                               <label htmlFor="num-predictions" className="text-sm font-bold text-text-secondary mb-2 block">Number of Predicted Questions</label>
-                               <div className="flex items-center gap-4">
-                                   <input type="range" id="num-predictions" value={numPredictions} onChange={e => setNumPredictions(parseInt(e.target.value))} min="3" max="20" className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
-                                   <span className="font-bold text-cyan-400 text-lg w-8 text-center">{numPredictions}</span>
-                               </div>
-                            </div>
-                            <button type="submit" className="w-full mt-4 p-4 bg-cyan-500 text-slate-900 font-bold text-lg rounded-lg shadow-lg hover:bg-cyan-400 transition-all disabled:bg-slate-600">Initiate Analysis</button>
-                            <button type="button" onClick={onCancel} className="w-full mt-2 p-2 bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-500 transition-all">Cancel</button>
+                {/* Step 3 */}
+                <section className="paper-section bg-case-paper p-8 shadow-2xl rounded-sm flex flex-col lg:col-span-3">
+                    <SectionTitle step="STEP 3" title="Request the Analysis" />
+                        <div className="form-group flex-grow">
+                        <label htmlFor="prediction-count" className="font-display text-case-text-secondary block mb-2">Number of Predicted Questions:</label>
+                        <div className="flex items-center gap-4">
+                            <input type="range" id="prediction-count" value={numPredictions} onChange={e => setNumPredictions(parseInt(e.target.value))} min="5" max="25" step="1" className="case-slider"/>
+                            <span className="bg-gray-200 text-case-text-primary font-display text-lg py-1 px-3 shadow-inner border border-gray-300">{numPredictions}</span>
                         </div>
-                    </section>
-                </div>
+                    </div>
+                        <button type="submit" className="w-full p-3 bg-case-accent-red text-white font-bold font-serif text-lg tracking-wider shadow-lg hover:bg-red-800 transition-all disabled:bg-gray-500 flex items-center justify-center gap-2 mt-8">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-6 w-6 fill-current"><path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/></svg>
+                        SUBMIT FOR ANALYSIS
+                    </button>
+                </section>
 
-                {/* Right Column */}
-                <div className="lg:col-span-3">
-                     <section className="bg-slate-800 p-6 rounded-lg border border-slate-700 h-full">
-                        <SectionHeader number="02" title="Gather the Evidence" />
-                        <div className="space-y-4">
-                            <FileDropzone id="core-notes" icon={<FileIcon/>} title="The Crime Scene (Core Notes)" description="Your primary study set is the foundation." files={files.core} onFilesChange={(f) => setFiles(p => ({...p, core: f}))} />
-                            <FileDropzone id="past-offenses" icon={<BuildingIcon/>} title="Past Offenses (Exams/Quizzes)" description="The most valuable clues for prediction." files={files.past} onFilesChange={(f) => setFiles(p => ({...p, past: f}))} />
-                            <FileDropzone id="related-docs" icon={<ToolIcon/>} title="Related Docs (Syllabus, etc.)" description="Catch-all for study guides, articles." files={files.related} onFilesChange={(f) => setFiles(p => ({...p, related: f}))} />
-                        </div>
-                     </section>
-                </div>
             </form>
-             {error && <div className="mt-6 bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg text-center" role="alert">{error}</div>}
+            
+             {error && <div className="mt-6 bg-red-900/80 border border-red-500 text-red-100 px-4 py-3 text-center font-serif" role="alert">{error}</div>}
+             <div className="text-center mt-8">
+                 <button type="button" onClick={onCancel} className="font-display text-case-paper hover:underline transition-all">Cancel and Return to Sets</button>
+             </div>
         </div>
     );
 };

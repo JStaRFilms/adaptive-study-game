@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Quiz, OpenEndedAnswer } from '../types';
-import { markdownToHtml } from '../utils/textUtils';
+import Markdown from './common/Markdown';
 import CircularTimer from './common/CircularTimer';
 import LoadingSpinner from './common/LoadingSpinner';
+import Modal from './common/Modal';
 
 const toBase64 = (file: File): Promise<{ mimeType: string; data: string }> => new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -20,21 +20,26 @@ const toBase64 = (file: File): Promise<{ mimeType: string; data: string }> => ne
 interface ExamScreenProps {
   quiz: Quiz;
   onFinish: (submission: OpenEndedAnswer) => void;
+  onCancel: () => void;
 }
 
-const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish }) => {
+const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish, onCancel }) => {
   const [examPhase, setExamPhase] = useState<'ANSWERING' | 'UPLOADING' | 'SUBMITTING'>('ANSWERING');
   
   // Phase 1 state
   const totalTime = useMemo(() => quiz.questions.length * 5 * 60, [quiz.questions.length]); // 5 minutes per question
   const [timeLeft, setTimeLeft] = useState(totalTime);
   const [typedText, setTypedText] = useState('');
+  const [activeTab, setActiveTab] = useState<'questions' | 'answer'>('questions');
 
   // Phase 2 state
   const [uploadTimeLeft, setUploadTimeLeft] = useState(120); // 2 minutes
   const [images, setImages] = useState<{ mimeType: string; data: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Modals
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+
   const onFinishRef = useRef(onFinish);
   onFinishRef.current = onFinish;
   const submissionRef = useRef({ text: typedText, images });
@@ -125,42 +130,77 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish }) => {
     );
   }
 
+  const QuestionsPane = () => (
+    <div className={`w-full md:w-1/2 flex-shrink-0 overflow-y-auto pr-2 space-y-4 ${activeTab !== 'questions' ? 'hidden' : ''} md:block`}>
+      <h2 className="text-xl font-bold text-text-secondary sticky top-0 bg-surface-dark pb-2 hidden md:block">Questions</h2>
+      {quiz.questions.map((q, index) => (
+        <div key={index} className="p-4 bg-background-dark rounded-md">
+          <p className="font-bold text-brand-primary">Question {index + 1}</p>
+          <Markdown content={q.questionText} className="prose prose-invert max-w-none text-text-primary mt-1" />
+        </div>
+      ))}
+    </div>
+  );
+
+  const AnswerPane = () => (
+    <div className={`w-full md:w-1/2 flex flex-col h-full ${activeTab !== 'answer' ? 'hidden' : 'flex'} md:flex`}>
+      <h2 className="text-xl font-bold text-text-secondary mb-2 hidden md:block">Typed Answers/Notes</h2>
+      <textarea
+        value={typedText}
+        onChange={e => setTypedText(e.target.value)}
+        placeholder="You can type answers or notes here. Remember to number them to match the questions."
+        className="w-full flex-grow p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary resize-y"
+        aria-label="Typed answers area"
+      />
+    </div>
+  );
+
   return (
-    <div className="flex flex-col w-full h-[calc(100vh-80px)] animate-fade-in bg-surface-dark rounded-lg p-4 sm:p-6">
-        <header className="flex flex-col sm:flex-row justify-between items-center pb-4 border-b border-gray-700 mb-4 flex-shrink-0">
-            <h1 className="text-2xl font-bold text-text-primary">Exam Mode</h1>
-            <div className="flex items-center gap-4 mt-2 sm:mt-0">
+    <div className="flex flex-col w-full h-[calc(100vh-80px)] animate-fade-in bg-surface-dark rounded-lg p-2 sm:p-4">
+        <header className="flex flex-wrap justify-between items-center pb-4 border-b border-gray-700 mb-4 flex-shrink-0 gap-4">
+            <div className="flex items-center gap-4">
+              <h1 className="text-xl sm:text-2xl font-bold text-text-primary">Exam Mode</h1>
+              <button onClick={() => setIsCancelModalOpen(true)} className="text-sm font-semibold text-red-500 hover:text-red-400 hover:underline transition-colors">Cancel Exam</button>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4">
                 {examPhase === 'ANSWERING' && (
                     <>
-                        <div className="text-center"><p className="font-bold text-text-primary">Time Remaining</p><p className="text-sm text-text-secondary">Answer the questions</p></div>
+                        <div className="hidden sm:block text-right"><p className="font-bold text-text-primary">Time Remaining</p><p className="text-xs text-text-secondary">Answer the questions</p></div>
                         <CircularTimer timeLeft={timeLeft} totalTime={totalTime} />
-                        <button onClick={handleFinishWritingClick} className="px-4 py-2 bg-correct text-white font-bold rounded-lg shadow-lg hover:bg-green-600 transition-all">Finish & Upload</button>
+                        <button onClick={handleFinishWritingClick} className="px-3 py-2 bg-correct text-white font-bold rounded-lg shadow-lg hover:bg-green-600 transition-all text-sm sm:text-base">
+                            <span className="hidden sm:inline">Finish & Upload</span>
+                            <span className="sm:hidden">Finish</span>
+                        </button>
                     </>
                 )}
                 {examPhase === 'UPLOADING' && (
                     <>
-                        <div className="text-center"><p className="font-bold text-yellow-400">Image Upload Phase</p><p className="text-sm text-text-secondary">Attach images of work</p></div>
+                        <div className="text-right"><p className="font-bold text-yellow-400">Image Upload</p><p className="text-xs text-text-secondary">Attach images of work</p></div>
                         <CircularTimer timeLeft={uploadTimeLeft} totalTime={120} />
-                        <button onClick={handleFinalSubmitClick} className="px-4 py-2 bg-correct text-white font-bold rounded-lg shadow-lg hover:bg-green-600 transition-all animate-pulse">Submit Exam Now</button>
+                        <button onClick={handleFinalSubmitClick} className="px-3 py-2 bg-correct text-white font-bold rounded-lg shadow-lg hover:bg-green-600 transition-all animate-pulse text-sm sm:text-base">Submit Now</button>
                     </>
                 )}
             </div>
         </header>
 
         {examPhase === 'ANSWERING' && (
-            <div className="flex-grow flex flex-col md:flex-row gap-4 overflow-hidden">
-                <div className="md:w-1/2 flex-shrink-0 overflow-y-auto pr-2 space-y-4">
-                    <h2 className="text-xl font-bold text-text-secondary sticky top-0 bg-surface-dark pb-2">Questions</h2>
-                    {quiz.questions.map((q, index) => (
-                        <div key={index} className="p-4 bg-background-dark rounded-md">
-                            <p className="font-bold text-brand-primary">Question {index + 1}</p>
-                            <div className="prose prose-invert max-w-none text-text-primary mt-1" dangerouslySetInnerHTML={{ __html: markdownToHtml(q.questionText) }}/>
-                        </div>
-                    ))}
+            <div className="flex-grow flex flex-col gap-4 overflow-hidden">
+                {/* Mobile Tab Controls */}
+                <div className="md:hidden flex-shrink-0 border-b border-gray-700">
+                    <div className="flex">
+                        <button onClick={() => setActiveTab('questions')} className={`px-4 py-2 font-bold text-sm flex-1 transition-colors ${activeTab === 'questions' ? 'text-brand-primary border-b-2 border-brand-primary' : 'text-text-secondary'}`} aria-pressed={activeTab === 'questions'}>
+                            Questions ({quiz.questions.length})
+                        </button>
+                        <button onClick={() => setActiveTab('answer')} className={`px-4 py-2 font-bold text-sm flex-1 transition-colors ${activeTab === 'answer' ? 'text-brand-primary border-b-2 border-brand-primary' : 'text-text-secondary'}`} aria-pressed={activeTab === 'answer'}>
+                            My Answer
+                        </button>
+                    </div>
                 </div>
-                <div className="md:w-1/2 flex flex-col">
-                    <h2 className="text-xl font-bold text-text-secondary mb-2">Typed Answers/Notes</h2>
-                    <textarea value={typedText} onChange={e => setTypedText(e.target.value)} placeholder="You can type answers or notes here. Remember to number them to match the questions." className="w-full flex-grow p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary resize-y" aria-label="Typed answers area" />
+
+                {/* Content Area */}
+                <div className="flex-grow flex flex-col md:flex-row gap-4 overflow-hidden">
+                    <QuestionsPane />
+                    <AnswerPane />
                 </div>
             </div>
         )}
@@ -195,6 +235,17 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish }) => {
                 </div>
             </div>
         )}
+
+        <Modal isOpen={isCancelModalOpen} onClose={() => setIsCancelModalOpen(false)} title="Cancel Exam">
+            <div className="text-text-secondary">
+                <p className="font-bold text-red-400">This action cannot be undone.</p>
+                <p className="mt-2">Are you sure you want to cancel this exam? All your progress will be lost and no grade will be recorded.</p>
+                <div className="mt-6 flex justify-end gap-4">
+                <button onClick={() => setIsCancelModalOpen(false)} className="px-4 py-2 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-colors">Continue Exam</button>
+                <button onClick={onCancel} className="px-4 py-2 bg-incorrect text-white font-bold rounded-lg hover:bg-red-600 transition-colors">Cancel Exam</button>
+                </div>
+            </div>
+        </Modal>
     </div>
   );
 };

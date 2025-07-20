@@ -1,6 +1,6 @@
 import React from 'react';
-import { AnswerLog, Question, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedQuestion, OpenEndedAnswer } from '../types';
-import { markdownToHtml } from '../utils/textUtils';
+import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer } from '../types';
+import Markdown from './common/Markdown';
 
 interface ReviewScreenProps {
   answerLog: AnswerLog[];
@@ -84,7 +84,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index }) => {
             {isCorrect ? <CorrectIcon /> : <IncorrectIcon />}
         </div>
       </div>
-      <div className="prose prose-invert max-w-none text-text-primary mb-4" dangerouslySetInnerHTML={{__html: markdownToHtml(question.questionText)}} />
+      <Markdown content={question.questionText} className="prose prose-invert max-w-none text-text-primary mb-4" />
       
       <div className="space-y-3 text-text-secondary">
         <div className="border-t border-gray-700 pt-3">
@@ -97,13 +97,13 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index }) => {
         {feedback && (
              <div className="border-t border-gray-700 pt-3">
                 <p className="font-bold text-sm text-gray-400 mb-1">AI FEEDBACK</p>
-                <div className="prose prose-invert max-w-none text-text-secondary" dangerouslySetInnerHTML={{__html: markdownToHtml(feedback)}} />
+                <Markdown content={feedback} className="prose prose-invert max-w-none text-text-secondary" />
             </div>
         )}
         
         <div className="border-t border-gray-700 pt-3">
             <p className="font-bold text-sm text-gray-400 mb-1">{question.questionType === QuestionType.OPEN_ENDED ? "GRADING RUBRIC" : "EXPLANATION"}</p>
-            <div className="prose prose-invert max-w-none text-text-secondary" dangerouslySetInnerHTML={{__html: markdownToHtml(question.explanation)}} />
+            <Markdown content={question.explanation} className="prose prose-invert max-w-none text-text-secondary" />
         </div>
       </div>
     </div>
@@ -121,9 +121,9 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, onRetakeSameQuiz
         ))}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 justify-center sticky bottom-4">
-          <button onClick={onRetakeSameQuiz} className="w-full sm:w-auto px-8 py-4 bg-brand-secondary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-primary transition-all">Retake Quiz</button>
-          <button onClick={onStartNewQuiz} className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all">Create New Quiz</button>
+      <div className="flex flex-col sm:flex-row gap-4 justify-center sticky bottom-4 p-4">
+          <button onClick={onRetakeSameQuiz} className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all">Retake This Quiz</button>
+          <button onClick={onStartNewQuiz} className="w-full sm:w-auto px-8 py-4 bg-brand-secondary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-primary transition-all">Back to Study Sets</button>
       </div>
     </div>
   );

@@ -53,7 +53,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
       <header className="fixed top-0 left-0 w-full p-4 bg-background-dark/50 backdrop-blur-sm z-50">
           <div className="container mx-auto flex justify-between items-center">
               <h1 className="text-xl font-bold">🧠 Adaptive Study Game</h1>
-              <a href="mailto:johnoke.work@gmail.com" className="px-4 py-2 text-sm bg-brand-primary text-white font-bold rounded-full shadow-lg hover:bg-brand-secondary transition-all transform hover:scale-105">
+              <a href="https://wa.me/2348152657887" target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-sm bg-brand-primary text-white font-bold rounded-full shadow-lg hover:bg-brand-secondary transition-all transform hover:scale-105">
                   Contact
               </a>
           </div>

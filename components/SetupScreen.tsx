@@ -1,7 +1,7 @@
 
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { StudySet, QuizConfig, PromptPart, AnswerLog, FileInfo, QuizResult } from '../types';
+import { StudySet, QuizConfig, PromptPart, QuizResult } from '../types';
 import { generateTopics } from '../services/geminiService';
 import { processFilesToParts } from '../utils/fileProcessor';
 import LoadingSpinner from './common/LoadingSpinner';
@@ -87,27 +87,42 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     try {
         const onReanalyzeProgress = (message: string, percent: number) => {
             setProgressMessage(message);
-            setProgressPercent(Math.round(percent * 0.7));
+            setProgressPercent(Math.round(percent * 0.7)); // Reserve 30% for topic step
         };
 
         const { parts, combinedText, fileInfo } = await processFilesToParts(set.content, supplementalFiles, onReanalyzeProgress);
         setPreparedParts(parts);
         
+        let currentSet = set;
         if (supplementalFiles.length > 0) {
-            const updatedSet: StudySet = {
+            const updatedSetData: StudySet = {
                 ...set,
                 content: combinedText.trim(),
-                fileInfo: [...(set.fileInfo || []), ...fileInfo]
+                fileInfo: [...(set.fileInfo || []), ...fileInfo],
+                topics: [] // Invalidate topics if new files are added
             };
-            updateSet(updatedSet);
-            setActiveSet(updatedSet);
+            updateSet(updatedSetData);
+            currentSet = updatedSetData;
         }
+        setActiveSet(currentSet);
 
-        setProgressMessage('Analyzing for topics...');
-        setProgressPercent(75);
-        const generatedTopics = await generateTopics(parts);
-        setProgressPercent(90);
-        setTopics(generatedTopics);
+        // Check for existing topics
+        if (currentSet.topics && currentSet.topics.length > 0) {
+            setProgressMessage('Loading existing topics...');
+            setProgressPercent(100);
+            setTopics(currentSet.topics);
+        } else {
+            setProgressMessage('Analyzing for topics...');
+            setProgressPercent(75);
+            const generatedTopics = await generateTopics(parts);
+            
+            // Save the new topics to the study set
+            const updatedSetWithTopics: StudySet = { ...currentSet, topics: generatedTopics };
+            updateSet(updatedSetWithTopics);
+            setActiveSet(updatedSetWithTopics);
+            setTopics(generatedTopics);
+            setProgressPercent(90);
+        }
         
         setProgressPercent(100);
         await new Promise(res => setTimeout(res, 300));
@@ -123,33 +138,6 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     }
   }, [resetState, updateSet]);
 
-  const handleSaveAndAnalyze = async (text: string, filesToProcess: File[]) => {
-    setIsProcessing(true);
-    setProcessingError(null);
-
-    try {
-        const { parts, combinedText, fileInfo } = await processFilesToParts(text, filesToProcess, onProgress);
-        setPreparedParts(parts);
-
-        let currentSet: StudySet;
-        if (activeSet) { // Editing
-            currentSet = { ...activeSet, name: activeSet.name, content: combinedText.trim(), fileInfo: [...(activeSet.fileInfo || []), ...fileInfo] };
-            updateSet(currentSet);
-        } else { // Creating - name is managed inside the form, but let's ensure it's here
-            // This part is tricky. The name is in the form component. The parent needs it.
-            // For now, let's assume the form handles its name state and the save function gets it.
-            // Let's pass the whole object up.
-            // REVISING this function signature to get all data from form.
-        }
-        // This handler needs rework if name is in child.
-        // Let's move name state here. No, let's pass it up from the child.
-        // Re-simplifying for this refactor: onSave will pass up an object.
-    } catch (err) {
-        // ...
-    }
-    // This function will be simplified. The form will handle name/content/files.
-  };
-
   const fullSaveAndAnalyze = async (data: {name: string, content: string, files: File[]}) => {
     setIsProcessing(true);
     setProcessingError(null);
@@ -157,15 +145,6 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     try {
         const { parts, combinedText, fileInfo } = await processFilesToParts(data.content, data.files, onProgress);
         setPreparedParts(parts);
-
-        let currentSet: StudySet;
-        if (activeSet) { // Editing
-            currentSet = { ...activeSet, name: data.name, content: combinedText.trim(), fileInfo: [...(activeSet.fileInfo || []), ...fileInfo] };
-            updateSet(currentSet);
-        } else { // Creating
-            currentSet = addSet({ name: data.name, content: combinedText.trim(), fileInfo });
-        }
-        setActiveSet(currentSet);
         
         setIsProcessing(false);
         setIsAnalyzingTopics(true);
@@ -174,6 +153,16 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
         setTopics(generatedTopics);
         
         setIsAnalyzingTopics(false);
+        
+        let currentSet: StudySet;
+        if (activeSet) { // Editing
+            currentSet = { ...activeSet, name: data.name, content: combinedText.trim(), fileInfo: [...(activeSet.fileInfo || []), ...fileInfo], topics: generatedTopics };
+            updateSet(currentSet);
+        } else { // Creating
+            currentSet = addSet({ name: data.name, content: combinedText.trim(), fileInfo, topics: generatedTopics });
+        }
+        setActiveSet(currentSet);
+
         setAction('TOPIC_SELECTION');
     } catch (err) {
         console.error("Error during analysis pipeline:", err);
@@ -189,9 +178,13 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     try {
         const { combinedText, fileInfo } = await processFilesToParts(data.content, data.files, onProgress);
         if (activeSet) {
-            updateSet({ ...activeSet, name: data.name, content: combinedText.trim(), fileInfo: [...(activeSet.fileInfo || []), ...fileInfo] });
+            const contentChanged = activeSet.content !== combinedText.trim();
+            const filesChanged = data.files.length > 0;
+            // Clear topics if content changed, otherwise preserve them.
+            const newTopics = (contentChanged || filesChanged) ? [] : activeSet.topics;
+            updateSet({ ...activeSet, name: data.name, content: combinedText.trim(), fileInfo: [...(activeSet.fileInfo || []), ...fileInfo], topics: newTopics });
         } else {
-            addSet({ name: data.name, content: combinedText.trim(), fileInfo });
+            addSet({ name: data.name, content: combinedText.trim(), fileInfo, topics: [] });
         }
         handleShowList();
     } catch (err) {
@@ -201,20 +194,24 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
   };
   
   const handleRegenerateTopics = useCallback(async () => {
-    if (preparedParts.length === 0) return;
+    if (preparedParts.length === 0 || !activeSet) return;
     setIsAnalyzingTopics(true);
     setProcessingError(null);
     setTopics(null);
     try {
         const newTopics = await generateTopics(preparedParts);
         setTopics(newTopics);
+        // Update the active set with the new topics and save it
+        const updatedSet = { ...activeSet, topics: newTopics };
+        updateSet(updatedSet);
+        setActiveSet(updatedSet);
     } catch (err) {
         setProcessingError(err instanceof Error ? err.message : "An error occurred.");
         setTopics([]);
     } finally {
         setIsAnalyzingTopics(false);
     }
-  }, [preparedParts]);
+  }, [preparedParts, activeSet, updateSet]);
 
   const handleStartQuizWithConfig = (config: { numQuestions: number, studyMode: any, knowledgeSource: any, selectedTopics: string[]}) => {
     if (!activeSet) return;
@@ -251,8 +248,8 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
       return <StudySetForm 
         activeSet={activeSet}
         initialContent={initialContent}
-        onSave={(content, files) => fullSaveAndAnalyze({ name: (document.getElementById('setName') as HTMLInputElement)?.value || 'Unnamed', content, files })}
-        onSaveOnly={(content, files) => fullSaveOnly({ name: (document.getElementById('setName') as HTMLInputElement)?.value || 'Unnamed', content, files })}
+        onSave={fullSaveAndAnalyze}
+        onSaveOnly={fullSaveOnly}
         onCancel={handleShowList}
         isProcessing={isProcessing}
         isAnalyzingTopics={isAnalyzingTopics}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { QuizResult } from '../types';
 
 const HISTORY_STORAGE_KEY = 'adaptive-study-game-history';
