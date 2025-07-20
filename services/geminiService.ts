@@ -1,5 +1,9 @@
 
 
+
+
+
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, StudyMode, OpenEndedAnswer, OpenEndedQuestion, AnswerLog, PredictedQuestion } from '../types';
 
@@ -115,12 +119,12 @@ export const generateTopics = async (userContentParts: PromptPart[]): Promise<st
             },
         });
 
-        const jsonText = response.text?.trim();
+        const jsonText = response.text;
         if (!jsonText) {
-            console.error("Error generating topics: AI returned empty response.");
+            console.error("Error generating topics: API returned no text.");
             return ["General Knowledge"];
         }
-        const result = JSON.parse(jsonText);
+        const result = JSON.parse(jsonText.trim());
 
         if (result.topics && Array.isArray(result.topics) && result.topics.length > 0) {
             return result.topics as string[];
@@ -179,7 +183,12 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
             config: apiConfig,
         });
 
-        let jsonText = response.text?.trim() || '';
+        const text = response.text;
+        if (!text) {
+          throw new Error("API returned an empty response. The content might be too short or unsupported.");
+        }
+        
+        let jsonText = text.trim();
         if (knowledgeSource === KnowledgeSource.WEB_SEARCH) {
             const match = jsonText.match(/```json\n([\s\S]*)\n```/);
             if (match) {
@@ -225,7 +234,7 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
                 default:
                     return null;
             }
-        }).filter((q: Question | null): q is Question => q !== null);
+        }).filter((q: any): q is Question => q !== null);
 
         if (validatedQuestions.length > 0) {
             return { questions: validatedQuestions, webSources }; // Success!
@@ -281,37 +290,80 @@ const batchGradingSchema = {
     required: ["grades"],
 };
 
+const extractAnswerForQuestion = (fullText: string, questionNumber: number, numberOfQuestions: number): string | null => {
+    const regex = /^(?:\s*(?:##?)\s*)?(?:question|q)?\s*(\d+)\s*[.:)]?/gim;
+    let match;
+    const markers = [];
+    while ((match = regex.exec(fullText)) !== null) {
+        markers.push({
+            number: parseInt(match[1], 10),
+            index: match.index,
+            headerText: match[0],
+        });
+    }
+
+    if (markers.length === 0 && numberOfQuestions === 1) {
+        return fullText.trim().length > 0 ? fullText.trim() : null;
+    }
+    
+    if (markers.length === 0) return null;
+
+    const currentMarker = markers.find(m => m.number === questionNumber);
+    if (!currentMarker) return null;
+
+    const nextMarker = markers
+        .filter(m => m.index > currentMarker.index)
+        .sort((a,b) => a.index - b.index)[0];
+
+    const startIndex = currentMarker.index + currentMarker.headerText.length;
+    const endIndex = nextMarker ? nextMarker.index : fullText.length;
+    
+    const extracted = fullText.substring(startIndex, endIndex).trim();
+    return extracted.length > 0 ? extracted : null;
+};
+
+
 export const gradeExam = async (questions: Question[], submission: OpenEndedAnswer): Promise<AnswerLog[]> => {
     if (!process.env.API_KEY) throw new Error("API_KEY environment variable not set.");
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-    const questionTextForPrompt = questions.map((q, i) => `
-### Question ${i + 1} (index: ${i})
+    // 1. Pre-parse the submission to find the text for each question.
+    const parsedAnswers = questions.map((_, index) => {
+        return extractAnswerForQuestion(submission.text, index + 1, questions.length);
+    });
+
+    // 2. Build a structured prompt with one grading task per question.
+    const gradingTasksText = questions.map((q, i) => {
+        const userAnswerText = parsedAnswers[i];
+        return `
+### Grading Task for Question ${i + 1} (index: ${i})
 **Question Text:**
 ${(q as OpenEndedQuestion).questionText}
 
 **Grading Rubric:**
 ${(q as OpenEndedQuestion).explanation}
+
+**User's Answer for this Question:**
+${userAnswerText || "(No specific answer was found for this question number. Grade accordingly.)"}
 ---
-`).join('\n');
+`;
+    }).join('\n');
 
-    const instruction = `You are an impartial and expert grader. A user has completed an exam. Below are all the questions with their grading rubrics, followed by the user's single submission which contains both typed text and images of handwritten work.
+    const instruction = `You are an impartial and expert grader. A user has completed an exam. Below are the questions, each paired with its specific grading rubric and the portion of the user's submission that corresponds to it.
 
-Your task is to evaluate the user's answer for EVERY question. You must find the answer for each question within the user's submission (the user was instructed to number their answers). Evaluate each answer against its specific rubric.
+Your task is to evaluate each answer independently based ONLY on the text provided for it. Do not look at answers for other questions. If an answer is listed as "(No specific answer was found...)", you must assign a score of 0.
+
+The user also submitted images of handwritten work which should be considered as part of their answers. These images are attached to this prompt.
 
 Your response MUST be a single JSON object matching the required schema. It must contain a 'grades' array with an entry for EVERY question, from index 0 to ${questions.length - 1}.
 
 <hr>
-## Exam Questions & Rubrics
-${questionTextForPrompt}
+## Questions & Individual Answers to Grade
+${gradingTasksText}
 <hr>
 
-## User's Submission
-**Typed Answer Section:**
-${submission.text || "(No typed answer provided)"}
-
-**Images of Handwritten Work:**
-${submission.images.length > 0 ? "(Images are attached as subsequent parts of this prompt)" : "(No images provided)"}
+## User's Submitted Images (Handwritten Work)
+${submission.images.length > 0 ? "(Images are attached as subsequent parts of this prompt and apply to the answers above)" : "(No images provided)"}
 `;
 
     const parts: PromptPart[] = [{ text: instruction }];
@@ -330,11 +382,11 @@ ${submission.images.length > 0 ? "(Images are attached as subsequent parts of th
             },
         });
 
-        const jsonText = response.text?.trim();
+        const jsonText = response.text;
         if (!jsonText) {
-            throw new Error("Grading API returned empty response.");
+            throw new Error("API returned no text while grading exam.");
         }
-        const result = JSON.parse(jsonText);
+        const result = JSON.parse(jsonText.trim());
         const grades = result.grades as { questionIndex: number; isCorrect: boolean; score: number; feedback: string }[];
 
         const gradedLogs: AnswerLog[] = questions.map((question, index) => {
@@ -447,11 +499,11 @@ ${hints || "Not provided"}
             },
         });
 
-        const jsonText = response.text?.trim();
+        const jsonText = response.text;
         if (!jsonText) {
-            throw new Error("Prediction API returned empty response.");
+            throw new Error("Prediction API returned an empty response.");
         }
-        const result = JSON.parse(jsonText);
+        const result = JSON.parse(jsonText.trim());
         
         if (result.predictions && Array.isArray(result.predictions)) {
             return result.predictions;

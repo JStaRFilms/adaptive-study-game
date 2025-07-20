@@ -1,8 +1,10 @@
 
 
+
 import React, { useState } from 'react';
 import { StudySet } from '../../types';
 import Modal from '../common/Modal';
+import Tooltip from '../common/Tooltip';
 
 interface StudySetListProps {
   studySets: StudySet[];
@@ -66,12 +68,24 @@ const StudySetList: React.FC<StudySetListProps> = ({
                 </p>
               </div>
               <div className="flex gap-2 flex-shrink-0 self-end sm:self-center flex-wrap justify-end">
-                 <button onClick={() => onPredict(set.id)} className="px-3 py-2 text-sm bg-purple-600 text-white font-bold rounded-md hover:bg-purple-500 transition-all">Predict</button>
-                 <button onClick={() => onPrepareForQuiz(set)} disabled={isProcessing} className="px-3 py-2 text-sm bg-brand-primary text-white font-bold rounded-md hover:bg-brand-secondary transition-all disabled:bg-gray-500">Study</button>
-                 <button onClick={() => onShowHistory(set)} className="px-3 py-2 text-sm bg-gray-600 text-white font-bold rounded-md hover:bg-gray-500 transition-all">History</button>
-                 <button onClick={() => handleShowDetails(set)} className="p-2 rounded-md hover:bg-gray-600" aria-label="Details"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg></button>
-                 <button onClick={() => onEditSet(set)} className="p-2 rounded-md hover:bg-gray-600" aria-label="Edit"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
-                 <button onClick={() => onDeleteSet(set.id)} className="p-2 rounded-md hover:bg-gray-600" aria-label="Delete"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
+                <Tooltip text="AI Exam Predictor" position="top">
+                  <button onClick={() => onPredict(set.id)} className="px-3 py-2 text-sm bg-purple-600 text-white font-bold rounded-md hover:bg-purple-500 transition-all">Predict</button>
+                </Tooltip>
+                <Tooltip text="Start a quiz with this set" position="top">
+                  <button onClick={() => onPrepareForQuiz(set)} disabled={isProcessing} className="px-3 py-2 text-sm bg-brand-primary text-white font-bold rounded-md hover:bg-brand-secondary transition-all disabled:bg-gray-500">Study</button>
+                </Tooltip>
+                <Tooltip text="View past quiz results" position="top">
+                  <button onClick={() => onShowHistory(set)} className="px-3 py-2 text-sm bg-gray-600 text-white font-bold rounded-md hover:bg-gray-500 transition-all">History</button>
+                </Tooltip>
+                <Tooltip text="View included files" position="top">
+                  <button onClick={() => handleShowDetails(set)} className="p-2 rounded-md hover:bg-gray-600" aria-label="Details"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg></button>
+                </Tooltip>
+                <Tooltip text="Edit set" position="top">
+                  <button onClick={() => onEditSet(set)} className="p-2 rounded-md hover:bg-gray-600" aria-label="Edit"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
+                </Tooltip>
+                <Tooltip text="Delete set" position="top">
+                  <button onClick={() => onDeleteSet(set.id)} className="p-2 rounded-md hover:bg-gray-600" aria-label="Delete"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
+                </Tooltip>
               </div>
             </div>
           ))}
