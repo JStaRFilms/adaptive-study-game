@@ -2,7 +2,6 @@ import React, { useState, useCallback, useRef } from 'react';
 import { StudySet, PromptPart } from '../types';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';
-import * as XLSX from 'xlsx';
 import LoadingSpinner from './common/LoadingSpinner';
 
 // Configure the PDF.js worker
@@ -134,14 +133,6 @@ const PredictionSetupScreen: React.FC<PredictionSetupScreenProps> = ({ studySet,
             } else if (file.name.endsWith('.docx')) {
                 const arrayBuffer = await file.arrayBuffer();
                 combinedText += (await mammoth.extractRawText({ arrayBuffer })).value;
-            } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.csv')) {
-                const arrayBuffer = await file.arrayBuffer();
-                const workbook = XLSX.read(arrayBuffer, { type: 'buffer' });
-                workbook.SheetNames.forEach(sheetName => {
-                    const worksheet = workbook.Sheets[sheetName];
-                    const csv = XLSX.utils.sheet_to_csv(worksheet);
-                    combinedText += csv + '\n';
-                });
             } else {
                 combinedText += await file.text();
             }

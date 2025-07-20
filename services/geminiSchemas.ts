@@ -1,0 +1,127 @@
+import { Type } from "@google/genai";
+
+export const questionSchema = {
+    type: Type.OBJECT,
+    properties: {
+        questionType: {
+            type: Type.STRING,
+            description: "The type of the question. Must be one of 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', or 'OPEN_ENDED'.",
+            enum: ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'OPEN_ENDED'],
+        },
+        questionText: {
+            type: Type.STRING,
+            description: "The text of the question. For FILL_IN_THE_BLANK questions, this text must include '___' to indicate where the answer goes."
+        },
+        explanation: {
+            type: Type.STRING,
+            description: "A brief explanation for why the correct answer is correct. For OPEN_ENDED questions, this must be a detailed grading rubric outlining the key points for a complete answer. This is required for all question types."
+        },
+        options: {
+            type: Type.ARRAY,
+            description: "For MULTIPLE_CHOICE questions, an array of exactly 4 string options. For other question types, this should be null.",
+            items: { type: Type.STRING },
+            nullable: true,
+        },
+        correctAnswerIndex: {
+            type: Type.INTEGER,
+            description: "For MULTIPLE_CHOICE questions, the 0-based index of the correct option in the 'options' array. For other question types, this should be null.",
+            nullable: true,
+        },
+        correctAnswerBoolean: {
+            type: Type.BOOLEAN,
+            description: "For TRUE_FALSE questions, the correct boolean answer. For other question types, this should be null.",
+            nullable: true,
+        },
+        correctAnswerString: {
+            type: Type.STRING,
+            description: "For FILL_IN_THE_BLANK questions, the correct string answer. For other question types, this should be null.",
+            nullable: true,
+        },
+        acceptableAnswers: {
+            type: Type.ARRAY,
+            description: "For FILL_IN_THE_BLANK questions, an optional array of acceptable alternative answers (e.g., common synonyms, misspellings, or typos).",
+            items: { type: Type.STRING },
+            nullable: true,
+        }
+    },
+    required: ["questionType", "questionText", "explanation"]
+};
+
+export const getQuizSchema = (numberOfQuestions: number) => ({
+    type: Type.OBJECT,
+    properties: {
+      questions: {
+        type: Type.ARRAY,
+        description: `An array of exactly ${numberOfQuestions} quiz questions.`,
+        items: questionSchema
+      }
+    },
+    required: ["questions"]
+});
+
+export const topicsSchema = {
+    type: Type.OBJECT,
+    properties: {
+        topics: {
+            type: Type.ARRAY,
+            description: "A list of main topics, concepts, or subjects found in the text. Each topic should be a concise string, no more than 5 words.",
+            items: { type: Type.STRING }
+        }
+    },
+    required: ["topics"]
+};
+
+
+export const batchGradingSchema = {
+    type: Type.OBJECT,
+    properties: {
+        grades: {
+            type: Type.ARRAY,
+            description: "An array of grading results, one for each question provided in the prompt.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    questionIndex: {
+                        type: Type.INTEGER,
+                        description: "The 0-based index of the question being graded, corresponding to the original list of questions."
+                    },
+                    isCorrect: {
+                        type: Type.BOOLEAN,
+                        description: "Whether the user's answer is substantially correct based on the rubric."
+                    },
+                    score: {
+                        type: Type.INTEGER,
+                        description: "An integer score from 0 to 10, where 10 is a perfect answer."
+                    },
+                    feedback: {
+                        type: Type.STRING,
+                        description: "Constructive, specific feedback for the user. Explain what they got right, what they missed, and how they could improve, referencing the rubric."
+                    },
+                },
+                required: ["questionIndex", "isCorrect", "score", "feedback"],
+            }
+        }
+    },
+    required: ["grades"],
+};
+
+
+export const predictionSchema = {
+    type: Type.OBJECT,
+    properties: {
+        predictions: {
+            type: Type.ARRAY,
+            description: "An array of predicted exam questions.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    questionText: { type: Type.STRING, description: "The text of the predicted, open-ended exam question." },
+                    topic: { type: Type.STRING, description: "The main topic this question relates to." },
+                    reasoning: { type: Type.STRING, description: "A detailed explanation for why this question was predicted, citing specific examples from the provided materials (e.g., 'This is a variation of a question from Past Exam 1...' or 'The teacher's persona suggests they value synthesis, and this question combines Topic A and Topic B...')." }
+                },
+                required: ["questionText", "topic", "reasoning"]
+            }
+        }
+    },
+    required: ["predictions"]
+};

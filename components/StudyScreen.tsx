@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer } from '../types';
 import ProgressBar from './common/ProgressBar';
@@ -181,7 +182,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode }: StudyScreenProps) => {
         {answerExplanation && (
           <div className="text-left bg-gray-900/50 p-4 rounded-lg border border-gray-700">
             <h4 className="font-bold text-text-secondary">Explanation</h4>
-            <Markdown content={answerExplanation} className="prose prose-invert max-w-none text-text-secondary" />
+            <Markdown content={answerExplanation} webSources={quiz.webSources} className="prose prose-invert max-w-none text-text-secondary" />
           </div>
         )}
       </div>

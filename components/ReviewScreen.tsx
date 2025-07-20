@@ -1,15 +1,18 @@
+
 import React from 'react';
-import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer } from '../types';
+import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer, WebSource } from '../types';
 import Markdown from './common/Markdown';
+import { extractAnswerForQuestion } from '../utils/textUtils';
 
 interface ReviewCardProps {
   log: AnswerLog;
   index: number;
   parsedAnswerText?: string | null;
   isExamReview?: boolean;
+  webSources?: WebSource[];
 }
 
-const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, isExamReview }) => {
+const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, isExamReview, webSources }) => {
   const { question, userAnswer, isCorrect, feedback, questionScore } = log;
   const CorrectIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-correct" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
   const IncorrectIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-incorrect" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
@@ -88,54 +91,27 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
         {feedback && (
              <div className="border-t border-gray-700 pt-3">
                 <p className="font-bold text-sm text-gray-400 mb-1">AI FEEDBACK</p>
-                <Markdown content={feedback} className="prose prose-invert max-w-none text-text-secondary" />
+                <Markdown content={feedback} webSources={webSources} className="prose prose-invert max-w-none text-text-secondary" />
             </div>
         )}
         
         <div className="border-t border-gray-700 pt-3">
             <p className="font-bold text-sm text-gray-400 mb-1">{question.questionType === QuestionType.OPEN_ENDED ? "GRADING RUBRIC" : "EXPLANATION"}</p>
-            <Markdown content={question.explanation} className="prose prose-invert max-w-none text-text-secondary" />
+            <Markdown content={question.explanation} webSources={webSources} className="prose prose-invert max-w-none text-text-secondary" />
         </div>
       </div>
     </div>
   );
 };
 
-const extractAnswerForQuestion = (fullText: string, questionNumber: number): string | null => {
-    const regex = /^(?:\s*(?:##?)\s*)?(?:question|q)?\s*(\d+)\s*[.:)]?/gim;
-    let match;
-    const markers = [];
-    while ((match = regex.exec(fullText)) !== null) {
-        markers.push({
-            number: parseInt(match[1], 10),
-            index: match.index,
-            headerText: match[0],
-        });
-    }
-
-    if (markers.length === 0) return null;
-
-    const currentMarker = markers.find(m => m.number === questionNumber);
-    if (!currentMarker) return null;
-
-    const nextMarker = markers
-        .filter(m => m.index > currentMarker.index)
-        .sort((a,b) => a.index - b.index)[0];
-
-    const startIndex = currentMarker.index + currentMarker.headerText.length;
-    const endIndex = nextMarker ? nextMarker.index : fullText.length;
-    
-    const extracted = fullText.substring(startIndex, endIndex).trim();
-    return extracted.length > 0 ? extracted : null;
-};
-
 interface ReviewScreenProps {
   answerLog: AnswerLog[];
+  webSources?: WebSource[];
   onRetakeSameQuiz: () => void;
   onStartNewQuiz: () => void;
 }
 
-const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, onRetakeSameQuiz, onStartNewQuiz }) => {
+const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, webSources, onRetakeSameQuiz, onStartNewQuiz }) => {
   const isExamReview = answerLog.some(log => log.question.questionType === QuestionType.OPEN_ENDED);
   
   let parsedAnswers: (string | null)[] | null = null;
@@ -151,7 +127,7 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, onRetakeSameQuiz
           
           const tempParsed = answerLog.map((log, index) => {
               if (log.question.questionType === QuestionType.OPEN_ENDED && fullAnswerText) {
-                  return extractAnswerForQuestion(fullAnswerText, index + 1);
+                  return extractAnswerForQuestion(fullAnswerText, index + 1, answerLog.length);
               }
               return null; // Not an open-ended question we need to parse
           });
@@ -198,6 +174,7 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, onRetakeSameQuiz
             index={index}
             parsedAnswerText={parsedAnswers ? parsedAnswers[index] : null}
             isExamReview={isExamReview}
+            webSources={webSources}
           />
         ))}
       </div>

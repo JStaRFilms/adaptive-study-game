@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet } from './types';
 import SetupScreen from './components/SetupScreen';
@@ -103,7 +104,7 @@ const App: React.FC = () => {
         addQuizResult(result);
     }
 
-  }, [currentStudySet, studyMode, quiz?.webSources, addQuizResult]);
+  }, [currentStudySet, studyMode, quiz, addQuizResult]);
 
   const handleRestart = useCallback(() => {
     setQuiz(null);
@@ -205,7 +206,7 @@ const App: React.FC = () => {
       case AppState.RESULTS:
         return <ResultsScreen score={finalScore} answerLog={answerLog} onRestart={handleRestart} onReview={() => handleReview()} webSources={quiz?.webSources} />;
       case AppState.REVIEWING:
-        return <ReviewScreen answerLog={answerLog} onRetakeSameQuiz={handleRetakeSameQuiz} onStartNewQuiz={handleRestart} />;
+        return <ReviewScreen answerLog={answerLog} webSources={quiz?.webSources} onRetakeSameQuiz={handleRetakeSameQuiz} onStartNewQuiz={handleRestart} />;
       case AppState.PREDICTION_SETUP:
         return currentStudySet ? <PredictionSetupScreen studySet={currentStudySet} onGenerate={handleGeneratePrediction} onCancel={handleRestart} error={error} /> : null;
       case AppState.PREDICTING:

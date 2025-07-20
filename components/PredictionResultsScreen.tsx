@@ -1,8 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { PredictedQuestion } from '../types';
 import Markdown from './common/Markdown';
 import html2canvas from 'html2canvas';
-import LoadingSpinner from './common/LoadingSpinner';
 
 interface PredictionResultsScreenProps {
   results: PredictedQuestion[];
@@ -11,26 +10,25 @@ interface PredictionResultsScreenProps {
 
 const PredictionResultsScreen: React.FC<PredictionResultsScreenProps> = ({ results, onBack }) => {
   const reportRef = useRef<HTMLDivElement>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownload = async () => {
     const reportElement = reportRef.current;
     if (!reportElement || !results || results.length === 0) return;
 
-    setIsDownloading(true);
     try {
         const canvas = await html2canvas(reportElement, {
-            scale: 2,
-            backgroundColor: '#fdfaf1',
-            useCORS: true,
-            logging: false,
-        } as any);
+            background: '#fdfaf1', // Background color for the canvas
+            useCORS: true, // Handle cross-origin images
+            allowTaint: true, // Allow tainted canvas
+            logging: false, // Disable console logging
+            // html2canvas will automatically handle high DPI screens
+        });
         
         const image = canvas.toDataURL('image/png', 1.0);
         const link = document.createElement('a');
+
         link.href = image;
         link.download = 'exam-prediction-report.png';
-        
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -38,8 +36,6 @@ const PredictionResultsScreen: React.FC<PredictionResultsScreenProps> = ({ resul
     } catch (error) {
         console.error("Error generating image:", error);
         alert("Sorry, an error occurred while generating the image.");
-    } finally {
-        setIsDownloading(false);
     }
   };
 
@@ -90,19 +86,13 @@ const PredictionResultsScreen: React.FC<PredictionResultsScreenProps> = ({ resul
       <div className="text-center mt-12 flex flex-col sm:flex-row justify-center items-center gap-6">
         <button
           onClick={handleDownload}
-          disabled={isDownloading || !results || results.length === 0}
-          className="font-display text-white bg-case-accent-red hover:bg-red-800 transition-all px-8 py-3 rounded-md shadow-lg font-bold disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2 w-48"
+          disabled={!results || results.length === 0}
+          className="font-display text-white bg-case-accent-red hover:bg-red-800 transition-all px-8 py-3 rounded-md shadow-lg font-bold disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center gap-2"
         >
-          {isDownloading ? (
-            <LoadingSpinner />
-          ) : (
-            <>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 9.707a1 1 0 011.414 0L9 11.086V3a1 1 0 112 0v8.086l1.293-1.379a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-              Download Image
-            </>
-          )}
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 9.707a1 1 0 011.414 0L9 11.086V3a1 1 0 112 0v8.086l1.293-1.379a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+          Download Image
         </button>
         <button onClick={onBack} className="font-display text-case-paper hover:underline transition-all">
           Return to Main Menu
