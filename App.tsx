@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet } from './types';
 import SetupScreen from './components/SetupScreen';
@@ -25,6 +26,7 @@ const App: React.FC = () => {
   const [answerLog, setAnswerLog] = useState<AnswerLog[]>([]);
   const [currentStudySet, setCurrentStudySet] = useState<StudySet | null>(null);
   const [predictionResults, setPredictionResults] = useState<PredictedQuestion[] | null>(null);
+  const [gradingMessage, setGradingMessage] = useState<string>('Grading your exam answers...');
   
   const [addQuizResult] = useQuizHistory();
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
@@ -159,15 +161,25 @@ const App: React.FC = () => {
 
   const handleFinishExam = useCallback(async (submission: OpenEndedAnswer) => {
     if (!quiz) return;
+    
     setAppState(AppState.GRADING);
+    const timeouts: NodeJS.Timeout[] = [];
+    
+    // Staged loading messages for better UX
+    setGradingMessage('Step 1/3: Locating answers in your submission...');
+    timeouts.push(setTimeout(() => setGradingMessage('Step 2/3: Validating submission against rubric...'), 4000));
+    timeouts.push(setTimeout(() => setGradingMessage('Step 3/3: Grading responses... this may take a moment.'), 8000));
+
     try {
         const gradedLog = await gradeExam(quiz.questions, submission);
+        timeouts.forEach(clearTimeout); // Clear scheduled messages on completion
         const totalScore = gradedLog.reduce((sum, log) => sum + (log.questionScore || 0), 0);
         handleFinishStudy(totalScore, gradedLog);
     } catch (err) {
+        timeouts.forEach(clearTimeout);
         console.error("Error during exam grading:", err);
         setError(err instanceof Error ? err.message : "An error occurred while grading your exam.");
-        setAppState(AppState.SETUP); // Or back to a review screen with an error
+        setAppState(AppState.SETUP);
     }
   }, [quiz, handleFinishStudy]);
   
@@ -196,7 +208,7 @@ const App: React.FC = () => {
         return (
             <div className="flex flex-col items-center justify-center h-full bg-background-dark/80">
                 <LoadingSpinner />
-                <p className="mt-4 text-lg text-text-secondary">Grading your exam answers...</p>
+                <p className="mt-4 text-lg text-text-secondary">{gradingMessage}</p>
             </div>
         );
       case AppState.STUDYING:

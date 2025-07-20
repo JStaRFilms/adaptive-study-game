@@ -17,11 +17,9 @@ const PredictionResultsScreen: React.FC<PredictionResultsScreenProps> = ({ resul
 
     try {
         const canvas = await html2canvas(reportElement, {
-            background: '#fdfaf1', // Background color for the canvas
-            useCORS: true, // Handle cross-origin images
-            allowTaint: true, // Allow tainted canvas
-            logging: false, // Disable console logging
-            // html2canvas will automatically handle high DPI screens
+            background: '#fdfaf1', // Explicitly set background to match 'case-paper'
+            useCORS: true,
+            logging: false,
         });
         
         const image = canvas.toDataURL('image/png', 1.0);

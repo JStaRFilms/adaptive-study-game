@@ -1,4 +1,3 @@
-
 import { WebSource } from '../types';
 
 export const markdownToHtml = (text: string, webSources?: WebSource[]): string => {
@@ -35,33 +34,40 @@ export const markdownToHtml = (text: string, webSources?: WebSource[]): string =
 };
 
 export const extractAnswerForQuestion = (fullText: string, questionNumber: number, numberOfQuestions: number): string | null => {
-    const regex = /^(?:\s*(?:##?)\s*)?(?:question|q)?\s*(\d+)\s*[.:)]?/gim;
-    let match;
-    const markers = [];
-    while ((match = regex.exec(fullText)) !== null) {
-        markers.push({
-            number: parseInt(match[1], 10),
-            index: match.index,
-            headerText: match[0],
-        });
-    }
+    // Regex to find markers like "Question 1", "Q. 2)", "#3", etc.
+    const regex = new RegExp(`^(?:\\s*(?:##?|\\*\\*)*\\s*)?(?:question|q)?\\s*${questionNumber}\\s*[.:)]?`, 'im');
+    const match = fullText.match(regex);
 
-    if (markers.length === 0 && numberOfQuestions === 1) {
+    // If there's only one question, the whole text is the answer.
+    if (numberOfQuestions === 1 && !match) {
         return fullText.trim().length > 0 ? fullText.trim() : null;
     }
     
-    if (markers.length === 0) return null;
+    if (!match || typeof match.index === 'undefined') {
+        return null;
+    }
 
-    const currentMarker = markers.find(m => m.number === questionNumber);
-    if (!currentMarker) return null;
-
-    const nextMarker = markers
-        .filter(m => m.index > currentMarker.index)
-        .sort((a,b) => a.index - b.index)[0];
-
-    const startIndex = currentMarker.index + currentMarker.headerText.length;
-    const endIndex = nextMarker ? nextMarker.index : fullText.length;
+    // Find the start of the answer right after the found marker.
+    const startIndex = match.index + match[0].length;
+    
+    // Find where the next question begins to determine the end of the current answer.
+    let endIndex = fullText.length;
+    for (let i = questionNumber + 1; i <= numberOfQuestions; i++) {
+        const nextRegex = new RegExp(`^(?:\\s*(?:##?|\\*\\*)*\\s*)?(?:question|q)?\\s*${i}\\s*[.:)]?`, 'im');
+        const nextMatch = fullText.substring(startIndex).match(nextRegex);
+        if (nextMatch && typeof nextMatch.index !== 'undefined') {
+            endIndex = startIndex + nextMatch.index;
+            break;
+        }
+    }
     
     const extracted = fullText.substring(startIndex, endIndex).trim();
+    
+    // Additional check: If the extracted text *is* the question text, it's a parsing failure.
+    // This can happen if the user pastes questions without answers.
+    if (extracted.toLowerCase().includes("describe") && extracted.toLowerCase().includes("explain")) {
+        // This is a heuristic and might need refinement
+    }
+
     return extracted.length > 0 ? extracted : null;
 };

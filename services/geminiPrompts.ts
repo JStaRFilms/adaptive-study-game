@@ -35,7 +35,6 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
             break;
         case KnowledgeSource.WEB_SEARCH:
             {
-                baseInstruction += `\n- The user's provided materials define the topic. Use Google Search to find relevant, up-to-date information on this topic and generate the quiz based on your findings.`;
                 const schemaDescription = mode === StudyMode.EXAM 
                     ? `- 'questionType': Must be 'OPEN_ENDED'.
 - 'questionText': (string) The open-ended question.
@@ -68,32 +67,38 @@ export const getTopicsInstruction = (): string => {
 };
 
 
-export const getGradingSystemInstruction = (questions: Question[], parsedAnswers: (string|null)[]): string => {
-    const gradingTasksText = questions.map((q, i) => {
-        const userAnswerText = parsedAnswers[i];
+export const getGradingSystemInstruction = (questions: Question[]): string => {
+    const questionsAndRubrics = questions.map((q, i) => {
         return `
-### Grading Task for Question ${i + 1} (index: ${i})
+### Question ${i + 1} (index ${i})
 **Question Text:**
 ${(q as OpenEndedQuestion).questionText}
 
 **Grading Rubric:**
 ${(q as OpenEndedQuestion).explanation}
-
-**User's Answer for this Question:**
-${userAnswerText || "(No specific answer was found for this question number. Grade accordingly.)"}
 ---
 `;
     }).join('\n');
 
-    return `You are an impartial and expert grader. A user has completed an exam. The user prompt will contain the user's full submission, which may include typed text and images of handwritten work.
-    
-Your task is to evaluate each answer independently based ONLY on the rubric and the corresponding answer text provided below. Do not look at answers for other questions. If an answer is listed as "(No specific answer was found...)", you must assign a score of 0.
+    return `You are an impartial and expert grader. A user has completed an exam. The user's full submission is provided, containing both typed text and images of handwritten work.
 
-Your response MUST be a single JSON object matching the required schema. It must contain a 'grades' array with an entry for EVERY question, from index 0 to ${questions.length - 1}.
+Your task is to grade EACH question listed below. Your response must be a JSON object matching the required schema.
+
+**GRADING PROCEDURE:**
+For each question from index 0 to ${questions.length - 1}, you must perform the following steps:
+1.  **Locate Answer:** Carefully analyze the ENTIRE user submission (all text and all images) to find the specific answer corresponding to the current question number.
+2.  **Validate Answer:**
+    - If you cannot find any answer for the question, assign a score of 0.
+    - If the located answer is merely a copy or slight rephrasing of the question text itself, assign a score of 0.
+    - If the answer is nonsensical or irrelevant, assign a score of 0.
+3.  **Grade Valid Answer:** If a valid answer is found, grade it against the provided rubric on a scale from 0 to 10.
+4.  **Provide Feedback:** For every question, provide constructive feedback explaining your score. If the score is 0 due to an invalid answer, state that clearly.
+
+**CRITICAL:** You MUST provide a grade entry for EVERY question.
 
 <hr>
-## Questions, Rubrics, & Parsed Individual Answers to Grade
-${gradingTasksText}
+## Questions and Rubrics to Grade
+${questionsAndRubrics}
 `;
 };
 

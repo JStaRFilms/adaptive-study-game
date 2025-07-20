@@ -2,7 +2,6 @@ import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion } from '../types';
 import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema } from './geminiSchemas';
 import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts } from './geminiPrompts';
-import { extractAnswerForQuestion } from '../utils/textUtils';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable not set.");
@@ -149,17 +148,14 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
 };
 
 export const gradeExam = async (questions: Question[], submission: OpenEndedAnswer): Promise<AnswerLog[]> => {
-    const parsedAnswers = questions.map((_, index) => {
-        return extractAnswerForQuestion(submission.text, index + 1, questions.length);
-    });
-
-    const systemInstruction = getGradingSystemInstruction(questions, parsedAnswers);
+    const systemInstruction = getGradingSystemInstruction(questions);
     
     const userContentParts: PromptPart[] = [];
     if (submission.text.trim()) {
-        userContentParts.push({ text: submission.text });
+        userContentParts.push({ text: `## START OF TYPED ANSWERS ##\n\n${submission.text}\n\n## END OF TYPED ANSWERS ##` });
     }
-    submission.images.forEach(img => {
+    submission.images.forEach((img, index) => {
+        userContentParts.push({ text: `\n[The following is image ${index + 1} of the user's handwritten work]` });
         userContentParts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
     });
 
@@ -197,7 +193,7 @@ export const gradeExam = async (questions: Question[], submission: OpenEndedAnsw
             if (grade) {
                 return {
                     question: question,
-                    userAnswer: submission,
+                    userAnswer: submission, // The entire original submission is saved for review
                     isCorrect: grade.isCorrect,
                     feedback: grade.feedback,
                     questionScore: grade.score,
@@ -216,6 +212,7 @@ export const gradeExam = async (questions: Question[], submission: OpenEndedAnsw
 
     } catch (error) {
         console.error(`Batch grading error:`, error);
+        // Fallback in case of a systemic API or parsing error
         return questions.map(q => ({
             question: q,
             userAnswer: submission,
