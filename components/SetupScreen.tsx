@@ -181,7 +181,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
             const contentChanged = activeSet.content !== combinedText.trim();
             const filesChanged = data.files.length > 0;
             // Clear topics if content changed, otherwise preserve them.
-            const newTopics = (contentChanged || filesChanged) ? [] : activeSet.topics;
+            const newTopics = (contentChanged || filesChanged) ? [] : activeSet.topics || [];
             updateSet({ ...activeSet, name: data.name, content: combinedText.trim(), fileInfo: [...(activeSet.fileInfo || []), ...fileInfo], topics: newTopics });
         } else {
             addSet({ name: data.name, content: combinedText.trim(), fileInfo, topics: [] });
