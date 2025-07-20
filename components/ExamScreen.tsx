@@ -130,31 +130,6 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish, onCancel }) => 
     );
   }
 
-  const QuestionsPane = () => (
-    <div className={`w-full md:w-1/2 flex-shrink-0 overflow-y-auto pr-2 space-y-4 ${activeTab !== 'questions' ? 'hidden' : ''} md:block`}>
-      <h2 className="text-xl font-bold text-text-secondary sticky top-0 bg-surface-dark pb-2 hidden md:block">Questions</h2>
-      {quiz.questions.map((q, index) => (
-        <div key={index} className="p-4 bg-background-dark rounded-md">
-          <p className="font-bold text-brand-primary">Question {index + 1}</p>
-          <Markdown content={q.questionText} className="prose prose-invert max-w-none text-text-primary mt-1" />
-        </div>
-      ))}
-    </div>
-  );
-
-  const AnswerPane = () => (
-    <div className={`w-full md:w-1/2 flex flex-col h-full ${activeTab !== 'answer' ? 'hidden' : 'flex'} md:flex`}>
-      <h2 className="text-xl font-bold text-text-secondary mb-2 hidden md:block">Typed Answers/Notes</h2>
-      <textarea
-        value={typedText}
-        onChange={e => setTypedText(e.target.value)}
-        placeholder="You can type answers or notes here. Remember to number them to match the questions."
-        className="w-full flex-grow p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary resize-y"
-        aria-label="Typed answers area"
-      />
-    </div>
-  );
-
   return (
     <div className="flex flex-col w-full h-[calc(100vh-80px)] animate-fade-in bg-surface-dark rounded-lg p-2 sm:p-4">
         <header className="flex flex-wrap justify-between items-center pb-4 border-b border-gray-700 mb-4 flex-shrink-0 gap-4">
@@ -184,7 +159,7 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish, onCancel }) => 
         </header>
 
         {examPhase === 'ANSWERING' && (
-            <div className="flex-grow flex flex-col gap-4 overflow-hidden">
+            <div className="flex-grow flex flex-col gap-4 min-h-0">
                 {/* Mobile Tab Controls */}
                 <div className="md:hidden flex-shrink-0 border-b border-gray-700">
                     <div className="flex">
@@ -198,9 +173,31 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish, onCancel }) => 
                 </div>
 
                 {/* Content Area */}
-                <div className="flex-grow flex flex-col md:flex-row gap-4 overflow-hidden">
-                    <QuestionsPane />
-                    <AnswerPane />
+                <div className="flex-grow flex flex-col md:flex-row gap-4 min-h-0">
+                    {/* Questions Pane */}
+                    <div className={`w-full md:w-1/2 flex-col flex-grow min-h-0 ${activeTab === 'questions' ? 'flex' : 'hidden'} md:flex`}>
+                        <h2 className="text-xl font-bold text-text-secondary pb-2 flex-shrink-0">Questions</h2>
+                        <div className="flex-grow overflow-y-auto pr-2 space-y-4">
+                            {quiz.questions.map((q, index) => (
+                                <div key={index} className="p-4 bg-background-dark rounded-md">
+                                    <p className="font-bold text-brand-primary">Question {index + 1}</p>
+                                    <Markdown content={q.questionText} className="prose prose-invert max-w-none text-text-primary mt-1" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Answer Pane */}
+                    <div className={`w-full md:w-1/2 flex-col flex-grow min-h-0 ${activeTab === 'answer' ? 'flex' : 'hidden'} md:flex`}>
+                        <h2 className="text-xl font-bold text-text-secondary mb-2 flex-shrink-0">Typed Answers/Notes</h2>
+                        <textarea
+                            value={typedText}
+                            onChange={e => setTypedText(e.target.value)}
+                            placeholder="You can type answers or notes here. Remember to number them to match the questions."
+                            className="w-full flex-grow p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary resize-none"
+                            aria-label="Typed answers area"
+                        />
+                    </div>
                 </div>
             </div>
         )}
