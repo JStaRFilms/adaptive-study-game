@@ -46,6 +46,7 @@ export interface MultipleChoiceQuestion {
   options: string[];
   correctAnswerIndex: number;
   explanation: string;
+  topic?: string;
 }
 
 export interface TrueFalseQuestion {
@@ -53,6 +54,7 @@ export interface TrueFalseQuestion {
   questionText: string;
   correctAnswer: boolean;
   explanation: string;
+  topic?: string;
 }
 
 export interface FillInTheBlankQuestion {
@@ -61,12 +63,14 @@ export interface FillInTheBlankQuestion {
   correctAnswer: string;
   explanation: string;
   acceptableAnswers?: string[];
+  topic?: string;
 }
 
 export interface OpenEndedQuestion {
   questionType: QuestionType.OPEN_ENDED;
   questionText: string;
   explanation: string; // This will serve as the grading rubric for the AI
+  topic?: string;
 }
 
 export type Question = MultipleChoiceQuestion | TrueFalseQuestion | FillInTheBlankQuestion | OpenEndedQuestion;
@@ -127,3 +131,10 @@ export interface PredictedQuestion {
 }
 
 export type PromptPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
+export interface PersonalizedFeedback {
+  overallSummary: string;
+  strengthTopics: { topic: string; comment:string }[];
+  weaknessTopics: { topic: string; comment: string; suggestedQuestionCount: number }[];
+  recommendation: string;
+}

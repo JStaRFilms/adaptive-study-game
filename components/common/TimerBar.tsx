@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface TimerBarProps {
@@ -13,9 +14,9 @@ const TimerBar: React.FC<TimerBarProps> = ({ timeLeft, timeLimit }) => {
   if (percentageLeft < 25) barColor = 'bg-red-500';
 
   return (
-    <div className="w-full bg-surface-dark rounded-full h-2 shadow-inner">
+    <div className="relative w-full h-3 bg-teal-900/70 rounded-full">
       <div
-        className={`h-2 rounded-full transition-all duration-1000 linear ${barColor}`}
+        className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 linear ${barColor}`}
         style={{ width: `${percentageLeft}%` }}
         aria-valuenow={timeLeft}
         aria-valuemin={0}

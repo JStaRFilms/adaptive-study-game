@@ -1,7 +1,8 @@
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion } from '../types';
-import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema } from './geminiSchemas';
-import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts } from './geminiPrompts';
+import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback } from '../types';
+import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, personalizedFeedbackSchema } from './geminiSchemas';
+import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFeedbackSystemInstruction } from './geminiPrompts';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable not set.");
@@ -101,25 +102,26 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
         const validatedQuestions: Question[] = rawQuizData.questions.map((q: any): Question | null => {
             const questionType = q.questionType || q.type;
             const questionText = q.questionText || q.question;
+            const topic = q.topic;
 
-            if (!questionType || !questionText || !q.explanation) {
-                console.warn(`Skipping invalid question from AI (missing type, text, or explanation):`, q);
+            if (!questionType || !questionText || !q.explanation || !topic) {
+                console.warn(`Skipping invalid question from AI (missing type, text, explanation, or topic):`, q);
                 return null;
             }
             switch (questionType) {
                 case QuestionType.MULTIPLE_CHOICE:
                     if (!q.options || !Array.isArray(q.options) || q.options.length < 2 || typeof q.correctAnswerIndex !== 'number' || q.correctAnswerIndex >= q.options.length ) return null;
-                    return { questionType, questionText, options: q.options, correctAnswerIndex: q.correctAnswerIndex, explanation: q.explanation };
+                    return { questionType, questionText, options: q.options, correctAnswerIndex: q.correctAnswerIndex, explanation: q.explanation, topic };
                 case QuestionType.TRUE_FALSE:
                     const correctAnswerBoolean = q.correctAnswerBoolean ?? q.correctAnswer ?? q.answer;
                     if (typeof correctAnswerBoolean !== 'boolean') return null;
-                    return { questionType, questionText, correctAnswer: correctAnswerBoolean, explanation: q.explanation };
+                    return { questionType, questionText, correctAnswer: correctAnswerBoolean, explanation: q.explanation, topic };
                 case QuestionType.FILL_IN_THE_BLANK:
                     const correctAnswerString = q.correctAnswerString || q.correctAnswer || q.missingTerm || q.blank;
                     if (typeof correctAnswerString !== 'string' || !questionText.includes('___')) return null;
-                    return { questionType, questionText, correctAnswer: correctAnswerString, explanation: q.explanation, acceptableAnswers: q.acceptableAnswers || [] };
+                    return { questionType, questionText, correctAnswer: correctAnswerString, explanation: q.explanation, acceptableAnswers: q.acceptableAnswers || [], topic };
                 case QuestionType.OPEN_ENDED:
-                     return { questionType, questionText, explanation: q.explanation };
+                     return { questionType, questionText, explanation: q.explanation, topic };
                 default:
                     console.warn(`Skipping invalid question from AI (unknown type: ${questionType}):`, q);
                     return null;
@@ -255,3 +257,45 @@ export const generateExamPrediction = async (data: any): Promise<PredictedQuesti
         throw error;
     }
 };
+
+export const generatePersonalizedFeedback = async (answerLog: AnswerLog[]): Promise<PersonalizedFeedback | null> => {
+    // Don't generate feedback for exams yet, as topics are less defined.
+    if (answerLog.some(l => l.question.questionType === QuestionType.OPEN_ENDED)) {
+        return null;
+    }
+
+    const relevantLogData = answerLog.map(log => ({
+        topic: log.question.topic,
+        question: log.question.questionText,
+        isCorrect: log.isCorrect
+    }));
+
+    if (relevantLogData.length === 0 || !relevantLogData.some(l => l.topic)) {
+        console.log("Skipping feedback generation: No answer log or topics found.");
+        return null;
+    }
+
+    const systemInstruction = getFeedbackSystemInstruction(JSON.stringify(relevantLogData, null, 2));
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: [{ text: "Please generate the feedback based on the data in the system instruction." }] },
+            config: {
+                systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: personalizedFeedbackSchema,
+                temperature: 0.5,
+            },
+        });
+
+        const jsonText = response.text;
+        if (!jsonText) {
+            throw new Error("Feedback generation API returned no text.");
+        }
+        return JSON.parse(jsonText.trim()) as PersonalizedFeedback;
+    } catch (error) {
+        console.error("Error generating personalized feedback:", error);
+        return null; // Return null on error so the UI can handle it gracefully
+    }
+}

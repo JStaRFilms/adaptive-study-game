@@ -1,3 +1,4 @@
+
 import { Type } from "@google/genai";
 
 export const questionSchema = {
@@ -15,6 +16,10 @@ export const questionSchema = {
         explanation: {
             type: Type.STRING,
             description: "A brief explanation for why the correct answer is correct. For OPEN_ENDED questions, this must be a detailed grading rubric outlining the key points for a complete answer. This is required for all question types."
+        },
+        topic: {
+            type: Type.STRING,
+            description: "The main topic or category this question belongs to. If a list of topics was provided in the prompt, this MUST be one of those topics.",
         },
         options: {
             type: Type.ARRAY,
@@ -44,7 +49,7 @@ export const questionSchema = {
             nullable: true,
         }
     },
-    required: ["questionType", "questionText", "explanation"]
+    required: ["questionType", "questionText", "explanation", "topic"]
 };
 
 export const getQuizSchema = (numberOfQuestions: number) => ({
@@ -124,4 +129,44 @@ export const predictionSchema = {
         }
     },
     required: ["predictions"]
+};
+
+export const personalizedFeedbackSchema = {
+    type: Type.OBJECT,
+    properties: {
+        overallSummary: {
+            type: Type.STRING,
+            description: "A friendly, one-sentence summary of the user's performance."
+        },
+        strengthTopics: {
+            type: Type.ARRAY,
+            description: "A list of topics where the user performed well (e.g., >75% correct). If there are no clear strengths, this can be an empty array.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    topic: { type: Type.STRING, description: "The name of the topic." },
+                    comment: { type: Type.STRING, description: "A brief, encouraging comment about their performance on this topic."}
+                },
+                required: ["topic", "comment"]
+            }
+        },
+        weaknessTopics: {
+            type: Type.ARRAY,
+            description: "A list of topics where the user struggled (e.g., <=50% correct). If there are no clear weaknesses, this can be an empty array.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    topic: { type: Type.STRING, description: "The name of the topic." },
+                    comment: { type: Type.STRING, description: "A brief comment explaining why this topic is a weakness (e.g., 'You missed both questions about this')."},
+                    suggestedQuestionCount: { type: Type.INTEGER, description: "A suggested number of questions (e.g., 5 or 10) for a focused practice quiz on this topic." }
+                },
+                required: ["topic", "comment", "suggestedQuestionCount"]
+            }
+        },
+        recommendation: {
+            type: Type.STRING,
+            description: "A final, actionable recommendation for the user. If there are weaknesses, suggest they create a new custom quiz focusing on those topics."
+        }
+    },
+    required: ["overallSummary", "strengthTopics", "weaknessTopics", "recommendation"]
 };

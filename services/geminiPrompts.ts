@@ -1,3 +1,4 @@
+
 import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question } from '../types';
 
 export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[]): string => {
@@ -11,6 +12,7 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
 - Adhere strictly to the provided JSON schema.
 - For EVERY question, the 'questionType' must be 'OPEN_ENDED'.
 - For EVERY question, provide a detailed 'explanation' that acts as a grading rubric. This rubric must list key points and concepts needed for a complete answer.
+- For EVERY question, you MUST include a 'topic' string property. If specific topics were requested, it must be one of them. Otherwise, it should be the most relevant topic from the material.
 - Use markdown for formatting, like **bold** for emphasis.`;
     } else {
         baseInstruction = `You are an expert educator. Your task is to create a high-quality, mixed-type quiz based on the user's materials.
@@ -19,6 +21,7 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
 - Test key concepts, definitions, and facts from the provided materials.
 - Adhere strictly to the provided JSON schema.
 - For EVERY question, provide a brief 'explanation' for the correct answer.
+- For EVERY question, you MUST include a 'topic' string property. If specific topics were requested, it must be one of them. Otherwise, it should be the most relevant topic from the material.
 - For MULTIPLE_CHOICE questions: Provide exactly 4 options and the 0-based index of the correct one.
 - For TRUE_FALSE questions: Provide a statement and its boolean truth value.
 - For FILL_IN_THE_BLANK questions: Provide a sentence with '___' for the missing term. Also, provide a generous list of 'acceptableAnswers' including common synonyms, misspellings, and plural/singular variations to avoid penalizing minor errors.
@@ -38,10 +41,12 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
                 const schemaDescription = mode === StudyMode.EXAM 
                     ? `- 'questionType': Must be 'OPEN_ENDED'.
 - 'questionText': (string) The open-ended question.
-- 'explanation': (string) A detailed grading rubric.`
+- 'explanation': (string) A detailed grading rubric.
+- 'topic': (string) The main topic of the question.`
                     : `- 'questionType': (string) One of 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK'.
 - 'questionText': (string) The question. For FILL_IN_THE_BLANK, it must contain '___'.
 - 'explanation': (string) A brief explanation of the correct answer.
+- 'topic': (string) The main topic of the question.
 - For MULTIPLE_CHOICE: 'options' (array of 4 strings) and 'correctAnswerIndex' (integer).
 - For TRUE_FALSE: 'correctAnswerBoolean' (boolean).
 - For FILL_IN_THE_BLANK: 'correctAnswerString' (string) and optional 'acceptableAnswers' (array of strings).`;
@@ -147,4 +152,22 @@ ${hints || "Not provided"}
     }
 
     return promptParts;
+};
+
+export const getFeedbackSystemInstruction = (answerLogForPrompt: string): string => {
+    return `You are a friendly and insightful study coach. Your goal is to provide personalized, actionable feedback to a student based on their quiz results.
+
+Analyze the provided quiz data, which is a JSON array of answer logs. Each log contains the question, its topic, and whether the user's answer was correct.
+
+Based on your analysis, you MUST generate a response in the specified JSON format. Your feedback should:
+1.  **Summarize Performance:** Start with a brief, encouraging overall summary.
+2.  **Identify Strengths:** Pinpoint topics where the user did well (high accuracy).
+3.  **Identify Weaknesses:** Pinpoint topics where the user struggled (low accuracy). For each weak topic, suggest a reasonable number of questions for a follow-up quiz.
+4.  **Provide Actionable Advice:** Give a clear, concise recommendation for the user's next step, such as creating a new practice quiz focused on their weak areas.
+
+Here is the user's performance data, which is provided in the system instruction:
+${answerLogForPrompt}
+
+Now, generate the feedback based on this data, adhering strictly to the JSON schema. The user prompt will be a simple trigger to start.
+`;
 };

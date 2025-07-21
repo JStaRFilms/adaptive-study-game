@@ -261,13 +261,35 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode }: StudyScreenProps) => {
   return (
     <div className="w-full max-w-3xl mx-auto p-4 flex flex-col animate-fade-in h-full">
       <header className="mb-6">
-        <div className="flex flex-wrap justify-between items-center text-text-secondary mb-2 gap-y-1 gap-x-4">
-            <button onClick={() => setIsQuitModalOpen(true)} className="text-sm font-semibold text-gray-400 hover:text-white hover:underline transition-colors">End Session</button>
-            <div className="flex items-baseline gap-4"><span className="font-bold text-lg">Score: <span className="text-brand-primary">{score}</span></span><span className="text-sm">Streak: <span className="text-white">{streak}x</span></span></div>
-            <div className="flex items-baseline gap-4"><div className="flex items-center justify-center gap-2 font-bold text-lg">{!isReviewMode && <span className="text-yellow-400">{timeLeft}s</span>}{isReviewMode && <span className="text-brand-secondary font-semibold">Review Mode</span>}</div><span className="font-bold text-lg">Q: {currentQuestionIndex + 1}/{totalQuestions}</span></div>
+        <div className="bg-surface-dark p-4 rounded-xl shadow-lg w-full">
+            <div className="grid grid-cols-3 items-center text-text-secondary font-semibold">
+                <div className="text-left">
+                    <button onClick={() => setIsQuitModalOpen(true)} className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">End Session</button>
+                </div>
+                
+                <div className="flex justify-center items-center gap-x-4 sm:gap-x-6">
+                    <span>Score: <span className="text-brand-primary">{score}</span></span>
+                    <span>Streak: <span className="text-white">{streak}x</span></span>
+                </div>
+                
+                <div className="flex justify-end items-center gap-x-4 sm:gap-x-6">
+                    {!isReviewMode ? (
+                        <span className="text-yellow-400 text-lg font-bold">{timeLeft}s</span>
+                    ) : (
+                        <span className="text-brand-secondary">Review Mode</span>
+                    )}
+                    <span>Q: {currentQuestionIndex + 1}/{totalQuestions}</span>
+                </div>
+            </div>
+            
+            <div className="mt-3">
+                {!isReviewMode ? (
+                    <TimerBar timeLeft={timeLeft} timeLimit={QUESTION_TIME_LIMIT} />
+                ) : (
+                     <ProgressBar progress={((currentQuestionIndex + 1) / totalQuestions) * 100} />
+                )}
+            </div>
         </div>
-        <ProgressBar progress={((currentQuestionIndex + 1) / totalQuestions) * 100} />
-        {!isReviewMode && <div className="mt-2"><TimerBar timeLeft={timeLeft} timeLimit={QUESTION_TIME_LIMIT} /></div>}
       </header>
       
       <div className="bg-surface-dark p-6 sm:p-8 rounded-xl shadow-2xl flex flex-col justify-center flex-grow">

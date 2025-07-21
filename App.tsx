@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet } from './types';
+import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource } from './types';
 import SetupScreen from './components/SetupScreen';
 import StudyScreen from './components/StudyScreen';
 import ResultsScreen from './components/ResultsScreen';
@@ -10,9 +10,10 @@ import LandingPage from './components/LandingPage';
 import ExamScreen from './components/ExamScreen';
 import PredictionSetupScreen from './components/PredictionSetupScreen';
 import PredictionResultsScreen from './components/PredictionResultsScreen';
-import { generateQuiz, gradeExam, generateExamPrediction } from './services/geminiService';
+import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedback } from './services/geminiService';
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
+import { processFilesToParts } from './utils/fileProcessor';
 
 const App: React.FC = () => {
   const [showLanding, setShowLanding] = useState(true);
@@ -31,6 +32,10 @@ const App: React.FC = () => {
   const [submissionForRetry, setSubmissionForRetry] = useState<OpenEndedAnswer | null>(null);
   const [gradingError, setGradingError] = useState<string | null>(null);
   
+  // Personalized Feedback State
+  const [feedback, setFeedback] = useState<PersonalizedFeedback | null>(null);
+  const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
+
   const [addQuizResult] = useQuizHistory();
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
   
@@ -111,6 +116,19 @@ const App: React.FC = () => {
         addQuizResult(result);
     }
 
+    // Generate personalized feedback for non-exam modes
+    if (studyMode !== StudyMode.EXAM) {
+        setIsGeneratingFeedback(true);
+        setFeedback(null);
+        generatePersonalizedFeedback(log)
+            .then(fb => setFeedback(fb))
+            .catch(err => {
+                console.error("Feedback generation failed:", err);
+                setFeedback(null); // Explicitly set to null on error
+            })
+            .finally(() => setIsGeneratingFeedback(false));
+    }
+
   }, [currentStudySet, studyMode, quiz, addQuizResult]);
 
   const handleRestart = useCallback(() => {
@@ -122,6 +140,8 @@ const App: React.FC = () => {
     setPredictionResults(null);
     setSubmissionForRetry(null);
     setGradingError(null);
+    setFeedback(null);
+    setIsGeneratingFeedback(false);
     setAppState(AppState.SETUP);
   }, []);
   
@@ -154,6 +174,7 @@ const App: React.FC = () => {
       setAnswerLog(resultToReview.answerLog);
       setStudyMode(resultToReview.mode);
       setQuiz({ questions: resultToReview.answerLog.map(l => l.question), webSources: resultToReview.webSources });
+      // We keep the feedback state so it can be passed to the review screen
       setAppState(AppState.REVIEWING);
     } else {
       // This is a defensive check in case the study set was deleted but the history item remains.
@@ -165,12 +186,60 @@ const App: React.FC = () => {
   const handleRetakeSameQuiz = useCallback(() => {
     setFinalScore(0);
     setAnswerLog([]);
+    setFeedback(null);
+    setIsGeneratingFeedback(false);
     if (studyMode === StudyMode.EXAM) {
         setAppState(AppState.EXAM_IN_PROGRESS);
     } else {
         setAppState(AppState.STUDYING);
     }
   }, [studyMode]);
+  
+  const handleStartFocusedQuiz = useCallback(async (weaknessTopics: PersonalizedFeedback['weaknessTopics']) => {
+    if (!currentStudySet || weaknessTopics.length === 0) {
+        setError("Could not start focused quiz. Study set or topics missing.");
+        return;
+    }
+
+    setAppState(AppState.PROCESSING);
+    setError(null);
+    setQuiz(null);
+    setAnswerLog([]);
+    setFeedback(null);
+    setIsGeneratingFeedback(false);
+    
+    const topics = weaknessTopics.map(t => t.topic);
+    const totalQuestions = weaknessTopics.reduce((sum, t) => sum + t.suggestedQuestionCount, 0);
+    const cappedQuestions = Math.min(20, Math.max(5, totalQuestions));
+
+    const config: QuizConfig = {
+        numberOfQuestions: cappedQuestions,
+        mode: StudyMode.REVIEW,
+        knowledgeSource: KnowledgeSource.NOTES_ONLY,
+        topics: topics,
+    };
+    
+    setStudyMode(config.mode);
+
+    try {
+        // Re-process the content of the current study set to get the parts for the prompt.
+        const { parts } = await processFilesToParts(currentStudySet.content, [], () => {});
+        
+        const generatedQuiz = await generateQuiz(parts, config);
+
+        if (generatedQuiz && generatedQuiz.questions.length > 0) {
+            setQuiz(generatedQuiz);
+            setAppState(AppState.STUDYING);
+        } else {
+            setError("The AI couldn't generate a focused quiz. Please try again from the main menu.");
+            setAppState(AppState.SETUP);
+        }
+    } catch (err) {
+        console.error("Error starting focused quiz:", err);
+        setError(err instanceof Error ? err.message : "An unknown error occurred. Please try again.");
+        setAppState(AppState.SETUP);
+    }
+  }, [currentStudySet]);
 
   const handleFinishExam = useCallback(async (submission?: OpenEndedAnswer) => {
     const submissionToGrade = submission || submissionForRetry;
@@ -268,9 +337,21 @@ const App: React.FC = () => {
                 });
               }
             }} 
-            webSources={quiz?.webSources} />;
+            webSources={quiz?.webSources}
+            feedback={feedback}
+            isGeneratingFeedback={isGeneratingFeedback}
+            onStartFocusedQuiz={handleStartFocusedQuiz} 
+        />;
       case AppState.REVIEWING:
-        return <ReviewScreen answerLog={answerLog} webSources={quiz?.webSources} onRetakeSameQuiz={handleRetakeSameQuiz} onStartNewQuiz={handleRestart} />;
+        return <ReviewScreen 
+                  answerLog={answerLog} 
+                  webSources={quiz?.webSources} 
+                  onRetakeSameQuiz={handleRetakeSameQuiz} 
+                  onStartNewQuiz={handleRestart}
+                  feedback={feedback}
+                  isGeneratingFeedback={isGeneratingFeedback}
+                  onStartFocusedQuiz={handleStartFocusedQuiz}
+                />;
       case AppState.PREDICTION_SETUP:
         return currentStudySet ? <PredictionSetupScreen studySet={currentStudySet} onGenerate={handleGeneratePrediction} onCancel={handleRestart} error={error} /> : null;
       case AppState.PREDICTING:

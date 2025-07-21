@@ -9,9 +9,9 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ progress }) => {
   const safeProgress = Math.max(0, Math.min(100, progress));
 
   return (
-    <div className="w-full bg-surface-dark rounded-full h-2.5 shadow-inner">
+    <div className="relative w-full h-3 bg-teal-900/70 rounded-full">
       <div
-        className="bg-brand-primary h-2.5 rounded-full transition-all duration-500 ease-out"
+        className="absolute top-0 left-0 h-full bg-brand-primary rounded-full transition-all duration-500 ease-out"
         style={{ width: `${safeProgress}%` }}
       ></div>
     </div>
