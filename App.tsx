@@ -1,5 +1,4 @@
 
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet } from './types';
 import SetupScreen from './components/SetupScreen';
@@ -26,7 +25,11 @@ const App: React.FC = () => {
   const [answerLog, setAnswerLog] = useState<AnswerLog[]>([]);
   const [currentStudySet, setCurrentStudySet] = useState<StudySet | null>(null);
   const [predictionResults, setPredictionResults] = useState<PredictedQuestion[] | null>(null);
+  
+  // Grading & Retry State
   const [gradingMessage, setGradingMessage] = useState<string>('Grading your exam answers...');
+  const [submissionForRetry, setSubmissionForRetry] = useState<OpenEndedAnswer | null>(null);
+  const [gradingError, setGradingError] = useState<string | null>(null);
   
   const [addQuizResult] = useQuizHistory();
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
@@ -90,6 +93,8 @@ const App: React.FC = () => {
     setFinalScore(score);
     setAnswerLog(log);
     setAppState(AppState.RESULTS);
+    setSubmissionForRetry(null);
+    setGradingError(null);
 
     if (currentStudySet) {
         const correctAnswers = log.filter(l => l.isCorrect).length;
@@ -115,6 +120,8 @@ const App: React.FC = () => {
     setAnswerLog([]);
     setCurrentStudySet(null);
     setPredictionResults(null);
+    setSubmissionForRetry(null);
+    setGradingError(null);
     setAppState(AppState.SETUP);
   }, []);
   
@@ -140,14 +147,20 @@ const App: React.FC = () => {
       }
   }, []);
 
-  const handleReview = useCallback((resultToReview?: QuizResult) => {
-    if (resultToReview) {
+  const handleReview = useCallback((resultToReview: QuizResult) => {
+    const set = studySets.find(s => s.id === resultToReview.studySetId);
+    if (set) {
+      setCurrentStudySet(set);
       setAnswerLog(resultToReview.answerLog);
       setStudyMode(resultToReview.mode);
       setQuiz({ questions: resultToReview.answerLog.map(l => l.question), webSources: resultToReview.webSources });
+      setAppState(AppState.REVIEWING);
+    } else {
+      // This is a defensive check in case the study set was deleted but the history item remains.
+      setError(`Could not find the original study set for this quiz result. It may have been deleted.`);
+      handleRestart();
     }
-    setAppState(AppState.REVIEWING);
-  }, []);
+  }, [studySets, handleRestart]);
 
   const handleRetakeSameQuiz = useCallback(() => {
     setFinalScore(0);
@@ -159,10 +172,16 @@ const App: React.FC = () => {
     }
   }, [studyMode]);
 
-  const handleFinishExam = useCallback(async (submission: OpenEndedAnswer) => {
-    if (!quiz) return;
-    
+  const handleFinishExam = useCallback(async (submission?: OpenEndedAnswer) => {
+    const submissionToGrade = submission || submissionForRetry;
+    if (!quiz || !submissionToGrade) return;
+
     setAppState(AppState.GRADING);
+    setGradingError(null);
+    if (submission) {
+        setSubmissionForRetry(submission);
+    }
+    
     const timeouts: NodeJS.Timeout[] = [];
     
     // Staged loading messages for better UX
@@ -171,17 +190,18 @@ const App: React.FC = () => {
     timeouts.push(setTimeout(() => setGradingMessage('Step 3/3: Grading responses... this may take a moment.'), 8000));
 
     try {
-        const gradedLog = await gradeExam(quiz.questions, submission);
+        const gradedLog = await gradeExam(quiz.questions, submissionToGrade);
         timeouts.forEach(clearTimeout); // Clear scheduled messages on completion
         const totalScore = gradedLog.reduce((sum, log) => sum + (log.questionScore || 0), 0);
         handleFinishStudy(totalScore, gradedLog);
     } catch (err) {
         timeouts.forEach(clearTimeout);
         console.error("Error during exam grading:", err);
-        setError(err instanceof Error ? err.message : "An error occurred while grading your exam.");
-        setAppState(AppState.SETUP);
+        const errorMessage = err instanceof Error ? err.message : "An error occurred while grading. Please check your network and try again.";
+        setGradingError(errorMessage);
+        // Do not change app state, stay in GRADING to allow for retry
     }
-  }, [quiz, handleFinishStudy]);
+  }, [quiz, submissionForRetry, handleFinishStudy]);
   
   const renderCoreApp = () => {
     switch (appState) {
@@ -205,6 +225,18 @@ const App: React.FC = () => {
           </div>
         );
       case AppState.GRADING:
+        if (gradingError) {
+          return (
+            <div className="flex flex-col items-center justify-center h-full bg-background-dark/80 text-center animate-fade-in">
+              <h2 className="text-2xl font-bold text-incorrect mb-4">Submission Failed</h2>
+              <p className="text-text-secondary max-w-md mb-6">{gradingError}</p>
+              <div className="flex gap-4">
+                  <button onClick={() => handleFinishExam()} className="px-6 py-2 bg-brand-primary text-white font-bold rounded-lg hover:bg-brand-secondary">Retry Submission</button>
+                  <button onClick={handleRestart} className="px-6 py-2 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500">Cancel</button>
+              </div>
+            </div>
+          )
+        }
         return (
             <div className="flex flex-col items-center justify-center h-full bg-background-dark/80">
                 <LoadingSpinner />
@@ -216,7 +248,27 @@ const App: React.FC = () => {
       case AppState.EXAM_IN_PROGRESS:
         return quiz ? <ExamScreen quiz={quiz} onFinish={handleFinishExam} onCancel={handleRestart} /> : null;
       case AppState.RESULTS:
-        return <ResultsScreen score={finalScore} answerLog={answerLog} onRestart={handleRestart} onReview={() => handleReview()} webSources={quiz?.webSources} />;
+        const correctAnswers = answerLog.filter(log => log.isCorrect).length;
+        const accuracy = answerLog.length > 0 ? Math.round((correctAnswers / answerLog.length) * 100) : 0;
+        return <ResultsScreen 
+            score={finalScore} 
+            answerLog={answerLog} 
+            onRestart={handleRestart} 
+            onReview={() => {
+              if (answerLog.length > 0 && currentStudySet) {
+                handleReview({
+                    id: 'review-session-' + Date.now(),
+                    studySetId: currentStudySet.id,
+                    date: new Date().toISOString(),
+                    score: finalScore,
+                    accuracy: accuracy,
+                    answerLog: answerLog,
+                    webSources: quiz?.webSources,
+                    mode: studyMode,
+                });
+              }
+            }} 
+            webSources={quiz?.webSources} />;
       case AppState.REVIEWING:
         return <ReviewScreen answerLog={answerLog} webSources={quiz?.webSources} onRetakeSameQuiz={handleRetakeSameQuiz} onStartNewQuiz={handleRestart} />;
       case AppState.PREDICTION_SETUP:

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Quiz, OpenEndedAnswer } from '../types';
 import Markdown from './common/Markdown';
@@ -35,20 +36,40 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish, onCancel }) => 
   // Phase 2 state
   const [uploadTimeLeft, setUploadTimeLeft] = useState(120); // 2 minutes
   const [images, setImages] = useState<{ mimeType: string; data: string }[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Modals
-  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  // Modals & Progress
+  const [modalInfo, setModalInfo] = useState<{
+    type: 'cancel' | 'finish' | 'submit_final' | 'timeup' | 'upload_timeup' | null;
+    isOpen: boolean;
+  }>({ type: null, isOpen: false });
+
+  const [isProcessingImages, setIsProcessingImages] = useState(false);
+  const [imageProgress, setImageProgress] = useState({ current: 0, total: 0 });
+  const [showCopyMessage, setShowCopyMessage] = useState(false);
 
   const onFinishRef = useRef(onFinish);
   onFinishRef.current = onFinish;
   const submissionRef = useRef({ text: typedText, images });
   submissionRef.current = { text: typedText, images };
 
+  const copyToClipboard = useCallback(async (text: string) => {
+    if (!text.trim() || !navigator.clipboard) return;
+    try {
+        await navigator.clipboard.writeText(text);
+        setShowCopyMessage(true);
+        setTimeout(() => setShowCopyMessage(false), 3000); // Hide message after 3 seconds
+    } catch (err) {
+        console.error("Failed to copy exam answers to clipboard:", err);
+    }
+  }, []);
+
   const startUploadPhase = useCallback(() => {
     if (examPhase !== 'ANSWERING') return;
+    copyToClipboard(submissionRef.current.text);
     setExamPhase('UPLOADING');
-  }, [examPhase]);
+  }, [examPhase, copyToClipboard]);
   
   const finalSubmit = useCallback(() => {
     if (examPhase === 'SUBMITTING') return;
@@ -59,68 +80,165 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish, onCancel }) => 
   useEffect(() => {
     if (examPhase !== 'ANSWERING') return;
     if (timeLeft <= 0) {
-      alert("Time's up! You now have 2 minutes to upload any images of your written work.");
-      startUploadPhase();
+      copyToClipboard(submissionRef.current.text);
+      setModalInfo({ type: 'timeup', isOpen: true });
       return;
     }
     const timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
     return () => clearInterval(timer);
-  }, [examPhase, timeLeft, startUploadPhase]);
+  }, [examPhase, timeLeft, copyToClipboard]);
 
   useEffect(() => {
     if (examPhase !== 'UPLOADING') return;
     if (uploadTimeLeft <= 0) {
-      alert("Image upload time is over. The exam will now be submitted automatically.");
-      finalSubmit();
+      setModalInfo({ type: 'upload_timeup', isOpen: true });
       return;
     }
     const timer = setInterval(() => setUploadTimeLeft(t => t - 1), 1000);
     return () => clearInterval(timer);
-  }, [examPhase, uploadTimeLeft, finalSubmit]);
+  }, [examPhase, uploadTimeLeft]);
 
   const handleFinishWritingClick = () => {
-    if (window.confirm("Are you sure you want to finish writing? You will have 2 minutes to upload images before the final submission.")) {
-        startUploadPhase();
-    }
+    setModalInfo({ type: 'finish', isOpen: true });
   };
   
   const handleFinalSubmitClick = () => {
-      if(window.confirm("Are you sure you want to submit your exam now? You cannot make any more changes.")) {
-          finalSubmit();
-      }
+      setModalInfo({ type: 'submit_final', isOpen: true });
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files);
-      if (newFiles.length === 0) return;
-      
-      try {
-        const processedImages = await Promise.all(newFiles.map(async file => {
-          if (!file.type.startsWith('image/')) {
-            console.warn(`Skipping non-image file: ${file.name}`);
-            return null;
-          }
-          return await toBase64(file);
-        }));
-        
-        const validImages = processedImages.filter((img): img is { mimeType: string; data: string; } => img !== null);
+  const processFiles = useCallback(async (files: File[]) => {
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
 
-        if (validImages.length > 0) {
-          setImages(prev => [...prev, ...validImages]);
+    setIsProcessingImages(true);
+    setImageProgress({ current: 0, total: imageFiles.length });
+
+    try {
+        const processedImages: { mimeType: string; data: string }[] = [];
+        for (let i = 0; i < imageFiles.length; i++) {
+            const file = imageFiles[i];
+            setImageProgress({ current: i + 1, total: imageFiles.length });
+            const processed = await toBase64(file);
+            processedImages.push(processed);
         }
-      } catch (error) {
+        setImages(prev => [...prev, ...processedImages]);
+    } catch (error) {
         console.error("Error converting file to base64", error);
-        alert("There was an error processing your image(s).");
-      }
+    } finally {
+        setIsProcessingImages(false);
     }
-    if(fileInputRef.current) fileInputRef.current.value = '';
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    processFiles(Array.from(e.target.files));
+    if (fileInputRef.current) fileInputRef.current.value = ''; // Reset input
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+  
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation(); // Necessary for onDrop to fire
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFiles(Array.from(e.dataTransfer.files));
+    }
   };
 
   const handleRemoveImage = (imageIndex: number) => {
     setImages(prev => prev.filter((_, i) => i !== imageIndex));
   };
   
+  const getModalContent = () => {
+    const closeModal = () => setModalInfo({ type: null, isOpen: false });
+
+    switch (modalInfo.type) {
+        case 'cancel':
+            return {
+                title: 'Cancel Exam',
+                content: (
+                    <div className="text-text-secondary">
+                        <p className="font-bold text-red-400">This action cannot be undone.</p>
+                        <p className="mt-2">Are you sure you want to cancel this exam? All your progress will be lost and no grade will be recorded.</p>
+                        <div className="mt-6 flex justify-end gap-4">
+                            <button onClick={closeModal} className="px-4 py-2 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-colors">Continue Exam</button>
+                            <button onClick={() => { onCancel(); closeModal(); }} className="px-4 py-2 bg-incorrect text-white font-bold rounded-lg hover:bg-red-600 transition-colors">Cancel Exam</button>
+                        </div>
+                    </div>
+                )
+            };
+        case 'finish':
+            return {
+                title: 'Finish Writing?',
+                content: (
+                    <div className="text-text-secondary">
+                        <p>Are you sure you want to finish writing? You will have <strong>2 minutes</strong> to upload images before your work is submitted.</p>
+                        <div className="mt-6 flex justify-end gap-4">
+                            <button onClick={closeModal} className="px-4 py-2 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-colors">Keep Writing</button>
+                            <button onClick={() => { startUploadPhase(); closeModal(); }} className="px-4 py-2 bg-correct text-white font-bold rounded-lg hover:bg-green-600 transition-colors">Finish & Upload</button>
+                        </div>
+                    </div>
+                )
+            };
+        case 'submit_final':
+            return {
+                title: 'Submit Exam Now?',
+                content: (
+                    <div className="text-text-secondary">
+                        <p>Are you sure you want to submit your exam? You cannot make any more changes.</p>
+                        <div className="mt-6 flex justify-end gap-4">
+                            <button onClick={closeModal} className="px-4 py-2 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-colors">Cancel</button>
+                            <button onClick={() => { finalSubmit(); closeModal(); }} className="px-4 py-2 bg-correct text-white font-bold rounded-lg hover:bg-green-600 transition-colors">Submit Now</button>
+                        </div>
+                    </div>
+                )
+            };
+        case 'timeup':
+            return {
+                title: "Time's Up!",
+                content: (
+                    <div className="text-text-secondary">
+                        <p>Your writing time has expired. Your typed answers have been copied to your clipboard as a backup.</p>
+                        <p className="mt-2">You now have <strong>2 minutes</strong> to upload any images of your handwritten work.</p>
+                        <div className="mt-6 flex justify-end gap-4">
+                            <button onClick={() => { startUploadPhase(); closeModal(); }} className="px-4 py-2 bg-brand-primary text-white font-bold rounded-lg hover:bg-brand-secondary transition-colors">Proceed to Upload</button>
+                        </div>
+                    </div>
+                )
+            };
+        case 'upload_timeup':
+            return {
+                title: 'Upload Time Over',
+                content: (
+                    <div className="text-text-secondary">
+                        <p>Your time for uploading images has expired. The exam will now be submitted automatically.</p>
+                        <div className="mt-6 flex justify-end gap-4">
+                            <button onClick={() => { finalSubmit(); closeModal(); }} className="px-4 py-2 bg-brand-primary text-white font-bold rounded-lg hover:bg-brand-secondary transition-colors">Submit Exam</button>
+                        </div>
+                    </div>
+                )
+            };
+        default:
+            return { title: '', content: null };
+    }
+  };
+
   if (examPhase === 'SUBMITTING') {
     return (
         <div className="flex flex-col items-center justify-center h-full">
@@ -130,12 +248,14 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish, onCancel }) => 
     );
   }
 
+  const currentModal = getModalContent();
+
   return (
     <div className="flex flex-col w-full h-[calc(100vh-80px)] animate-fade-in bg-surface-dark rounded-lg p-2 sm:p-4">
         <header className="flex flex-wrap justify-between items-center pb-4 border-b border-gray-700 mb-4 flex-shrink-0 gap-4">
             <div className="flex items-center gap-4">
               <h1 className="text-xl sm:text-2xl font-bold text-text-primary">Exam Mode</h1>
-              <button onClick={() => setIsCancelModalOpen(true)} className="text-sm font-semibold text-red-500 hover:text-red-400 hover:underline transition-colors">Cancel Exam</button>
+              <button onClick={() => setModalInfo({ type: 'cancel', isOpen: true })} className="text-sm font-semibold text-red-500 hover:text-red-400 hover:underline transition-colors">Cancel Exam</button>
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
                 {examPhase === 'ANSWERING' && (
@@ -197,6 +317,9 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish, onCancel }) => 
                             className="w-full flex-grow p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary resize-none"
                             aria-label="Typed answers area"
                         />
+                        <p className="text-xs text-yellow-300/80 mt-2">
+                            Pro Tip: Copy your typed answers to a safe place before submitting, just in case of network issues.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -206,12 +329,32 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish, onCancel }) => 
             <div className="flex-grow flex flex-col items-center justify-center text-center overflow-y-auto p-4">
                 <div className="max-w-2xl w-full">
                     <h2 className="text-3xl font-bold text-yellow-400">Final Upload</h2>
+                    {showCopyMessage && <p className="text-correct mt-2 animate-fade-in">✔ Typed answers copied to clipboard!</p>}
                     <p className="text-text-secondary mt-2 mb-6">You have {Math.floor(uploadTimeLeft/60)}m {uploadTimeLeft%60}s to upload images of your handwritten work. <br/> Please ensure your answers are clearly numbered.</p>
                     
-                    <div className="bg-background-dark border-2 border-dashed border-gray-600 rounded-lg p-8">
+                    <div
+                        onDragEnter={handleDragEnter}
+                        onDragLeave={handleDragLeave}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`border-2 border-dashed rounded-lg p-8 cursor-pointer transition-all duration-300 ${isDragging ? 'border-brand-primary scale-105 bg-brand-primary/10' : 'border-gray-600 hover:border-gray-500'}`}
+                    >
                         <input type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" ref={fileInputRef} id="image-upload-final" />
-                        <button onClick={() => fileInputRef.current?.click()} className="px-6 py-3 bg-brand-primary text-white font-semibold rounded-lg hover:bg-brand-secondary transition-all">+ Add Images of Written Work</button>
-                        <p className="text-xs text-gray-500 mt-2">You can select multiple files.</p>
+                        <div className="text-center pointer-events-none flex flex-col items-center justify-center">
+                            {isDragging ? (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-brand-primary mb-4 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h2a4 4 0 014 4v1m-1 9l-4-4m0 0l-4 4m4-4v12" /></svg>
+                                    <p className="text-xl font-bold text-brand-primary">Drop files to upload</p>
+                                </>
+                            ) : (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                    <p className="font-semibold text-text-primary">Click to upload or drag & drop</p>
+                                    <p className="text-xs text-gray-500 mt-2">PNG, JPG, etc.</p>
+                                </>
+                            )}
+                        </div>
                     </div>
 
                     {images.length > 0 && (
@@ -233,14 +376,23 @@ const ExamScreen: React.FC<ExamScreenProps> = ({ quiz, onFinish, onCancel }) => 
             </div>
         )}
 
-        <Modal isOpen={isCancelModalOpen} onClose={() => setIsCancelModalOpen(false)} title="Cancel Exam">
-            <div className="text-text-secondary">
-                <p className="font-bold text-red-400">This action cannot be undone.</p>
-                <p className="mt-2">Are you sure you want to cancel this exam? All your progress will be lost and no grade will be recorded.</p>
-                <div className="mt-6 flex justify-end gap-4">
-                <button onClick={() => setIsCancelModalOpen(false)} className="px-4 py-2 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-colors">Continue Exam</button>
-                <button onClick={onCancel} className="px-4 py-2 bg-incorrect text-white font-bold rounded-lg hover:bg-red-600 transition-colors">Cancel Exam</button>
+        <Modal isOpen={modalInfo.isOpen} onClose={() => setModalInfo({ ...modalInfo, isOpen: false })} title={currentModal.title}>
+          {currentModal.content}
+        </Modal>
+
+        <Modal isOpen={isProcessingImages} onClose={() => {}} title="Processing Images...">
+            <div className="text-center text-text-secondary">
+                <LoadingSpinner />
+                <p className="mt-4">
+                    Processing image {imageProgress.current} of {imageProgress.total}...
+                </p>
+                <div className="w-full bg-surface-dark rounded-full h-2.5 mt-4">
+                    <div
+                    className="bg-brand-primary h-2.5 rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${imageProgress.total > 0 ? (imageProgress.current / imageProgress.total) * 100 : 0}%` }}
+                    ></div>
                 </div>
+                <p className="text-xs mt-2">Please wait, this may take a moment for large files.</p>
             </div>
         </Modal>
     </div>
