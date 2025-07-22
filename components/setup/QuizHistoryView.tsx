@@ -2,18 +2,15 @@
 
 import React from 'react';
 import { StudySet, QuizResult } from '../../types';
-import { useQuizHistory } from '../../hooks/useQuizHistory';
 
 interface QuizHistoryViewProps {
     activeSet: StudySet;
+    history: QuizResult[];
     onBack: () => void;
     onReviewHistory: (result: QuizResult) => void;
 }
 
-const QuizHistoryView: React.FC<QuizHistoryViewProps> = ({ activeSet, onBack, onReviewHistory }) => {
-    const [, getHistoryForSet] = useQuizHistory();
-    const history = getHistoryForSet(activeSet.id);
-    
+const QuizHistoryView: React.FC<QuizHistoryViewProps> = ({ activeSet, history, onBack, onReviewHistory }) => {
     return (
         <div className="animate-fade-in w-full max-w-2xl mx-auto">
             <h1 className="text-3xl sm:text-4xl font-bold text-text-primary mb-2 text-center">Quiz History</h1>

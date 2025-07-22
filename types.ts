@@ -96,6 +96,7 @@ export enum AppState {
   PREDICTION_SETUP,
   PREDICTING,
   PREDICTION_RESULTS,
+  STATS,
 }
 
 export interface OpenEndedAnswer {

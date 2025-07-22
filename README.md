@@ -34,17 +34,18 @@ An intelligent study tool that uses the Google Gemini API to transform your note
   - **Notes Only**: Strictly uses the materials you provide.
   - **Notes + AI Knowledge**: Supplements your notes with the AI's vast general knowledge.
   - **Notes + Web Search**: Uses Google Search to find the latest information on your topic.
+- **AI Study Coach**: After each quiz, receive personalized feedback from an AI coach that analyzes your performance to identify your strengths and weaknesses.
+- **Actionable Recommendations**: The AI coach provides clear next steps, including a one-click button to instantly generate a new, focused practice quiz on the topics you need to improve on.
 - **Multiple Question & Study Modes**:
   - **Practice Mode**: Timed multiple choice, true/false, and fill-in-the-blank questions.
   - **Review Mode**: Untimed, self-paced version of Practice Mode.
   - **Exam Mode**: A simulated exam with open-ended questions requiring long-form answers.
 - **AI-Powered Exam Grading**: In Exam Mode, submit typed answers and **upload images of handwritten work**. The AI grades your responses against a rubric, providing a score and detailed feedback for each question.
 - **AI Exam Prediction**: A powerful "detective mode" where the AI acts as your teacher to predict likely exam questions. Prime the AI with your teacher's persona, past exams, and other materials for a highly tailored study guide.
-- **Gamified Learning**: Earn points, build streaks, and get speed bonuses in Practice Mode.
+- **Gamified Learning**: A redesigned quiz interface with points, streaks, and speed bonuses to make studying engaging.
 - **Persistent Study Sets**: Create, edit, and save study sets. Your notes and associated files are saved in your browser's local storage.
 - **Quiz History & Progress Tracking**: Every quiz session is automatically saved. Review past attempts to track your scores, accuracy, and improvement over time.
-- **Detailed Feedback & Review**: After each quiz, access a comprehensive review screen showing each question, your answer, the correct answer, and a clear explanation or AI-generated feedback.
-- **Responsive Design**: A clean, modern, and fully responsive UI built with Tailwind CSS.
+- **Detailed Answer Review**: After each quiz, access a comprehensive review screen showing each question, your answer, the correct answer, and a clear explanation. The AI Study Coach report is also available here.
 
 
 ## 🚀 Project Philosophy
@@ -61,8 +62,8 @@ An intelligent study tool that uses the Google Gemini API to transform your note
     - **Study**: The app analyzes your notes, identifies key topics, and lets you configure a quiz (Practice, Review, or Exam Mode).
     - **Predict**: Enter the Exam Prediction mode. Provide details about your teacher's style, upload past exams or quizzes, and let the AI generate a list of probable exam questions to guide your studying.
 3.  **Take the Quiz**: Play through the generated quiz, score points, and actively learn the material. For exams, type your answers or upload photos of your work.
-4.  **Get AI-Graded Results**: After an exam, the AI evaluates your answers, providing scores and constructive feedback. For practice quizzes, see a summary of your score and accuracy.
-5.  **Review and Reinforce**: Dive into a detailed review of your answers. From here, you can retake the same quiz or start a new one.
+4.  **Get AI-Powered Results**: After an exam, the AI evaluates your answers, providing scores and constructive feedback. For practice quizzes, see a summary of your score and accuracy.
+5.  **Review and Improve**: Dive into a detailed review of your answers. The **AI Study Coach** will give you personalized feedback on your strengths and weaknesses. From here, you can retake the same quiz, return to your sets, or instantly launch a new, focused quiz tailored to the topics you struggled with.
 
 
 ## 💻 Tech Stack
@@ -104,8 +105,9 @@ The application's code (`services/geminiService.ts`) expects to access the key v
 
 ## 🗺️ Roadmap
 
+- [x] **Deeper Analysis**: Provide users with insights into their weak spots and suggest topics to focus on. (Initial version implemented!)
+- [ ] **Long-term Progress Tracking**: Track performance on specific topics across multiple quiz sessions to visualize improvement over time.
 - [ ] **Enhanced Gamification**: Leaderboards, achievements, and shareable results.
-- [ ] **Deeper Analysis**: Provide users with insights into their weak spots and suggest topics to focus on.
 - [ ] **More Question Types**: Introduce diagram labeling, matching, and sequencing questions.
 - [ ] **Collaborative Study Sets**: Allow users to share their study sets with others.
 - [ ] **Localization**: Translate the UI into multiple languages.

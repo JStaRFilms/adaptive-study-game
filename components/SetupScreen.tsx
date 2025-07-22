@@ -21,6 +21,8 @@ interface SetupScreenProps {
   addSet: (set: Omit<StudySet, 'id' | 'createdAt'>) => StudySet;
   updateSet: (set: StudySet) => void;
   deleteSet: (setId: string) => void;
+  onShowStats: () => void;
+  history: QuizResult[];
 }
 
 type Action = 'LIST' | 'CREATE_EDIT' | 'HISTORY' | 'TOPIC_SELECTION';
@@ -34,7 +36,9 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     studySets,
     addSet,
     updateSet,
-    deleteSet
+    deleteSet,
+    onShowStats,
+    history
 }) => {
   const [action, setAction] = useState<Action>('LIST');
   
@@ -241,6 +245,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     onPredict: onPredict,
     onPrepareForQuiz: handlePrepareForQuiz,
     onShowHistory: (set: StudySet) => { resetState(); setActiveSet(set); setAction('HISTORY'); },
+    onShowStats,
   };
 
   switch (action) {
@@ -273,8 +278,10 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
       />;
     case 'HISTORY': 
       if (!activeSet) return <StudySetList {...studySetListProps} />;
+      const historyForSet = history.filter(h => h.studySetId === activeSet.id);
       return <QuizHistoryView 
         activeSet={activeSet}
+        history={historyForSet}
         onBack={handleShowList}
         onReviewHistory={onReviewHistory}
       />;

@@ -1,6 +1,5 @@
 
 
-
 import React, { useState } from 'react';
 import { StudySet } from '../../types';
 import Modal from '../common/Modal';
@@ -17,6 +16,7 @@ interface StudySetListProps {
   onPredict: (id: string) => void;
   onPrepareForQuiz: (set: StudySet) => void;
   onShowHistory: (set: StudySet) => void;
+  onShowStats: () => void;
 }
 
 const StudySetList: React.FC<StudySetListProps> = ({
@@ -30,6 +30,7 @@ const StudySetList: React.FC<StudySetListProps> = ({
   onPredict,
   onPrepareForQuiz,
   onShowHistory,
+  onShowStats,
 }) => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [setForDetails, setSetForDetails] = useState<StudySet | null>(null);
@@ -43,9 +44,18 @@ const StudySetList: React.FC<StudySetListProps> = ({
     <div className="animate-fade-in">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
         <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Your Study Sets</h1>
-        <button onClick={onNewSet} className="px-5 py-2.5 bg-brand-primary text-white font-bold rounded-lg shadow-lg hover:bg-brand-secondary transition-all w-full sm:w-auto">
-          + New Set
-        </button>
+        <div className="flex gap-2 items-center w-full sm:w-auto">
+            <Tooltip text="View Overall Stats" position="top">
+              <button onClick={onShowStats} className="p-2.5 bg-gray-700 text-white font-bold rounded-lg shadow-lg hover:bg-gray-600 transition-all flex-shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                      <path d="M18.375 2.25c-1.035 0-1.875.84-1.875 1.875v15.75c0 1.035.84 1.875 1.875 1.875h.75c1.035 0 1.875-.84 1.875-1.875V4.125c0-1.035-.84-1.875-1.875-1.875h-.75zM9.75 8.625c-1.035 0-1.875.84-1.875 1.875v11.25c0 1.035.84 1.875 1.875 1.875h.75c1.035 0 1.875-.84 1.875-1.875V10.5c0-1.035-.84-1.875-1.875-1.875h-.75zM3 13.125c-1.035 0-1.875.84-1.875 1.875v6.75c0 1.035.84 1.875 1.875 1.875h.75c1.035 0 1.875-.84 1.875-1.875v-6.75c0-1.035-.84-1.875-1.875-1.875h-.75z" />
+                  </svg>
+              </button>
+            </Tooltip>
+            <button onClick={onNewSet} className="px-5 py-2.5 bg-brand-primary text-white font-bold rounded-lg shadow-lg hover:bg-brand-secondary transition-all w-full">
+              + New Set
+            </button>
+        </div>
       </div>
        {error && <div className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg relative mb-6" role="alert"><span className="block sm:inline">{error}</span></div>}
        {processingError && <div className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg relative mb-6" role="alert"><span className="block sm:inline">{processingError}</span></div>}

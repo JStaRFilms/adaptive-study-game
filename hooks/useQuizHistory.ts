@@ -4,8 +4,8 @@ import { QuizResult } from '../types';
 const HISTORY_STORAGE_KEY = 'adaptive-study-game-history';
 
 export const useQuizHistory = (): [
-  (newResult: Omit<QuizResult, 'id'>) => void,
-  (studySetId: string) => QuizResult[]
+  QuizResult[],
+  (newResult: Omit<QuizResult, 'id'>) => void
 ] => {
   const [history, setHistory] = useState<QuizResult[]>([]);
 
@@ -40,9 +40,5 @@ export const useQuizHistory = (): [
     saveHistory([...allHistory, resultWithId]);
   }, [history]);
 
-  const getHistoryForSet = useCallback((studySetId: string): QuizResult[] => {
-    return history.filter(result => result.studySetId === studySetId);
-  }, [history]);
-
-  return [addResult, getHistoryForSet];
+  return [history, addResult];
 };

@@ -53,7 +53,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
       <header className="fixed top-0 left-0 w-full p-4 bg-background-dark/50 backdrop-blur-sm z-50">
           <div className="container mx-auto flex justify-between items-center">
               <h1 className="text-xl font-bold">🧠 Adaptive Study Game</h1>
-              <a href="https://wa.me/2348152657887" target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-sm bg-brand-primary text-white font-bold rounded-full shadow-lg hover:bg-brand-secondary transition-all transform hover:scale-105">
+              <a href="https://wa.link/9o4a9c" target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-sm bg-brand-primary text-white font-bold rounded-full shadow-lg hover:bg-brand-secondary transition-all transform hover:scale-105">
                   Contact
               </a>
           </div>
@@ -73,7 +73,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
               onClick={onLaunch}
               className="px-8 py-3 sm:px-10 sm:py-4 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all duration-300 transform hover:scale-105 animate-pulse"
             >
-              🔥 Launch App (BETA)
+              🚀 Start Studying Smarter
             </button>
             <p className="text-sm mt-4 text-gray-500">Powered by JStaR Films</p>
           </div>
@@ -150,11 +150,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
           <p className="font-bold text-lg">Made by John Oluleke-Oke</p>
           <p className="text-text-secondary mb-4">🎬 Powered by JStaR Films</p>
           <div className="flex justify-center items-center flex-wrap gap-x-6 gap-y-2">
-            <a href="https://wa.me/2348152657887" target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:underline font-medium">WhatsApp</a>
+            <a href="https://wa.link/9o4a9c" target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:underline font-medium">WhatsApp</a>
             <a href="https://www.youtube.com/@jstarfilms" target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:underline font-medium">YouTube</a>
             <a href="mailto:johnoke.work@gmail.com" className="text-brand-primary hover:underline font-medium">Email</a>
           </div>
-          <p className="text-xs text-gray-500 mt-6">Your feedback on this BETA release means a lot!</p>
+          <p className="text-xs text-gray-500 mt-6">Your feedback means a lot!</p>
         </div>
       </footer>
     </div>

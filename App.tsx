@@ -10,6 +10,7 @@ import LandingPage from './components/LandingPage';
 import ExamScreen from './components/ExamScreen';
 import PredictionSetupScreen from './components/PredictionSetupScreen';
 import PredictionResultsScreen from './components/PredictionResultsScreen';
+import StatsScreen from './components/StatsScreen';
 import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedback } from './services/geminiService';
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
@@ -36,7 +37,7 @@ const App: React.FC = () => {
   const [feedback, setFeedback] = useState<PersonalizedFeedback | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
 
-  const [addQuizResult] = useQuizHistory();
+  const [history, addQuizResult] = useQuizHistory();
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
   
   const isPredictionFlow = [
@@ -251,7 +252,7 @@ const App: React.FC = () => {
         setSubmissionForRetry(submission);
     }
     
-    const timeouts: NodeJS.Timeout[] = [];
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
     
     // Staged loading messages for better UX
     setGradingMessage('Step 1/3: Locating answers in your submission...');
@@ -271,6 +272,10 @@ const App: React.FC = () => {
         // Do not change app state, stay in GRADING to allow for retry
     }
   }, [quiz, submissionForRetry, handleFinishStudy]);
+
+  const handleShowStats = useCallback(() => {
+    setAppState(AppState.STATS);
+  }, []);
   
   const renderCoreApp = () => {
     switch (appState) {
@@ -285,6 +290,8 @@ const App: React.FC = () => {
                     addSet={addSet}
                     updateSet={updateSet}
                     deleteSet={deleteSet}
+                    onShowStats={handleShowStats}
+                    history={history}
                 />;
       case AppState.PROCESSING:
         return (
@@ -363,6 +370,8 @@ const App: React.FC = () => {
         );
       case AppState.PREDICTION_RESULTS:
           return predictionResults ? <PredictionResultsScreen results={predictionResults} onBack={handleRestart} /> : null;
+      case AppState.STATS:
+        return <StatsScreen history={history} studySets={studySets} onBack={handleRestart} />;
       default:
         return <SetupScreen 
                     onStart={handleStartStudy} 
@@ -374,6 +383,8 @@ const App: React.FC = () => {
                     addSet={addSet}
                     updateSet={updateSet}
                     deleteSet={deleteSet}
+                    onShowStats={handleShowStats}
+                    history={history}
                 />;
     }
   };
