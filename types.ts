@@ -131,6 +131,14 @@ export interface PredictedQuestion {
   topic: string;
 }
 
+export interface PredictionResult {
+  id: string;
+  studySetId: string;
+  createdAt: string;
+  updatedAt: string;
+  results: PredictedQuestion[];
+}
+
 export type PromptPart = { text: string } | { inlineData: { mimeType: string; data: string } };
 
 export interface PersonalizedFeedback {

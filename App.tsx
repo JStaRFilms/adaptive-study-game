@@ -14,6 +14,7 @@ import StatsScreen from './components/StatsScreen';
 import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedback } from './services/geminiService';
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
+import { usePredictions } from './hooks/usePredictions';
 import { processFilesToParts } from './utils/fileProcessor';
 
 const App: React.FC = () => {
@@ -39,6 +40,7 @@ const App: React.FC = () => {
 
   const [history, addQuizResult] = useQuizHistory();
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
+  const [predictions, addOrUpdatePrediction] = usePredictions();
   
   const isPredictionFlow = [
     AppState.PREDICTION_SETUP,
@@ -148,25 +150,40 @@ const App: React.FC = () => {
   
   const handleGoToPrediction = useCallback((studySetId: string) => {
     const set = studySets.find(s => s.id === studySetId) || null;
-    if (set) {
-      setCurrentStudySet(set);
+    if (!set) return;
+
+    setCurrentStudySet(set);
+    const existingPrediction = predictions.find(p => p.studySetId === studySetId);
+
+    if (existingPrediction) {
+      setPredictionResults(existingPrediction.results);
+      setAppState(AppState.PREDICTION_RESULTS);
+    } else {
       setAppState(AppState.PREDICTION_SETUP);
     }
-  }, [studySets]);
+  }, [studySets, predictions]);
 
   const handleGeneratePrediction = useCallback(async (predictionData: any) => {
+      if (!currentStudySet) return;
       setAppState(AppState.PREDICTING);
       setError(null);
       try {
           const results = await generateExamPrediction(predictionData);
           setPredictionResults(results);
+          addOrUpdatePrediction(currentStudySet.id, results);
           setAppState(AppState.PREDICTION_RESULTS);
       } catch (err) {
           console.error(err);
           setError(err instanceof Error ? err.message : "An unknown error occurred during prediction.");
           setAppState(AppState.PREDICTION_SETUP);
       }
-  }, []);
+  }, [currentStudySet, addOrUpdatePrediction]);
+
+  const handleStartUpdatePrediction = useCallback(() => {
+    if (currentStudySet) {
+      setAppState(AppState.PREDICTION_SETUP);
+    }
+  }, [currentStudySet]);
 
   const handleReview = useCallback((resultToReview: QuizResult) => {
     const set = studySets.find(s => s.id === resultToReview.studySetId);
@@ -369,7 +386,7 @@ const App: React.FC = () => {
             </div>
         );
       case AppState.PREDICTION_RESULTS:
-          return predictionResults ? <PredictionResultsScreen results={predictionResults} onBack={handleRestart} /> : null;
+          return predictionResults ? <PredictionResultsScreen results={predictionResults} onBack={handleRestart} onUpdate={handleStartUpdatePrediction} /> : null;
       case AppState.STATS:
         return <StatsScreen history={history} studySets={studySets} onBack={handleRestart} />;
       default:
