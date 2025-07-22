@@ -15,6 +15,7 @@ import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFe
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
 import { usePredictions } from './hooks/usePredictions';
+import { useSRS } from './hooks/useSRS';
 import { processFilesToParts } from './utils/fileProcessor';
 
 const App: React.FC = () => {
@@ -41,6 +42,7 @@ const App: React.FC = () => {
   const [history, addQuizResult, updateQuizResult] = useQuizHistory();
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
   const [predictions, addOrUpdatePrediction] = usePredictions();
+  const [, updateSRSItem, getReviewPool] = useSRS();
   
   const isPredictionFlow = [
     AppState.PREDICTION_SETUP,
@@ -80,6 +82,9 @@ const App: React.FC = () => {
     setCurrentStudySet(set);
     try {
       const generatedQuiz = await generateQuiz(parts, config);
+      if (generatedQuiz && generatedQuiz.questions) {
+        generatedQuiz.questions.forEach(q => q.studySetId = studySetId);
+      }
       if (generatedQuiz && generatedQuiz.questions.length > 0) {
         setQuiz(generatedQuiz);
         if (config.mode === StudyMode.EXAM) {
@@ -97,6 +102,36 @@ const App: React.FC = () => {
       setAppState(AppState.SETUP);
     }
   }, [studySets]);
+  
+  const handleStartSrsQuiz = useCallback(() => {
+    const reviewPool = getReviewPool();
+    if (reviewPool.length === 0) {
+      alert("No items are due for review yet. Keep practicing!");
+      return;
+    }
+
+    const srsQuestions = reviewPool.map(item => {
+        const questionWithId = { ...item.question, studySetId: item.studySetId };
+        return questionWithId;
+    });
+    
+    // Shuffle the questions so they aren't always in the same order
+    for (let i = srsQuestions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [srsQuestions[i], srsQuestions[j]] = [srsQuestions[j], srsQuestions[i]];
+    }
+
+    const srsQuiz: Quiz = {
+        questions: srsQuestions.slice(0, 20), // Limit to 20 questions per session
+    };
+
+    setQuiz(srsQuiz);
+    setStudyMode(StudyMode.SRS);
+    setAnswerLog([]);
+    setFeedback(null);
+    setCurrentStudySet(null); // SRS quiz is cross-set
+    setAppState(AppState.STUDYING);
+  }, [getReviewPool]);
 
   const handleFinishStudy = useCallback(async (score: number, log: AnswerLog[]) => {
     setFinalScore(score);
@@ -104,6 +139,11 @@ const App: React.FC = () => {
     setAppState(AppState.RESULTS);
     setSubmissionForRetry(null);
     setGradingError(null);
+    
+    if (studyMode === StudyMode.SRS) {
+        setFeedback(null);
+        return;
+    }
 
     if (!currentStudySet) return;
     
@@ -298,14 +338,14 @@ const App: React.FC = () => {
         return <div className="flex flex-col items-center justify-center min-h-[80vh]"><LoadingSpinner /><p className="mt-4 text-lg text-text-secondary">{message}</p>{appState === AppState.GRADING && gradingError && <button onClick={handleRetryGrading} className="mt-4 px-4 py-2 bg-brand-primary text-white font-bold rounded-lg hover:bg-brand-secondary">Retry Grading</button>}</div>;
       
       case AppState.STUDYING:
-        if (!quiz) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats}/>;
-        return <StudyScreen quiz={quiz} onFinish={handleFinishStudy} onQuit={handleRestart} mode={studyMode}/>;
+        if (!quiz) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        return <StudyScreen quiz={quiz} onFinish={handleFinishStudy} onQuit={handleRestart} mode={studyMode} updateSRSItem={updateSRSItem} />;
       
       case AppState.RESULTS:
         return <ResultsScreen score={finalScore} answerLog={answerLog} onRestart={handleRestart} onReview={() => handleReview()} webSources={quiz?.webSources} feedback={feedback} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={handleStartFocusedQuiz}/>;
       
       case AppState.REVIEWING:
-        if (answerLog.length === 0) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats}/>;
+        if (answerLog.length === 0) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <ReviewScreen answerLog={answerLog} webSources={quiz?.webSources} onRetakeSameQuiz={handleRetakeQuiz} onStartNewQuiz={handleRestart} feedback={feedback} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={handleStartFocusedQuiz} />;
       
       case AppState.EXAM_IN_PROGRESS:
@@ -313,7 +353,7 @@ const App: React.FC = () => {
         return <ExamScreen quiz={quiz} onFinish={handleFinishExam} onCancel={handleRestart} />;
 
       case AppState.PREDICTION_SETUP:
-        if (!currentStudySet) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} />;
+        if (!currentStudySet) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <PredictionSetupScreen studySet={currentStudySet} onGenerate={handleGeneratePrediction} onCancel={handleRestart} error={error}/>;
 
       case AppState.PREDICTION_RESULTS:
@@ -325,7 +365,7 @@ const App: React.FC = () => {
 
       case AppState.SETUP:
       default:
-        return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} />;
+        return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
     }
   };
 

@@ -23,6 +23,8 @@ interface SetupScreenProps {
   deleteSet: (setId: string) => void;
   onShowStats: () => void;
   history: QuizResult[];
+  onStartSrsQuiz: () => void;
+  reviewPoolCount: number;
 }
 
 type Action = 'LIST' | 'CREATE_EDIT' | 'HISTORY' | 'TOPIC_SELECTION';
@@ -38,7 +40,9 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     updateSet,
     deleteSet,
     onShowStats,
-    history
+    history,
+    onStartSrsQuiz,
+    reviewPoolCount
 }) => {
   const [action, setAction] = useState<Action>('LIST');
   
@@ -246,6 +250,8 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     onPrepareForQuiz: handlePrepareForQuiz,
     onShowHistory: (set: StudySet) => { resetState(); setActiveSet(set); setAction('HISTORY'); },
     onShowStats,
+    onStartSrsQuiz,
+    reviewPoolCount,
   };
 
   switch (action) {

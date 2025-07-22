@@ -13,6 +13,7 @@ interface StudyScreenProps {
   onFinish: (finalScore: number, log: AnswerLog[]) => void;
   onQuit: () => void;
   mode: StudyMode;
+  updateSRSItem: (question: Question, isCorrect: boolean) => void;
 }
 
 type AnswerStatus = 'unanswered' | 'correct' | 'incorrect' | 'partial';
@@ -23,7 +24,7 @@ const SPEED_BONUS_POINTS = 5;
 const BASE_POINTS = 10;
 const STREAK_BONUS_MULTIPLIER = 2;
 
-const StudyScreen = ({ quiz, onFinish, onQuit, mode }: StudyScreenProps) => {
+const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScreenProps) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
@@ -64,6 +65,11 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode }: StudyScreenProps) => {
 
     const { awarded, max, comment } = pointsDetails;
     const isFullyCorrect = awarded === max;
+
+    if (mode === StudyMode.PRACTICE || mode === StudyMode.SRS) {
+        updateSRSItem(currentQuestion, isFullyCorrect);
+    }
+    
     const isPartiallyCorrect = awarded > 0 && awarded < max;
 
     setAnswerLog(prevLog => [...prevLog, {
@@ -92,7 +98,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode }: StudyScreenProps) => {
       setStreak(0);
       setAnswerStatus('incorrect');
     }
-  }, [answerStatus, streak, timeLeft, isReviewMode, currentQuestion]);
+  }, [answerStatus, streak, timeLeft, isReviewMode, currentQuestion, mode, updateSRSItem]);
 
     useEffect(() => {
         const logEntry = answerLog.find(log => log.question === quiz.questions[currentQuestionIndex]);
@@ -329,17 +335,17 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode }: StudyScreenProps) => {
                 </div>
                 
                 <div className="flex justify-end items-center gap-x-4 sm:gap-x-6">
-                    {!isReviewMode ? (
+                    {mode === StudyMode.PRACTICE ? (
                         <span className="text-yellow-400 text-lg font-bold">{timeLeft}s</span>
                     ) : (
-                        <span className="text-brand-secondary">Review Mode</span>
+                        <span className="text-brand-secondary">{mode === StudyMode.SRS ? "SRS Review" : "Review Mode"}</span>
                     )}
                     <span>Q: {currentQuestionIndex + 1}/{totalQuestions}</span>
                 </div>
             </div>
             
             <div className="mt-3">
-                {!isReviewMode ? (
+                {mode === StudyMode.PRACTICE ? (
                     <TimerBar timeLeft={timeLeft} timeLimit={QUESTION_TIME_LIMIT} />
                 ) : (
                      <ProgressBar progress={((currentQuestionIndex + 1) / totalQuestions) * 100} />

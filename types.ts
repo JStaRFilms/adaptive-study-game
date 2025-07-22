@@ -16,6 +16,7 @@ export enum StudyMode {
   PRACTICE = 'PRACTICE',
   REVIEW = 'REVIEW',
   EXAM = 'EXAM',
+  SRS = 'SRS',
 }
 
 export enum KnowledgeSource {
@@ -47,6 +48,7 @@ export interface MultipleChoiceQuestion {
   correctAnswerIndex: number;
   explanation: string;
   topic?: string;
+  studySetId?: string;
 }
 
 export interface TrueFalseQuestion {
@@ -55,6 +57,7 @@ export interface TrueFalseQuestion {
   correctAnswer: boolean;
   explanation: string;
   topic?: string;
+  studySetId?: string;
 }
 
 export interface FillInTheBlankQuestion {
@@ -64,6 +67,7 @@ export interface FillInTheBlankQuestion {
   explanation: string;
   acceptableAnswers?: string[];
   topic?: string;
+  studySetId?: string;
 }
 
 export interface OpenEndedQuestion {
@@ -71,6 +75,7 @@ export interface OpenEndedQuestion {
   questionText: string;
   explanation: string; // This will serve as the grading rubric for the AI
   topic?: string;
+  studySetId?: string;
 }
 
 export type Question = MultipleChoiceQuestion | TrueFalseQuestion | FillInTheBlankQuestion | OpenEndedQuestion;
@@ -161,4 +166,13 @@ export interface FibValidationResult {
     status: FibValidationStatus;
     pointsAwarded: number;
     comment: string;
+}
+
+export interface SRSItem {
+  id: string; // Unique ID (e.g., hash of studySetId + questionText)
+  studySetId: string;
+  question: Question;
+  nextReviewDate: string; // ISO String
+  srsStage: number; // 0 = learning, 1 = 1d, 2 = 3d, 3 = 7d, etc.
+  lastReviewedDate: string; // ISO String
 }

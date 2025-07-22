@@ -17,6 +17,8 @@ interface StudySetListProps {
   onPrepareForQuiz: (set: StudySet) => void;
   onShowHistory: (set: StudySet) => void;
   onShowStats: () => void;
+  onStartSrsQuiz: () => void;
+  reviewPoolCount: number;
 }
 
 const StudySetList: React.FC<StudySetListProps> = ({
@@ -31,6 +33,8 @@ const StudySetList: React.FC<StudySetListProps> = ({
   onPrepareForQuiz,
   onShowHistory,
   onShowStats,
+  onStartSrsQuiz,
+  reviewPoolCount,
 }) => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [setForDetails, setSetForDetails] = useState<StudySet | null>(null);
@@ -42,6 +46,24 @@ const StudySetList: React.FC<StudySetListProps> = ({
 
   return (
     <div className="animate-fade-in">
+      <div className="mb-8 p-4 bg-surface-dark rounded-xl shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 border border-brand-primary/50">
+        <div>
+            <h2 className="text-xl font-bold text-brand-primary">Spaced Repetition Review</h2>
+            <p className="text-text-secondary text-sm mt-1">Strengthen your memory on topics you've struggled with across all sets.</p>
+        </div>
+        <button
+            onClick={onStartSrsQuiz}
+            disabled={reviewPoolCount === 0}
+            className="relative px-6 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-lg hover:bg-brand-primary transition-all disabled:bg-gray-600 disabled:cursor-not-allowed w-full sm:w-auto flex-shrink-0"
+        >
+            Start Review ({reviewPoolCount} items)
+            {reviewPoolCount > 0 && <span className="absolute -top-2 -right-2 flex h-6 w-6">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-correct opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-6 w-6 bg-correct items-center justify-center text-xs font-bold">{reviewPoolCount}</span>
+            </span>}
+        </button>
+      </div>
+
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
         <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Your Study Sets</h1>
         <div className="flex gap-2 items-center w-full sm:w-auto">
