@@ -110,8 +110,10 @@ export interface AnswerLog {
   question: Question;
   userAnswer: UserAnswer;
   isCorrect: boolean;
-  feedback?: string; // For AI grading feedback
-  questionScore?: number; // For AI-awarded score
+  pointsAwarded: number;
+  maxPoints: number;
+  aiFeedback?: string; // For fill-in-the-blank AI validation comments
+  examFeedback?: string; // For open-ended exam grading feedback
 }
 
 export interface QuizResult {
@@ -123,6 +125,7 @@ export interface QuizResult {
     answerLog: AnswerLog[];
     webSources?: WebSource[];
     mode: StudyMode;
+    feedback?: PersonalizedFeedback | null;
 }
 
 export interface PredictedQuestion {
@@ -144,6 +147,18 @@ export type PromptPart = { text: string } | { inlineData: { mimeType: string; da
 export interface PersonalizedFeedback {
   overallSummary: string;
   strengthTopics: { topic: string; comment:string }[];
-  weaknessTopics: { topic: string; comment: string; suggestedQuestionCount: number }[];
+  weaknessTopics: { topic: string; comment: string; suggestedQuestionCount: number; youtubeSearchQuery: string; }[];
+  narrowPasses: { topic: string; questionText: string; userAnswerText: string; comment: string; }[];
   recommendation: string;
+}
+
+export enum FibValidationStatus {
+  CORRECT = 'CORRECT',
+  PARTIAL = 'PARTIAL',
+  INCORRECT = 'INCORRECT',
+}
+export interface FibValidationResult {
+    status: FibValidationStatus;
+    pointsAwarded: number;
+    comment: string;
 }

@@ -37,7 +37,7 @@ const PersonalizedFeedbackReport: React.FC<PersonalizedFeedbackReportProps> = ({
         return null;
     }
     
-    const { overallSummary, strengthTopics, weaknessTopics, recommendation } = feedback;
+    const { overallSummary, strengthTopics, weaknessTopics, narrowPasses, recommendation } = feedback;
 
     const handleCreateQuizClick = () => {
         if (weaknessTopics.length > 0) {
@@ -74,10 +74,38 @@ const PersonalizedFeedbackReport: React.FC<PersonalizedFeedbackReportProps> = ({
                         Areas to Improve
                     </h3>
                     <ul className="space-y-2 pl-4">
-                        {weaknessTopics.map(({ topic, comment }) => (
+                        {weaknessTopics.map(({ topic, comment, youtubeSearchQuery }) => (
                             <li key={topic} className="bg-gray-900/50 p-3 rounded-md">
                                 <p className="font-semibold text-text-primary">{topic}</p>
                                 <p className="text-sm text-text-secondary">{comment}</p>
+                                <a 
+                                    href={`https://www.youtube.com/results?search_query=${encodeURIComponent(youtubeSearchQuery)}`}
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 mt-2 text-sm text-brand-primary hover:text-brand-secondary font-semibold hover:underline"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                                    Watch videos on this topic
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+            
+            {narrowPasses.length > 0 && (
+                <div className="mb-6">
+                    <h3 className="font-bold text-orange-400 flex items-center gap-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                        Close Calls
+                    </h3>
+                    <ul className="space-y-2 pl-4">
+                        {narrowPasses.map(({ topic, questionText, userAnswerText, comment }, index) => (
+                            <li key={index} className="bg-gray-900/50 p-3 rounded-md">
+                                <p className="font-semibold text-text-primary">{topic}</p>
+                                <p className="text-sm text-text-secondary mt-1 truncate" title={questionText}>Q: {questionText}</p>
+                                <p className="text-sm text-text-secondary mt-1">You answered "{userAnswerText}"</p>
+                                <p className="text-sm text-orange-300 mt-1 italic">Coach's note: {comment}</p>
                             </li>
                         ))}
                     </ul>
@@ -108,9 +136,9 @@ const PersonalizedFeedbackReport: React.FC<PersonalizedFeedbackReportProps> = ({
 
 
 const ResultsScreen: React.FC<ResultsScreenProps> = ({ score, answerLog, onRestart, onReview, webSources, feedback, isGeneratingFeedback, onStartFocusedQuiz }) => {
-  const totalQuestions = answerLog.length;
-  const correctAnswers = answerLog.filter(log => log.isCorrect).length;
-  const accuracy = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+  const totalPointsAwarded = answerLog.reduce((sum, log) => sum + log.pointsAwarded, 0);
+  const totalMaxPoints = answerLog.reduce((sum, log) => sum + log.maxPoints, 0);
+  const accuracy = totalMaxPoints > 0 ? Math.round((totalPointsAwarded / totalMaxPoints) * 100) : 0;
   
   let feedbackMessage = "";
   let feedbackEmoji = "";

@@ -5,7 +5,8 @@ const HISTORY_STORAGE_KEY = 'adaptive-study-game-history';
 
 export const useQuizHistory = (): [
   QuizResult[],
-  (newResult: Omit<QuizResult, 'id'>) => void
+  (newResult: Omit<QuizResult, 'id'>, id?: string) => QuizResult,
+  (updatedResult: QuizResult) => void
 ] => {
   const [history, setHistory] = useState<QuizResult[]>([]);
 
@@ -31,14 +32,25 @@ export const useQuizHistory = (): [
     }
   };
 
-  const addResult = useCallback((newResult: Omit<QuizResult, 'id'>) => {
+  const addResult = useCallback((newResult: Omit<QuizResult, 'id'>, id?: string): QuizResult => {
     const allHistory = history || [];
     const resultWithId: QuizResult = {
       ...newResult,
-      id: new Date().toISOString() + Math.random(),
+      id: id || new Date().toISOString() + Math.random(),
     };
     saveHistory([...allHistory, resultWithId]);
+    return resultWithId;
   }, [history]);
 
-  return [history, addResult];
+  const updateResult = useCallback((updatedResult: QuizResult) => {
+    const allHistory = history || [];
+    const index = allHistory.findIndex(r => r.id === updatedResult.id);
+    if (index > -1) {
+        const newHistory = [...allHistory];
+        newHistory[index] = updatedResult;
+        saveHistory(newHistory);
+    }
+  }, [history]);
+
+  return [history, addResult, updateResult];
 };

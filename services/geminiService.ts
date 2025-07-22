@@ -1,8 +1,9 @@
 
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback } from '../types';
-import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, personalizedFeedbackSchema } from './geminiSchemas';
-import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFeedbackSystemInstruction } from './geminiPrompts';
+import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FillInTheBlankQuestion, FibValidationResult, FibValidationStatus, QuizResult } from '../types';
+import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, personalizedFeedbackSchema, fibValidationSchema } from './geminiSchemas';
+import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFeedbackSystemInstruction, getFibValidationSystemInstruction } from './geminiPrompts';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable not set.");
@@ -166,8 +167,9 @@ export const gradeExam = async (questions: Question[], submission: OpenEndedAnsw
             question: q,
             userAnswer: submission,
             isCorrect: false,
-            feedback: "No answer was submitted for this question.",
-            questionScore: 0,
+            pointsAwarded: 0,
+            maxPoints: 10,
+            examFeedback: "No answer was submitted for this question.",
         }));
     }
     
@@ -195,18 +197,20 @@ export const gradeExam = async (questions: Question[], submission: OpenEndedAnsw
             if (grade) {
                 return {
                     question: question,
-                    userAnswer: submission, // The entire original submission is saved for review
-                    isCorrect: grade.isCorrect,
-                    feedback: grade.feedback,
-                    questionScore: grade.score,
+                    userAnswer: submission,
+                    isCorrect: grade.score >= 7, // Consider >70% as correct
+                    pointsAwarded: grade.score,
+                    maxPoints: 10,
+                    examFeedback: grade.feedback,
                 };
             }
             return {
                 question: question,
                 userAnswer: submission,
                 isCorrect: false,
-                feedback: "The AI did not return a grade for this question.",
-                questionScore: 0,
+                pointsAwarded: 0,
+                maxPoints: 10,
+                examFeedback: "The AI did not return a grade for this question.",
             };
         });
 
@@ -219,8 +223,9 @@ export const gradeExam = async (questions: Question[], submission: OpenEndedAnsw
             question: q,
             userAnswer: submission,
             isCorrect: false,
-            feedback: "Sorry, a system error occurred during the grading process. This answer has been marked as incorrect.",
-            questionScore: 0,
+            pointsAwarded: 0,
+            maxPoints: 10,
+            examFeedback: "Sorry, a system error occurred during the grading process. This answer has been marked as incorrect.",
         }));
     }
 };
@@ -258,20 +263,36 @@ export const generateExamPrediction = async (data: any): Promise<PredictedQuesti
     }
 };
 
-export const generatePersonalizedFeedback = async (answerLog: AnswerLog[]): Promise<PersonalizedFeedback | null> => {
+export const generatePersonalizedFeedback = async (quizHistory: QuizResult[]): Promise<PersonalizedFeedback | null> => {
+    if (quizHistory.length === 0) return null;
+
     // Don't generate feedback for exams yet, as topics are less defined.
-    if (answerLog.some(l => l.question.questionType === QuestionType.OPEN_ENDED)) {
+    if (quizHistory.some(r => r.mode === 'EXAM')) {
         return null;
     }
+    
+    // Consolidate all answer logs from history
+    const allAnswerLogs = quizHistory.flatMap(r => r.answerLog);
 
-    const relevantLogData = answerLog.map(log => ({
-        topic: log.question.topic,
-        question: log.question.questionText,
-        isCorrect: log.isCorrect
-    }));
+    const relevantLogData = allAnswerLogs.map(log => {
+        // Backward compatibility for older data that didn't have points or topics.
+        const pointsAwarded = typeof log.pointsAwarded === 'number' ? log.pointsAwarded : (log.isCorrect ? 10 : 0);
+        const maxPoints = typeof log.maxPoints === 'number' ? log.maxPoints : 10;
+        const topic = log.question.topic || "General Knowledge";
 
-    if (relevantLogData.length === 0 || !relevantLogData.some(l => l.topic)) {
-        console.log("Skipping feedback generation: No answer log or topics found.");
+        return {
+            topic,
+            question: log.question.questionText,
+            userAnswerText: typeof log.userAnswer === 'string' ? log.userAnswer : '[MC/TF Answer]',
+            isCorrect: log.isCorrect,
+            pointsAwarded,
+            maxPoints,
+            aiFeedback: log.aiFeedback,
+        };
+    });
+
+    if (relevantLogData.length === 0) {
+        console.log("Skipping feedback generation: No answer log found.");
         return null;
     }
 
@@ -298,4 +319,33 @@ export const generatePersonalizedFeedback = async (answerLog: AnswerLog[]): Prom
         console.error("Error generating personalized feedback:", error);
         return null; // Return null on error so the UI can handle it gracefully
     }
-}
+};
+
+
+export const validateFillInTheBlankAnswer = async (question: FillInTheBlankQuestion, userAnswer: string): Promise<FibValidationResult> => {
+    const systemInstruction = getFibValidationSystemInstruction(question.questionText, question.correctAnswer, userAnswer);
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: [{ text: "Evaluate the user's answer based on the system instruction."}] },
+            config: {
+                systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: fibValidationSchema,
+                temperature: 0.1, // Low temperature for deterministic grading
+                thinkingConfig: { thinkingBudget: 0 } // Make it fast
+            },
+        });
+        
+        const jsonText = response.text;
+        if (!jsonText) {
+            throw new Error("AI validation returned no text.");
+        }
+        return JSON.parse(jsonText.trim()) as FibValidationResult;
+
+    } catch(error) {
+        console.error("Error during fill-in-the-blank validation:", error);
+        // Fallback to be strict if AI fails
+        return { status: FibValidationStatus.INCORRECT, pointsAwarded: 0, comment: "Could not be validated." };
+    }
+};

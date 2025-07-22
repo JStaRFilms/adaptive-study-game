@@ -15,22 +15,49 @@ interface ReviewCardProps {
 }
 
 const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, isExamReview, webSources }) => {
-  const { question, userAnswer, isCorrect, feedback, questionScore } = log;
-  const CorrectIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-correct" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-  const IncorrectIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-incorrect" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+  const { question, userAnswer, isCorrect, pointsAwarded, maxPoints, aiFeedback, examFeedback } = log;
+  
+  const getStatus = () => {
+    if (pointsAwarded === maxPoints) return 'correct';
+    if (pointsAwarded > 0) return 'partial';
+    return 'incorrect';
+  };
+  const status = getStatus();
+
+  const StatusIcon = () => {
+      switch (status) {
+          case 'correct':
+              return <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-correct" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+          case 'partial':
+              return <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9 13a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm-1-4a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" /></svg>;
+          case 'incorrect':
+          default:
+              return <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-incorrect" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+      }
+  };
+
+  const getStatusColor = () => {
+      switch(status) {
+        case 'correct': return 'text-correct';
+        case 'partial': return 'text-yellow-400';
+        default: return 'text-incorrect';
+      }
+  }
 
   const renderUserAnswer = () => {
     if (userAnswer === null) return <span className="text-incorrect font-bold">Not answered</span>;
+
+    const answerStyle = `font-bold ${getStatusColor()}`;
 
     switch (question.questionType) {
         case QuestionType.MULTIPLE_CHOICE:
             const mc = question as MultipleChoiceQuestion;
             const mcAnswer = typeof userAnswer === 'number' ? mc.options[userAnswer] : 'Invalid Answer';
-            return <span className={`font-bold ${isCorrect ? 'text-correct' : 'text-incorrect'}`}>{mcAnswer}</span>;
+            return <span className={answerStyle}>{mcAnswer}</span>;
         case QuestionType.TRUE_FALSE:
-            return <span className={`font-bold ${isCorrect ? 'text-correct' : 'text-incorrect'}`}>{userAnswer ? 'True' : 'False'}</span>;
+            return <span className={answerStyle}>{userAnswer ? 'True' : 'False'}</span>;
         case QuestionType.FILL_IN_THE_BLANK:
-            return <span className={`font-bold ${isCorrect ? 'text-correct' : 'text-incorrect'}`}>"{userAnswer as string}"</span>;
+            return <span className={answerStyle}>"{userAnswer as string}"</span>;
         case QuestionType.OPEN_ENDED:
             if (parsedAnswerText) {
                 return <div className="bg-gray-900 p-3 rounded-md whitespace-pre-wrap">{parsedAnswerText}</div>;
@@ -38,7 +65,6 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
             if (isExamReview) {
                 return <p className="text-gray-500 italic">See full submission above.</p>;
             }
-            // Fallback for non-exam open-ended or misconfigurations
             return <p className="bg-gray-900 p-3 rounded-md whitespace-pre-wrap">{(userAnswer as OpenEndedAnswer).text}</p>;
         default:
             return <span className="font-bold">N/A</span>;
@@ -46,7 +72,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
   };
 
   const renderCorrectAnswer = () => {
-    if (isCorrect && question.questionType !== QuestionType.FILL_IN_THE_BLANK) return null;
+    if (isCorrect) return null;
     let correctAnswerText = '';
     switch (question.questionType) {
         case QuestionType.MULTIPLE_CHOICE:
@@ -56,9 +82,6 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
             correctAnswerText = (question as TrueFalseQuestion).correctAnswer ? 'True' : 'False';
             break;
         case QuestionType.FILL_IN_THE_BLANK:
-            const fibUserAnswer = (userAnswer as string || '').trim().toLowerCase();
-            const fibCorrectAnswer = (question as FillInTheBlankQuestion).correctAnswer.trim().toLowerCase();
-            if (fibUserAnswer === fibCorrectAnswer) return null;
             correctAnswerText = (question as FillInTheBlankQuestion).correctAnswer;
             break;
         default:
@@ -72,12 +95,10 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
       <div className="flex justify-between items-start mb-4">
         <p className="text-text-secondary font-semibold">Question {index + 1}</p>
         <div className="flex items-center gap-2">
-            {question.questionType === QuestionType.OPEN_ENDED && typeof questionScore === 'number' && (
-                <span className={`font-bold text-lg ${questionScore >= 7 ? 'text-correct' : questionScore >= 4 ? 'text-yellow-400' : 'text-incorrect'}`}>
-                    {questionScore}/10
-                </span>
-            )}
-            {isCorrect ? <CorrectIcon /> : <IncorrectIcon />}
+            <span className={`font-bold text-lg ${getStatusColor()}`}>
+                {pointsAwarded}/{maxPoints} pts
+            </span>
+            <StatusIcon />
         </div>
       </div>
       <Markdown content={question.questionText} className="prose prose-invert max-w-none text-text-primary mb-4" />
@@ -90,10 +111,10 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
         
         {renderCorrectAnswer()}
 
-        {feedback && (
+        {(examFeedback || aiFeedback) && (
              <div className="border-t border-gray-700 pt-3">
                 <p className="font-bold text-sm text-gray-400 mb-1">AI FEEDBACK</p>
-                <Markdown content={feedback} webSources={webSources} className="prose prose-invert max-w-none text-text-secondary" />
+                <Markdown content={examFeedback || aiFeedback || ''} webSources={webSources} className="prose prose-invert max-w-none text-text-secondary italic" />
             </div>
         )}
         
@@ -130,7 +151,7 @@ const PersonalizedFeedbackReport: React.FC<PersonalizedFeedbackReportProps> = ({
         return null;
     }
     
-    const { overallSummary, strengthTopics, weaknessTopics, recommendation } = feedback;
+    const { overallSummary, strengthTopics, weaknessTopics, narrowPasses, recommendation } = feedback;
 
     const handleCreateQuizClick = () => {
         if (weaknessTopics.length > 0) {
@@ -167,16 +188,43 @@ const PersonalizedFeedbackReport: React.FC<PersonalizedFeedbackReportProps> = ({
                         Areas to Improve
                     </h3>
                     <ul className="space-y-2 pl-4">
-                        {weaknessTopics.map(({ topic, comment }) => (
+                        {weaknessTopics.map(({ topic, comment, youtubeSearchQuery }) => (
                             <li key={topic} className="bg-gray-900/50 p-3 rounded-md">
                                 <p className="font-semibold text-text-primary">{topic}</p>
                                 <p className="text-sm text-text-secondary">{comment}</p>
+                                <a 
+                                    href={`https://www.youtube.com/results?search_query=${encodeURIComponent(youtubeSearchQuery)}`}
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 mt-2 text-sm text-brand-primary hover:text-brand-secondary font-semibold hover:underline"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                                    Watch videos on this topic
+                                </a>
                             </li>
                         ))}
                     </ul>
                 </div>
             )}
             
+            {narrowPasses.length > 0 && (
+                <div className="mb-6">
+                    <h3 className="font-bold text-orange-400 flex items-center gap-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                        Close Calls
+                    </h3>
+                    <ul className="space-y-2 pl-4">
+                        {narrowPasses.map(({ questionText, userAnswerText, comment }, index) => (
+                            <li key={index} className="bg-gray-900/50 p-3 rounded-md">
+                                <p className="font-semibold text-text-primary truncate" title={questionText}>Q: {questionText}</p>
+                                <p className="text-sm text-text-secondary mt-1">You answered "{userAnswerText}"</p>
+                                <p className="text-sm text-orange-300 mt-1 italic">Coach's note: {comment}</p>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
              <div className="border-t border-gray-700 pt-4">
                  <h3 className="font-bold text-brand-primary text-center mb-2">Next Steps</h3>
                  <p className="text-center text-text-primary mb-6">{recommendation}</p>

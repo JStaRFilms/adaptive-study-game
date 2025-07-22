@@ -1,4 +1,5 @@
 
+
 import { Type } from "@google/genai";
 
 export const questionSchema = {
@@ -136,11 +137,11 @@ export const personalizedFeedbackSchema = {
     properties: {
         overallSummary: {
             type: Type.STRING,
-            description: "A friendly, one-sentence summary of the user's performance."
+            description: "A friendly, one-sentence summary of the user's performance based on their entire history for this subject."
         },
         strengthTopics: {
             type: Type.ARRAY,
-            description: "A list of topics where the user performed well (e.g., >75% correct). If there are no clear strengths, this can be an empty array.",
+            description: "A list of topics where the user performed well (e.g., >75% accuracy) across all quizzes for this subject. If none, this can be empty.",
             items: {
                 type: Type.OBJECT,
                 properties: {
@@ -152,15 +153,30 @@ export const personalizedFeedbackSchema = {
         },
         weaknessTopics: {
             type: Type.ARRAY,
-            description: "A list of topics where the user struggled (e.g., <=50% correct). If there are no clear weaknesses, this can be an empty array.",
+            description: "A list of topics where the user struggled (e.g., <=50% accuracy) across all quizzes. If none, this can be empty.",
             items: {
                 type: Type.OBJECT,
                 properties: {
                     topic: { type: Type.STRING, description: "The name of the topic." },
-                    comment: { type: Type.STRING, description: "A brief comment explaining why this topic is a weakness (e.g., 'You missed both questions about this')."},
-                    suggestedQuestionCount: { type: Type.INTEGER, description: "A suggested number of questions (e.g., 5 or 10) for a focused practice quiz on this topic." }
+                    comment: { type: Type.STRING, description: "A brief comment explaining why this topic is a weakness (e.g., 'You missed several questions about this across multiple sessions')."},
+                    suggestedQuestionCount: { type: Type.INTEGER, description: "A suggested number of questions (e.g., 5 or 10) for a focused practice quiz on this topic." },
+                    youtubeSearchQuery: { type: Type.STRING, description: "A concise, effective search query for finding educational YouTube videos about this topic (e.g., 'introduction to cellular respiration' or 'photosynthesis explained for beginners')." }
                 },
-                required: ["topic", "comment", "suggestedQuestionCount"]
+                required: ["topic", "comment", "suggestedQuestionCount", "youtubeSearchQuery"]
+            }
+        },
+        narrowPasses: {
+            type: Type.ARRAY,
+            description: "A list of specific questions where the user was partially correct or their answer was accepted but not ideal (e.g., partial points awarded, or AI feedback provided on a correct answer). Highlight these so the user can review them.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    topic: { type: Type.STRING, description: "The topic of the question." },
+                    questionText: { type: Type.STRING, description: "The text of the question they narrowly passed." },
+                    userAnswerText: { type: Type.STRING, description: "The answer the user provided." },
+                    comment: { type: Type.STRING, description: "The AI's original feedback comment on why it was a narrow pass." }
+                },
+                required: ["topic", "questionText", "userAnswerText", "comment"]
             }
         },
         recommendation: {
@@ -168,5 +184,25 @@ export const personalizedFeedbackSchema = {
             description: "A final, actionable recommendation for the user. If there are weaknesses, suggest they create a new custom quiz focusing on those topics."
         }
     },
-    required: ["overallSummary", "strengthTopics", "weaknessTopics", "recommendation"]
+    required: ["overallSummary", "strengthTopics", "weaknessTopics", "narrowPasses", "recommendation"]
+};
+
+export const fibValidationSchema = {
+    type: Type.OBJECT,
+    properties: {
+        status: {
+            type: Type.STRING,
+            description: "The status of the user's answer.",
+            enum: ['CORRECT', 'PARTIAL', 'INCORRECT']
+        },
+        pointsAwarded: {
+            type: Type.INTEGER,
+            description: "The number of points to award. 10 for CORRECT, 5 for PARTIAL, 0 for INCORRECT."
+        },
+        comment: {
+            type: Type.STRING,
+            description: "A very brief explanation for the decision. For example, 'Correct, this is the singular form.' or 'Partially correct, this is a related concept but not the primary answer.' or 'Incorrect, this is a different concept.'"
+        }
+    },
+    required: ["status", "pointsAwarded", "comment"]
 };

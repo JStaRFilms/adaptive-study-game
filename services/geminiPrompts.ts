@@ -154,20 +154,44 @@ ${hints || "Not provided"}
     return promptParts;
 };
 
-export const getFeedbackSystemInstruction = (answerLogForPrompt: string): string => {
-    return `You are a friendly and insightful study coach. Your goal is to provide personalized, actionable feedback to a student based on their quiz results.
+export const getFeedbackSystemInstruction = (historyForPrompt: string): string => {
+    return `You are a friendly and insightful study coach. Your goal is to provide personalized, actionable feedback to a student based on their quiz history for a particular subject.
 
-Analyze the provided quiz data, which is a JSON array of answer logs. Each log contains the question, its topic, and whether the user's answer was correct.
+Analyze the provided quiz data, which is a JSON array of answer logs from MULTIPLE quiz sessions. Each log contains the question, topic, points awarded, max points, and any AI feedback.
+
+Your analysis should be longitudinal. Look for patterns over time.
 
 Based on your analysis, you MUST generate a response in the specified JSON format. Your feedback should:
-1.  **Summarize Performance:** Start with a brief, encouraging overall summary.
-2.  **Identify Strengths:** Pinpoint topics where the user did well (high accuracy).
-3.  **Identify Weaknesses:** Pinpoint topics where the user struggled (low accuracy). For each weak topic, suggest a reasonable number of questions for a follow-up quiz.
-4.  **Provide Actionable Advice:** Give a clear, concise recommendation for the user's next step, such as creating a new practice quiz focused on their weak areas.
+1.  **Summarize Performance:** Start with a brief, encouraging overall summary of their performance on this subject across all sessions.
+2.  **Identify Strengths:** Pinpoint topics where the user has consistently done well (high accuracy).
+3.  **Identify Weaknesses:** Pinpoint topics where the user has consistently struggled (low accuracy). For each weak topic, you must:
+    a. Provide a comment explaining the weakness based on their history.
+    b. Suggest a reasonable number of questions for a follow-up quiz.
+    c. Generate a concise, effective 'youtubeSearchQuery' to help them find educational videos.
+4.  **Identify "Narrow Passes":** Scrutinize the answer log for questions where the user was awarded partial points (e.g., 5/10) or where \`aiFeedback\` exists. These are "close calls." List these out so the user can review their shaky knowledge.
+5.  **Provide Actionable Advice:** Give a clear, concise recommendation for the user's next step.
 
 Here is the user's performance data, which is provided in the system instruction:
-${answerLogForPrompt}
+${historyForPrompt}
 
 Now, generate the feedback based on this data, adhering strictly to the JSON schema. The user prompt will be a simple trigger to start.
+`;
+};
+
+export const getFibValidationSystemInstruction = (questionText: string, correctAnswer: string, userAnswer: string): string => {
+    return `You are an AI grading assistant. Your task is to evaluate a user's answer to a fill-in-the-blank question with nuance. The user's answer was not an exact match to the expected answer. You must determine if the user's answer is a valid, semantically correct alternative and award points accordingly.
+
+**Context:**
+- Question: "${questionText}"
+- Expected Answer for the blank: "${correctAnswer}"
+- User's Submitted Answer: "${userAnswer}"
+
+**Evaluation & Scoring Criteria:**
+- **CORRECT (10 points):** The user's answer is a correct synonym, a correct plural/singular form, or a typo that doesn't change the meaning. Example: Expected 'words', user says 'a word'.
+- **PARTIAL (5 points):** The user's answer is partially correct, related to the topic, but not the best or most precise answer. Example: Expected 'mitosis', user says 'cell division'. It's related but not specific enough.
+- **INCORRECT (0 points):** The user's answer is factually incorrect, a different concept, or nonsensical. Example: Expected 'mitochondria', user says 'chloroplast'.
+
+**Output:**
+Respond ONLY with a JSON object matching the required schema. Be strict in your evaluation but fair. Provide a brief comment explaining your reasoning.
 `;
 };
