@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer } from '../types';
 import ProgressBar from './common/ProgressBar';
@@ -38,6 +37,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
   const [correctionFeedback, setCorrectionFeedback] = useState<string | null>(null);
   const [isQuitModalOpen, setIsQuitModalOpen] = useState(false);
   const [isVerifyingAnswer, setIsVerifyingAnswer] = useState(false);
+  const [isTimedOut, setIsTimedOut] = useState(false);
 
   const isReviewMode = mode === StudyMode.REVIEW;
   const currentQuestion: Question = quiz.questions[currentQuestionIndex];
@@ -113,6 +113,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
             setTimeLeft(0);
             setBonusPointsAwarded(0); // Don't show bonus again on review
             setCorrectionFeedback(aiFeedback || null);
+            setIsTimedOut(false);
 
             if (logEntry.question.questionType === QuestionType.MULTIPLE_CHOICE) {
                 setSelectedOptionIndex(logEntry.userAnswer as number | null);
@@ -128,6 +129,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
             setTimeLeft(QUESTION_TIME_LIMIT);
             setBonusPointsAwarded(0);
             setAnswerStatus('unanswered');
+            setIsTimedOut(false);
             setSelectedOptionIndex(null);
             setFillBlankAnswer('');
             setAnswerExplanation(null);
@@ -139,6 +141,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
   useEffect(() => {
     if (isReviewMode || answerStatus !== 'unanswered') return;
     if (timeLeft <= 0) {
+      setIsTimedOut(true);
       processAnswer({ awarded: 0, max: BASE_POINTS }, null); 
       return;
     }
@@ -312,7 +315,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
     if (answerStatus === 'incorrect') {
         return (
             <div className="text-center">
-                <p className="text-2xl font-bold text-incorrect">{timeLeft <= 0 && !isReviewMode ? "Time's Up! ⌛" : "Incorrect 🙁"}</p>
+                <p className="text-2xl font-bold text-incorrect">{isTimedOut && !isReviewMode ? "Time's Up! ⌛" : "Incorrect 🙁"}</p>
                  {correctionFeedback && <p className="text-base text-yellow-300 mt-2">{correctionFeedback}</p>}
             </div>
         );

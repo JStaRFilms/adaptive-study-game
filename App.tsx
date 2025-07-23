@@ -39,7 +39,7 @@ const App: React.FC = () => {
   const [feedback, setFeedback] = useState<PersonalizedFeedback | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
 
-  const [history, addQuizResult, updateQuizResult] = useQuizHistory();
+  const [history, addQuizResult] = useQuizHistory();
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
   const [predictions, addOrUpdatePrediction] = usePredictions();
   const [, updateSRSItem, getReviewPool] = useSRS();
@@ -151,9 +151,7 @@ const App: React.FC = () => {
     const totalMaxPoints = log.reduce((sum, l) => sum + l.maxPoints, 0);
     const accuracy = totalMaxPoints > 0 ? Math.round((totalPointsAwarded / totalMaxPoints) * 100) : 0;
 
-    // Create the result first, without feedback
-    const newResultId = new Date().toISOString() + Math.random();
-    const result: Omit<QuizResult, 'id'> = {
+    const resultStub: Omit<QuizResult, 'id' | 'feedback'> = {
         studySetId: currentStudySet.id,
         date: new Date().toISOString(),
         score: score,
@@ -161,26 +159,20 @@ const App: React.FC = () => {
         answerLog: log,
         webSources: quiz?.webSources,
         mode: studyMode,
-        feedback: null
     };
-
-    // Add result to history temporarily to include it in the analysis
-    const newResultWithId = addQuizResult(result, newResultId);
     
     let generatedFeedback: PersonalizedFeedback | null = null;
     if (studyMode !== StudyMode.EXAM) {
         setIsGeneratingFeedback(true);
         try {
-            // Get the full history for this specific study set
-            const historyForSet = history.filter(h => h.studySetId === currentStudySet.id);
-            const fullHistoryForAnalysis = [...historyForSet, newResultWithId];
+            // Get the full history for this specific study set and add the current result for analysis
+            const fullHistoryForAnalysis = [
+                ...history.filter(h => h.studySetId === currentStudySet.id), 
+                { ...resultStub, id: 'temp-id', feedback: null } // Add current result for analysis
+            ];
             
             generatedFeedback = await generatePersonalizedFeedback(fullHistoryForAnalysis);
             setFeedback(generatedFeedback);
-
-            // Now, update the result we just saved with the new feedback
-            const finalResult: QuizResult = { ...newResultWithId, feedback: generatedFeedback };
-            updateQuizResult(finalResult);
 
         } catch (feedbackError) {
             console.error("Failed to generate personalized feedback:", feedbackError);
@@ -189,7 +181,14 @@ const App: React.FC = () => {
             setIsGeneratingFeedback(false);
         }
     }
-  }, [studyMode, addQuizResult, updateQuizResult, currentStudySet, quiz?.webSources, history]);
+    
+    // Add the final result to history, including the generated feedback
+    addQuizResult({
+        ...resultStub,
+        feedback: generatedFeedback,
+    });
+
+  }, [studyMode, addQuizResult, currentStudySet, quiz?.webSources, history]);
   
   const handleFinishExam = useCallback(async (submission: OpenEndedAnswer) => {
     if (!quiz) return;
@@ -239,6 +238,8 @@ const App: React.FC = () => {
       setQuiz({ questions: resultToReview.answerLog.map(l => l.question), webSources: resultToReview.webSources });
       setFeedback(resultToReview.feedback || null);
       setIsGeneratingFeedback(false);
+      // Find and set the study set to enable 'start focused quiz'
+      setCurrentStudySet(studySets.find(s => s.id === resultToReview.studySetId) || null);
     } else {
       // This case handles reviewing the *current* session's results immediately after finishing
       logToReview = answerLog;
@@ -246,7 +247,7 @@ const App: React.FC = () => {
     }
     setAnswerLog(logToReview);
     setAppState(AppState.REVIEWING);
-  }, [answerLog, quiz?.webSources]);
+  }, [answerLog, quiz?.webSources, studySets]);
 
   const handleRestart = useCallback(() => {
     setAppState(AppState.SETUP);
@@ -304,7 +305,7 @@ const App: React.FC = () => {
 
     const config: QuizConfig = {
       numberOfQuestions: Math.max(5, Math.min(50, numQuestions)),
-      mode: StudyMode.PRACTICE,
+      mode: StudyMode.REVIEW,
       knowledgeSource: KnowledgeSource.NOTES_ONLY,
       topics: topics,
     };
@@ -316,6 +317,7 @@ const App: React.FC = () => {
       setAppState(AppState.STUDYING);
       setAnswerLog([]);
       setFinalScore(0);
+      setFeedback(null);
   }, []);
   
   const handleShowStats = useCallback(() => {

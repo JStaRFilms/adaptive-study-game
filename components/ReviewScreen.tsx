@@ -137,7 +137,7 @@ interface PersonalizedFeedbackReportProps {
 const PersonalizedFeedbackReport: React.FC<PersonalizedFeedbackReportProps> = ({ feedback, isGeneratingFeedback, onStartFocusedQuiz }) => {
     if (isGeneratingFeedback) {
         return (
-            <div className="w-full max-w-md bg-surface-dark p-6 rounded-2xl shadow-2xl">
+            <div className="w-full max-w-md lg:max-w-3xl bg-surface-dark p-6 rounded-2xl shadow-2xl">
                 <div className="flex flex-col items-center justify-center text-center">
                     <LoadingSpinner />
                     <h3 className="text-xl font-bold text-text-primary mt-4">AI Coach Analyzing...</h3>
@@ -160,52 +160,54 @@ const PersonalizedFeedbackReport: React.FC<PersonalizedFeedbackReportProps> = ({
     };
 
     return (
-        <div className="w-full max-w-md bg-surface-dark p-6 sm:p-8 rounded-2xl shadow-2xl text-left animate-fade-in">
+        <div className="w-full max-w-md lg:max-w-3xl bg-surface-dark p-6 sm:p-8 rounded-2xl shadow-2xl text-left animate-fade-in">
             <h2 className="text-2xl font-bold text-text-primary mb-4 text-center">AI Study Coach Feedback</h2>
             <p className="text-center text-text-secondary italic mb-6">"{overallSummary}"</p>
 
-            {strengthTopics.length > 0 && (
-                <div className="mb-6">
-                    <h3 className="font-bold text-correct flex items-center gap-2 mb-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                        Your Strengths
-                    </h3>
-                    <ul className="space-y-2 pl-4">
-                        {strengthTopics.map(({ topic, comment }) => (
-                            <li key={topic} className="bg-gray-900/50 p-3 rounded-md">
-                                <p className="font-semibold text-text-primary">{topic}</p>
-                                <p className="text-sm text-text-secondary">{comment}</p>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-6">
+                {strengthTopics.length > 0 && (
+                    <div>
+                        <h3 className="font-bold text-correct flex items-center gap-2 mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                            Your Strengths
+                        </h3>
+                        <ul className="space-y-2 pl-4">
+                            {strengthTopics.map(({ topic, comment }) => (
+                                <li key={topic} className="bg-gray-900/50 p-3 rounded-md">
+                                    <p className="font-semibold text-text-primary">{topic}</p>
+                                    <p className="text-sm text-text-secondary">{comment}</p>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
 
-            {weaknessTopics.length > 0 && (
-                <div className="mb-6">
-                    <h3 className="font-bold text-yellow-400 flex items-center gap-2 mb-2">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-4a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
-                        Areas to Improve
-                    </h3>
-                    <ul className="space-y-2 pl-4">
-                        {weaknessTopics.map(({ topic, comment, youtubeSearchQuery }) => (
-                            <li key={topic} className="bg-gray-900/50 p-3 rounded-md">
-                                <p className="font-semibold text-text-primary">{topic}</p>
-                                <p className="text-sm text-text-secondary">{comment}</p>
-                                <a 
-                                    href={`https://www.youtube.com/results?search_query=${encodeURIComponent(youtubeSearchQuery)}`}
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-2 mt-2 text-sm text-brand-primary hover:text-brand-secondary font-semibold hover:underline"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
-                                    Watch videos on this topic
-                                </a>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
+                {weaknessTopics.length > 0 && (
+                    <div>
+                        <h3 className="font-bold text-yellow-400 flex items-center gap-2 mb-2">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-4a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
+                            Areas to Improve
+                        </h3>
+                        <ul className="space-y-2 pl-4">
+                            {weaknessTopics.map(({ topic, comment, youtubeSearchQuery }) => (
+                                <li key={topic} className="bg-gray-900/50 p-3 rounded-md">
+                                    <p className="font-semibold text-text-primary">{topic}</p>
+                                    <p className="text-sm text-text-secondary">{comment}</p>
+                                    <a 
+                                        href={`https://www.youtube.com/results?search_query=${encodeURIComponent(youtubeSearchQuery)}`}
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 mt-2 text-sm text-brand-primary hover:text-brand-secondary font-semibold hover:underline"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                                        Watch videos on this topic
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
             
             {narrowPasses.length > 0 && (
                 <div className="mb-6">

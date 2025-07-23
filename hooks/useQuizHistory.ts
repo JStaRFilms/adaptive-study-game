@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { QuizResult } from '../types';
 
@@ -17,8 +18,7 @@ const saveHistoryToLocalStorage = (newHistory: QuizResult[]): QuizResult[] => {
 
 export const useQuizHistory = (): [
   QuizResult[],
-  (newResult: Omit<QuizResult, 'id'>, id?: string) => QuizResult,
-  (updatedResult: QuizResult) => void
+  (newResult: Omit<QuizResult, 'id'>) => QuizResult
 ] => {
   const [history, setHistory] = useState<QuizResult[]>([]);
 
@@ -34,10 +34,10 @@ export const useQuizHistory = (): [
     }
   }, []);
 
-  const addResult = useCallback((newResult: Omit<QuizResult, 'id'>, id?: string): QuizResult => {
+  const addResult = useCallback((newResult: Omit<QuizResult, 'id'>): QuizResult => {
     const resultWithId: QuizResult = {
       ...newResult,
-      id: id || new Date().toISOString() + Math.random(),
+      id: new Date().toISOString() + Math.random(),
     };
     setHistory(currentHistory => {
         const newHistory = [...(currentHistory || []), resultWithId];
@@ -46,18 +46,5 @@ export const useQuizHistory = (): [
     return resultWithId;
   }, []);
 
-  const updateResult = useCallback((updatedResult: QuizResult) => {
-    setHistory(currentHistory => {
-        const allHistory = currentHistory || [];
-        const index = allHistory.findIndex(r => r.id === updatedResult.id);
-        if (index > -1) {
-            const newHistory = [...allHistory];
-            newHistory[index] = updatedResult;
-            return saveHistoryToLocalStorage(newHistory);
-        }
-        return allHistory; // Return original if not found
-    });
-  }, []);
-
-  return [history, addResult, updateResult];
+  return [history, addResult];
 };
