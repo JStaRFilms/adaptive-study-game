@@ -1,11 +1,8 @@
 
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { StudySet, QuizConfig, PromptPart, QuizResult } from '../types';
 import { generateTopics } from '../services/geminiService';
 import { processFilesToParts } from '../utils/fileProcessor';
-import LoadingSpinner from './common/LoadingSpinner';
-import ProgressBar from './common/ProgressBar';
 import StudySetList from './setup/StudySetList';
 import StudySetForm from './setup/StudySetForm';
 import TopicSelector from './setup/TopicSelector';
@@ -74,7 +71,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
   }, [resetState]);
 
   useEffect(() => {
-    if (initialContent) {
+    if (initialContent !== null) {
       resetState();
       setAction('CREATE_EDIT');
     }
@@ -197,103 +194,116 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
         handleShowList();
     } catch (err) {
         setProcessingError(err instanceof Error ? err.message : "An error occurred.");
+    } finally {
         setIsProcessing(false);
     }
   };
   
-  const handleRegenerateTopics = useCallback(async () => {
-    if (preparedParts.length === 0 || !activeSet) return;
+  const handleStartQuiz = (config: {numQuestions: number, studyMode: any, knowledgeSource: any, selectedTopics: string[]}) => {
+    if (!activeSet) return;
+    const finalConfig: QuizConfig = {
+      numberOfQuestions: config.numQuestions,
+      mode: config.studyMode,
+      knowledgeSource: config.knowledgeSource,
+      topics: config.selectedTopics,
+    };
+    onStart(preparedParts, finalConfig, activeSet.id);
+  };
+  
+  const handleRegenerateTopics = async () => {
+    if (!activeSet) return;
     setIsAnalyzingTopics(true);
-    setProcessingError(null);
-    setTopics(null);
     try {
-        const newTopics = await generateTopics(preparedParts);
-        setTopics(newTopics);
-        // Update the active set with the new topics and save it
-        const updatedSet = { ...activeSet, topics: newTopics };
-        updateSet(updatedSet);
-        setActiveSet(updatedSet);
+        const generatedTopics = await generateTopics(preparedParts);
+        const updatedSetWithTopics: StudySet = { ...activeSet, topics: generatedTopics };
+        updateSet(updatedSetWithTopics);
+        setActiveSet(updatedSetWithTopics);
+        setTopics(generatedTopics);
     } catch (err) {
-        setProcessingError(err instanceof Error ? err.message : "An error occurred.");
-        setTopics([]);
+        console.error("Error regenerating topics", err);
     } finally {
         setIsAnalyzingTopics(false);
     }
-  }, [preparedParts, activeSet, updateSet]);
-
-  const handleStartQuizWithConfig = (config: { numQuestions: number, studyMode: any, knowledgeSource: any, selectedTopics: string[]}) => {
-    if (!activeSet) return;
-    const quizConfig: QuizConfig = {
-        numberOfQuestions: config.numQuestions,
-        mode: config.studyMode,
-        knowledgeSource: config.knowledgeSource,
-        topics: config.selectedTopics,
-    };
-    onStart(preparedParts, quizConfig, activeSet.id);
   };
 
-  if (isProcessing && action === 'LIST') {
-      return (
-          <div className="flex flex-col items-center justify-center min-h-[80vh]"><LoadingSpinner /><p className="mt-4 text-lg text-text-secondary">{progressMessage || 'Preparing...'}</p><div className="w-full max-w-sm mt-2"><ProgressBar progress={progressPercent} /></div></div>
-      );
-  }
+  const handleReanalyzeWithFiles = async (files: File[]) => {
+      if (!activeSet) return;
+      await handlePrepareForQuiz(activeSet, files);
+  };
+  
+  const handleNewSet = () => {
+    resetState();
+    setAction('CREATE_EDIT');
+  };
 
-  const studySetListProps = {
-    studySets,
-    error,
-    processingError,
-    isProcessing,
-    onNewSet: () => { resetState(); setAction('CREATE_EDIT'); },
-    onEditSet: (set: StudySet) => { resetState(); setActiveSet(set); setAction('CREATE_EDIT'); },
-    onDeleteSet: deleteSet,
-    onPredict: onPredict,
-    onPrepareForQuiz: handlePrepareForQuiz,
-    onShowHistory: (set: StudySet) => { resetState(); setActiveSet(set); setAction('HISTORY'); },
-    onShowStats,
-    onStartSrsQuiz,
-    reviewPoolCount,
+  const handleEditSet = (set: StudySet) => {
+    resetState();
+    setActiveSet(set);
+    setAction('CREATE_EDIT');
+  };
+
+  const handleShowHistory = (set: StudySet) => {
+      setActiveSet(set);
+      setAction('HISTORY');
+  };
+
+  const handleDeleteSet = (id: string) => {
+    if (window.confirm("Are you sure you want to permanently delete this study set?")) {
+        deleteSet(id);
+    }
   };
 
   switch (action) {
-    case 'CREATE_EDIT': 
+    case 'CREATE_EDIT':
       return <StudySetForm 
-        activeSet={activeSet}
-        initialContent={initialContent}
-        onSave={fullSaveAndAnalyze}
-        onSaveOnly={fullSaveOnly}
-        onCancel={handleShowList}
-        isProcessing={isProcessing}
-        isAnalyzingTopics={isAnalyzingTopics}
-        processingError={processingError}
-        progressMessage={progressMessage}
-        progressPercent={progressPercent}
-      />;
-    case 'TOPIC_SELECTION': 
-      if (!activeSet) return <StudySetList {...studySetListProps} />;
-      return <TopicSelector 
-        activeSet={activeSet}
-        topics={topics}
-        isAnalyzingTopics={isAnalyzingTopics}
-        isProcessing={isProcessing}
-        processingError={processingError}
-        progressPercent={progressPercent}
-        onStartQuiz={handleStartQuizWithConfig}
-        onBack={handleShowList}
-        onRegenerateTopics={handleRegenerateTopics}
-        onReanalyzeWithFiles={(files) => handlePrepareForQuiz(activeSet, files)}
-      />;
-    case 'HISTORY': 
-      if (!activeSet) return <StudySetList {...studySetListProps} />;
-      const historyForSet = history.filter(h => h.studySetId === activeSet.id);
-      return <QuizHistoryView 
-        activeSet={activeSet}
-        history={historyForSet}
-        onBack={handleShowList}
-        onReviewHistory={onReviewHistory}
-      />;
-    case 'LIST': 
-    default: 
-      return <StudySetList {...studySetListProps} />;
+                activeSet={activeSet}
+                initialContent={initialContent}
+                isProcessing={isProcessing}
+                isAnalyzingTopics={isAnalyzingTopics}
+                processingError={processingError}
+                progressMessage={progressMessage}
+                progressPercent={progressPercent}
+                onSave={fullSaveAndAnalyze}
+                onSaveOnly={fullSaveOnly}
+                onCancel={handleShowList}
+             />;
+    case 'TOPIC_SELECTION':
+        return activeSet ? <TopicSelector 
+            activeSet={activeSet}
+            topics={topics}
+            isAnalyzingTopics={isAnalyzingTopics}
+            isProcessing={isProcessing}
+            processingError={processingError}
+            progressPercent={progressPercent}
+            onStartQuiz={handleStartQuiz}
+            onBack={handleShowList}
+            onRegenerateTopics={handleRegenerateTopics}
+            onReanalyzeWithFiles={handleReanalyzeWithFiles}
+        /> : null;
+    case 'HISTORY':
+        return activeSet ? <QuizHistoryView 
+            activeSet={activeSet}
+            history={history.filter(h => h.studySetId === activeSet.id)}
+            onBack={handleShowList}
+            onReviewHistory={onReviewHistory}
+        /> : null;
+    case 'LIST':
+    default:
+      return <StudySetList 
+                studySets={studySets}
+                error={error}
+                processingError={processingError}
+                isProcessing={isProcessing}
+                onNewSet={handleNewSet}
+                onEditSet={handleEditSet}
+                onDeleteSet={handleDeleteSet}
+                onPrepareForQuiz={handlePrepareForQuiz}
+                onPredict={onPredict}
+                onShowHistory={handleShowHistory}
+                onShowStats={onShowStats}
+                onStartSrsQuiz={onStartSrsQuiz}
+                reviewPoolCount={reviewPoolCount}
+             />;
   }
 };
 

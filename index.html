@@ -21,7 +21,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Merriweather:wght@400;700&family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
@@ -51,7 +51,7 @@
             fontFamily: {
               'display': ['"Special Elite"', 'monospace'],
               'serif': ['"Merriweather"', 'serif'],
-              'sans': ['ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', '"Noto Sans"', 'sans-serif', '"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"', '"Noto Color Emoji"'],
+              'sans': ['"Inter"', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', '"Noto Sans"', 'sans-serif', '"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"', '"Noto Color Emoji"'],
             },
             animation: {
               'fade-in': 'fadeIn 0.5s ease-out forwards',
@@ -59,6 +59,13 @@
               'background-pan': 'backgroundPan 15s linear infinite',
               'float': 'float 6s ease-in-out infinite',
               'pulse-glow': 'pulseGlow 4s ease-in-out infinite',
+              // New animations for landing page
+              'hero-entry': 'heroEntry 1.5s ease-out forwards',
+              'twinkle': 'twinkle 3s infinite',
+              'float-particle': 'floatParticle 8s infinite linear',
+              'gradient-shift': 'gradientShift 4s ease-in-out infinite',
+              'pulse-ring': 'pulseRing 3s infinite',
+              'spin': 'spin 1s linear infinite',
             },
             keyframes: {
               fadeIn: {
@@ -89,6 +96,33 @@
                   boxShadow: '0 0 35px rgba(20, 184, 166, 0.5)',
                 },
               },
+              // New keyframes for landing page
+              heroEntry: {
+                '0%': { opacity: 0, transform: 'translateY(50px)' },
+                '100%': { opacity: 1, transform: 'translateY(0)' },
+              },
+              twinkle: {
+                '0%, 100%': { opacity: 0.3, transform: 'scale(1)' },
+                '50%': { opacity: 1, transform: 'scale(1.2)' },
+              },
+              floatParticle: {
+                  '0%': { transform: 'translateY(100vh) rotate(0deg)', opacity: 0 },
+                  '10%': { opacity: 1 },
+                  '90%': { opacity: 1 },
+                  '100%': { transform: 'translateY(-100px) rotate(360deg)', opacity: 0 },
+              },
+              gradientShift: {
+                '0%, 100%': { backgroundPosition: '0% 50%' },
+                '50%': { backgroundPosition: '100% 50%' },
+              },
+              pulseRing: {
+                '0%': { transform: 'translate(-50%, -50%) scale(1)', opacity: 0.7 },
+                '100%': { transform: 'translate(-50%, -50%) scale(2)', opacity: 0 },
+              },
+              spin: {
+                  '0%': { transform: 'rotate(0deg)' },
+                  '100%': { transform: 'rotate(360deg)' },
+              }
             }
           }
         }
@@ -109,6 +143,9 @@
 }
 </script>
 <style>
+  body {
+    overflow-x: hidden;
+  }
   .fade-in-section {
     opacity: 0;
     transform: translateY(20px);
@@ -147,7 +184,7 @@
   /* Evidence Board Styles */
   .cork-board {
     background-color: #c5a98b;
-    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAMAAAAp4XiGAAABAlBMVEUAAADVQwDQRQDQRQDPRgDPRgDPRgDPQwDPRgDPRQDRRADQRgDQRQDRRgDPRQDQRgDQRgDPRQDQRgDPRQDPRgDQRQDRRgDPRQDQRQDTQwDRRgDSRAAVGAAYHQAWIgAcJgAfLgAmNAAvPQBCXgBGZgBJbQBOeQBRggBUjQBamgBfqQCGwwCKxwCOyQCTzQCW0gCY0wCa1wCh2gCl3ACp3wCs4gC15gC56gC97ADF7wDG8ADJ8QDN9ADU9wDX+ADe+gDk/ADo/QDq/QDw/gD1/wD3/wD8/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wCVxoZ/AAAAV3RSTlMAAQIDBAUGBwgJCgsMDQ4PEBITFBUWFxgZGhscHR4fICEiIyQlJicpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ucG5S2gQJAAAAlklEQVRIx+3Wxw2DQBCF4XkACUqgBAoQhXr//1fUksJaK2tbz+a+ZGe3zVwAANhms3fbr3u4W5g5jMv2h9dGihV2D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsdAAA2s3s2z/a4m5g5hMv2h9tGig12D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsdAAD2srs2z/a4m5g5hMv2h9tGig12D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsdAAD2srs2z/a4m5g5hMv2h9tGig12D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsdAAD2srs2z/a4m5g5hMv2h9tGig12D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsd+AHUrQDwA25bUgAAAABJRU5ErkJggg==);
+    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAMAAAAp4XiGAAABAlBMVEUAAADVQwDQRQDQRQDPRgDPRgDPRgDPQwDPRgDPRQDRRADQRgDQRQDRRgDPRQDQRgDQRgDPRQDQRgDPRQDPRgDQRQDRRgDPRQDQRQDTQwDRRgDSRAAVGAAYHQAWIgAcJgAfLgAmNAAvPQBCXgBGZgBJbQBOeQBRggBUjQBamgBfqQCGwwCKxwCOyQCTzQCW0gCY0wCa1wCh2gCl3ACp3wCs4gC15gC56gC97ADF7wDG8ADJ8QDN9ADU9wDX+ADe+gDk/ADo/QDq/QDw/gD1/wD3/wD8/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wD+/wCVxoZ/AAAAV3RSTlMAAQIDBAUGBwgJCgsMDQ4PEBITFBUWFxgZGhscHR4fICEiIyQlJicpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ucG5S2gQJAAAAlklEQVRIx+3Wxw2DQBCF4XkACUqgBAoQhXr//1fUksJaK2tbz+a+ZGe3zVwAANhms3fbr3u4W5g5jMv2h9dGihV2D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsdAAA2s3s2z/a4m5g5hMv2h9tGig12D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsdAAD2srs2z/a4m5g5hMv2h9tGig12D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsdAAD2srs2z/a4m5g5hMv2h9tGig12D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsdAAD2srs2z/a4m5g5hMv2h9tGig12D2MGB4PQhzi0eZyD2eB8vN/S4sHn8cGhLPB8lBweB8+Xh4OD4+H5kMPh4fLw//p7eHg8vD4eHh/vg+/D4+Pj/fsd+AHUrQDwA25bUgAAAABJRU5ErkJggg==);
     box-shadow: inset 0 0 10px rgba(0,0,0,0.4);
   }
   
@@ -168,6 +205,29 @@
 
   .paper-section textarea {
       background-image: repeating-linear-gradient(#fdfaf1 0px, #fdfaf1 24px, #e0d9c9 25px);
+  }
+  
+  /* New styles for game-like landing page */
+  .bg-game-landing {
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 25%, #16213e 50%, #0f3460 75%, #533483 100%);
+  }
+  .text-gradient {
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .star {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      animation: twinkle 3s infinite;
+  }
+  .particle {
+      position: absolute;
+      background: linear-gradient(45deg, #61dafb, #20232a);
+      border-radius: 50%;
+      animation: float-particle 8s infinite linear;
   }
 </style>
 <link rel="stylesheet" href="/index.css">
