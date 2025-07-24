@@ -18,7 +18,7 @@ const PredictionResultsScreen: React.FC<PredictionResultsScreenProps> = ({ resul
 
     try {
         const canvas = await html2canvas(reportElement, {
-            background: '#fdfaf1', // Explicitly set background to match 'case-paper'
+            backgroundColor: '#fdfaf1', // Explicitly set background to match 'case-paper'
             useCORS: true,
             logging: false,
         });

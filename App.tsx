@@ -17,6 +17,15 @@ import { useStudySets } from './hooks/useStudySets';
 import { usePredictions } from './hooks/usePredictions';
 import { useSRS } from './hooks/useSRS';
 import { processFilesToParts } from './utils/fileProcessor';
+import { initializeDb } from './utils/db';
+import MigrationScreen from './components/MigrationScreen';
+
+const LEGACY_STORAGE_KEYS = [
+  'adaptive-study-game-sets',
+  'adaptive-study-game-history',
+  'adaptive-study-game-predictions',
+  'adaptive-study-game-srs',
+];
 
 const App: React.FC = () => {
   const [showLanding, setShowLanding] = useState(true);
@@ -39,11 +48,34 @@ const App: React.FC = () => {
   const [feedback, setFeedback] = useState<PersonalizedFeedback | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
 
+  // Migration State
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationChecked, setMigrationChecked] = useState(false);
+
   const [history, addQuizResult] = useQuizHistory();
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
   const [predictions, addOrUpdatePrediction] = usePredictions();
   const [, updateSRSItem, getReviewPool] = useSRS();
   
+  useEffect(() => {
+    const checkForMigration = async () => {
+      // Check if any old data exists in localStorage
+      const needsMigration = LEGACY_STORAGE_KEYS.some(key => localStorage.getItem(key) !== null);
+
+      if (needsMigration) {
+        setIsMigrating(true);
+        // Trigger the database initialization which will run the migration logic.
+        // Awaiting this ensures we don't proceed until the migration is complete.
+        await initializeDb();
+        setIsMigrating(false);
+      }
+      
+      setMigrationChecked(true);
+    };
+
+    checkForMigration();
+  }, []); // Empty dependency array ensures this runs only once on mount.
+
   const isPredictionFlow = [
     AppState.PREDICTION_SETUP,
     AppState.PREDICTING,
@@ -51,14 +83,14 @@ const App: React.FC = () => {
   ].includes(appState);
 
   useEffect(() => {
-    if (isPredictionFlow) {
+    if (isPredictionFlow || isMigrating) {
         document.body.classList.remove('bg-background-dark', 'font-sans');
         document.body.classList.add('bg-pattern', 'font-serif');
     } else {
         document.body.classList.remove('bg-pattern', 'font-serif');
         document.body.classList.add('bg-background-dark', 'font-sans');
     }
-  }, [isPredictionFlow]);
+  }, [isPredictionFlow, isMigrating]);
 
 
   const handleLaunchApp = useCallback(() => {
@@ -183,7 +215,7 @@ const App: React.FC = () => {
     }
     
     // Add the final result to history, including the generated feedback
-    addQuizResult({
+    await addQuizResult({
         ...resultStub,
         feedback: generatedFeedback,
     });
@@ -206,7 +238,7 @@ const App: React.FC = () => {
       setAnswerLog(gradedLog);
 
       if (currentStudySet) {
-        addQuizResult({
+        await addQuizResult({
             studySetId: currentStudySet.id,
             date: new Date().toISOString(),
             score: totalScore,
@@ -281,7 +313,7 @@ const App: React.FC = () => {
     try {
       const results = await generateExamPrediction(data);
       setPredictionResults(results);
-      addOrUpdatePrediction(currentStudySet.id, results);
+      await addOrUpdatePrediction(currentStudySet.id, results);
       setAppState(AppState.PREDICTION_RESULTS);
     } catch (err) {
       console.error(err);
@@ -323,6 +355,15 @@ const App: React.FC = () => {
   const handleShowStats = useCallback(() => {
     setAppState(AppState.STATS);
   }, []);
+
+  if (!migrationChecked) {
+    // Show a generic spinner while we check for migration status
+    return <div className="flex justify-center items-center min-h-screen"><LoadingSpinner /></div>;
+  }
+  
+  if (isMigrating) {
+    return <MigrationScreen />;
+  }
 
   if (showLanding) {
     return <LandingPage onLaunch={handleLaunchApp} onLaunchWithContent={handleLaunchWithContent} />;

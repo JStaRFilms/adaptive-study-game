@@ -1,50 +1,39 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { QuizResult } from '../types';
+import { getAll, add } from '../utils/db';
 
-const HISTORY_STORAGE_KEY = 'adaptive-study-game-history';
-
-// A helper that only interacts with localStorage and returns the new, sorted array.
-const saveHistoryToLocalStorage = (newHistory: QuizResult[]): QuizResult[] => {
-  try {
-    const sortedHistory = newHistory.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(sortedHistory));
-    return sortedHistory;
-  } catch (error) {
-    console.error("Failed to save quiz history to local storage:", error);
-    return newHistory; // Return unsorted on error to prevent data loss in React state
-  }
-};
+const STORE_NAME = 'quizHistory';
 
 export const useQuizHistory = (): [
   QuizResult[],
-  (newResult: Omit<QuizResult, 'id'>) => QuizResult
+  (newResult: Omit<QuizResult, 'id'>) => Promise<QuizResult>
 ] => {
   const [history, setHistory] = useState<QuizResult[]>([]);
 
-  useEffect(() => {
-    try {
-      const storedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
-      if (storedHistory) {
-        setHistory(JSON.parse(storedHistory));
+  const refreshHistory = useCallback(async () => {
+      try {
+        const storedHistory = await getAll(STORE_NAME);
+        const sortedHistory = storedHistory.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setHistory(sortedHistory);
+      } catch (error) {
+        console.error("Failed to load quiz history from IndexedDB:", error);
+        setHistory([]);
       }
-    } catch (error) {
-      console.error("Failed to load quiz history from local storage:", error);
-      setHistory([]);
-    }
   }, []);
 
-  const addResult = useCallback((newResult: Omit<QuizResult, 'id'>): QuizResult => {
+  useEffect(() => {
+    refreshHistory();
+  }, [refreshHistory]);
+
+  const addResult = useCallback(async (newResult: Omit<QuizResult, 'id'>): Promise<QuizResult> => {
     const resultWithId: QuizResult = {
       ...newResult,
       id: new Date().toISOString() + Math.random(),
     };
-    setHistory(currentHistory => {
-        const newHistory = [...(currentHistory || []), resultWithId];
-        return saveHistoryToLocalStorage(newHistory);
-    });
+    await add(STORE_NAME, resultWithId);
+    await refreshHistory();
     return resultWithId;
-  }, []);
+  }, [refreshHistory]);
 
   return [history, addResult];
 };

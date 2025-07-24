@@ -1,62 +1,46 @@
 import { useState, useEffect, useCallback } from 'react';
 import { PredictionResult, PredictedQuestion } from '../types';
+import { getAll, put } from '../utils/db';
 
-const STORAGE_KEY = 'adaptive-study-game-predictions';
+const STORE_NAME = 'predictions';
 
 export const usePredictions = (): [
   PredictionResult[],
-  (studySetId: string, results: PredictedQuestion[]) => void,
+  (studySetId: string, results: PredictedQuestion[]) => Promise<void>,
 ] => {
   const [predictions, setPredictions] = useState<PredictionResult[]>([]);
 
-  useEffect(() => {
+  const refreshPredictions = useCallback(async () => {
     try {
-      const storedPredictions = localStorage.getItem(STORAGE_KEY);
-      if (storedPredictions) {
-        setPredictions(JSON.parse(storedPredictions));
-      }
+        const storedPredictions = await getAll(STORE_NAME);
+        const sorted = storedPredictions.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        setPredictions(sorted);
     } catch (error) {
-      console.error("Failed to load predictions from local storage:", error);
-      setPredictions([]);
+        console.error("Failed to load predictions from IndexedDB:", error);
+        setPredictions([]);
     }
   }, []);
 
-  const savePredictions = (preds: PredictionResult[]) => {
-    try {
-      // Sort by updatedAt descending
-      const sorted = preds.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
-      setPredictions(sorted);
-    } catch (error) {
-      console.error("Failed to save predictions to local storage:", error);
-    }
-  };
+  useEffect(() => {
+    refreshPredictions();
+  }, [refreshPredictions]);
 
-  const addOrUpdatePrediction = useCallback((studySetId: string, results: PredictedQuestion[]) => {
-    const existingPredictionIndex = predictions.findIndex(p => p.studySetId === studySetId);
+  const addOrUpdatePrediction = useCallback(async (studySetId: string, results: PredictedQuestion[]) => {
+    const allPredictions = await getAll(STORE_NAME);
+    const existing = allPredictions.find(p => p.studySetId === studySetId);
     const now = new Date().toISOString();
     
-    let updatedPredictions = [...predictions];
-
-    if (existingPredictionIndex > -1) {
-      // Update existing prediction
-      const existing = updatedPredictions[existingPredictionIndex];
-      existing.results = results;
-      existing.updatedAt = now;
-    } else {
-      // Add new prediction
-      const newPrediction: PredictionResult = {
-        id: studySetId,
+    const prediction: PredictionResult = {
+        id: existing?.id || studySetId,
         studySetId: studySetId,
-        createdAt: now,
+        createdAt: existing?.createdAt || now,
         updatedAt: now,
         results: results,
-      };
-      updatedPredictions.push(newPrediction);
-    }
+    };
     
-    savePredictions(updatedPredictions);
-  }, [predictions]);
+    await put(STORE_NAME, prediction);
+    await refreshPredictions();
+  }, [refreshPredictions]);
 
   return [predictions, addOrUpdatePrediction];
 };

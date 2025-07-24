@@ -1,58 +1,51 @@
 import { useState, useEffect, useCallback } from 'react';
 import { StudySet } from '../types';
+import { getAll, add, put, deleteItem } from '../utils/db';
 
-const STORAGE_KEY = 'adaptive-study-game-sets';
+const STORE_NAME = 'studySets';
 
 export const useStudySets = (): [
   StudySet[],
-  (set: Omit<StudySet, 'id' | 'createdAt'>) => StudySet,
-  (set: StudySet) => void,
-  (setId: string) => void
+  (set: Omit<StudySet, 'id' | 'createdAt'>) => Promise<StudySet>,
+  (set: StudySet) => Promise<void>,
+  (setId: string) => Promise<void>
 ] => {
   const [studySets, setStudySets] = useState<StudySet[]>([]);
 
-  useEffect(() => {
+  const refreshSets = useCallback(async () => {
     try {
-      const storedSets = localStorage.getItem(STORAGE_KEY);
-      if (storedSets) {
-        setStudySets(JSON.parse(storedSets));
-      }
+      const sets = await getAll(STORE_NAME);
+      const sortedSets = sets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setStudySets(sortedSets);
     } catch (error) {
-      console.error("Failed to load study sets from local storage:", error);
-      setStudySets([]);
+      console.error("Failed to refresh study sets from IndexedDB:", error);
     }
   }, []);
 
-  const saveSets = (sets: StudySet[]) => {
-    try {
-      const sortedSets = sets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedSets));
-      setStudySets(sortedSets);
-    } catch (error) {
-      console.error("Failed to save study sets to local storage:", error);
-    }
-  };
+  useEffect(() => {
+    refreshSets();
+  }, [refreshSets]);
 
-  const addSet = useCallback((newSet: Omit<StudySet, 'id' | 'createdAt'>): StudySet => {
-    const sets = studySets || [];
+  const addSet = useCallback(async (newSet: Omit<StudySet, 'id' | 'createdAt'>): Promise<StudySet> => {
     const setWithId: StudySet = {
       ...newSet,
       id: new Date().toISOString() + Math.random(),
       createdAt: new Date().toISOString(),
     };
-    saveSets([...sets, setWithId]);
+    await add(STORE_NAME, setWithId);
+    await refreshSets();
     return setWithId;
-  }, [studySets]);
+  }, [refreshSets]);
 
-  const updateSet = useCallback((updatedSet: StudySet) => {
-    const updatedSets = studySets.map(s => s.id === updatedSet.id ? updatedSet : s);
-    saveSets(updatedSets);
-  }, [studySets]);
+  const updateSet = useCallback(async (updatedSet: StudySet) => {
+    await put(STORE_NAME, updatedSet);
+    await refreshSets();
+  }, [refreshSets]);
 
-  const deleteSet = useCallback((setId: string) => {
-    const updatedSets = studySets.filter(s => s.id !== setId);
-    saveSets(updatedSets);
-  }, [studySets]);
+  const deleteSet = useCallback(async (setId: string) => {
+    await deleteItem(STORE_NAME, setId);
+    await refreshSets();
+  }, [refreshSets]);
 
   return [studySets, addSet, updateSet, deleteSet];
 };

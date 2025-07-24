@@ -15,9 +15,9 @@ interface SetupScreenProps {
   onReviewHistory: (result: QuizResult) => void;
   onPredict: (studySetId: string) => void;
   studySets: StudySet[];
-  addSet: (set: Omit<StudySet, 'id' | 'createdAt'>) => StudySet;
-  updateSet: (set: StudySet) => void;
-  deleteSet: (setId: string) => void;
+  addSet: (set: Omit<StudySet, 'id' | 'createdAt'>) => Promise<StudySet>;
+  updateSet: (set: StudySet) => Promise<void>;
+  deleteSet: (setId: string) => Promise<void>;
   onShowStats: () => void;
   history: QuizResult[];
   onStartSrsQuiz: () => void;
@@ -106,7 +106,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                 fileInfo: [...(set.fileInfo || []), ...fileInfo],
                 topics: [] // Invalidate topics if new files are added
             };
-            updateSet(updatedSetData);
+            await updateSet(updatedSetData);
             currentSet = updatedSetData;
         }
         setActiveSet(currentSet);
@@ -123,7 +123,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
             
             // Save the new topics to the study set
             const updatedSetWithTopics: StudySet = { ...currentSet, topics: generatedTopics };
-            updateSet(updatedSetWithTopics);
+            await updateSet(updatedSetWithTopics);
             setActiveSet(updatedSetWithTopics);
             setTopics(generatedTopics);
             setProgressPercent(90);
@@ -162,9 +162,9 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
         let currentSet: StudySet;
         if (activeSet) { // Editing
             currentSet = { ...activeSet, name: data.name, content: combinedText.trim(), fileInfo: [...(activeSet.fileInfo || []), ...fileInfo], topics: generatedTopics };
-            updateSet(currentSet);
+            await updateSet(currentSet);
         } else { // Creating
-            currentSet = addSet({ name: data.name, content: combinedText.trim(), fileInfo, topics: generatedTopics });
+            currentSet = await addSet({ name: data.name, content: combinedText.trim(), fileInfo, topics: generatedTopics });
         }
         setActiveSet(currentSet);
 
@@ -187,9 +187,9 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
             const filesChanged = data.files.length > 0;
             // Clear topics if content changed, otherwise preserve them.
             const newTopics = (contentChanged || filesChanged) ? [] : activeSet.topics || [];
-            updateSet({ ...activeSet, name: data.name, content: combinedText.trim(), fileInfo: [...(activeSet.fileInfo || []), ...fileInfo], topics: newTopics });
+            await updateSet({ ...activeSet, name: data.name, content: combinedText.trim(), fileInfo: [...(activeSet.fileInfo || []), ...fileInfo], topics: newTopics });
         } else {
-            addSet({ name: data.name, content: combinedText.trim(), fileInfo, topics: [] });
+            await addSet({ name: data.name, content: combinedText.trim(), fileInfo, topics: [] });
         }
         handleShowList();
     } catch (err) {
@@ -216,7 +216,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     try {
         const generatedTopics = await generateTopics(preparedParts);
         const updatedSetWithTopics: StudySet = { ...activeSet, topics: generatedTopics };
-        updateSet(updatedSetWithTopics);
+        await updateSet(updatedSetWithTopics);
         setActiveSet(updatedSetWithTopics);
         setTopics(generatedTopics);
     } catch (err) {
@@ -247,9 +247,9 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
       setAction('HISTORY');
   };
 
-  const handleDeleteSet = (id: string) => {
+  const handleDeleteSet = async (id: string) => {
     if (window.confirm("Are you sure you want to permanently delete this study set?")) {
-        deleteSet(id);
+        await deleteSet(id);
     }
   };
 

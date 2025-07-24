@@ -12,7 +12,7 @@ interface StudyScreenProps {
   onFinish: (finalScore: number, log: AnswerLog[]) => void;
   onQuit: () => void;
   mode: StudyMode;
-  updateSRSItem: (question: Question, isCorrect: boolean) => void;
+  updateSRSItem: (question: Question, isCorrect: boolean) => Promise<void>;
 }
 
 type AnswerStatus = 'unanswered' | 'correct' | 'incorrect' | 'partial';
@@ -57,7 +57,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
     }
   }, [currentQuestionIndex]);
 
-  const processAnswer = useCallback((
+  const processAnswer = useCallback(async (
     pointsDetails: { awarded: number; max: number; comment?: string },
     userAnswer: UserAnswer
   ) => {
@@ -67,7 +67,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
     const isFullyCorrect = awarded === max;
 
     if (mode === StudyMode.PRACTICE || mode === StudyMode.SRS) {
-        updateSRSItem(currentQuestion, isFullyCorrect);
+        await updateSRSItem(currentQuestion, isFullyCorrect);
     }
     
     const isPartiallyCorrect = awarded > 0 && awarded < max;
@@ -142,23 +142,26 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
     if (isReviewMode || answerStatus !== 'unanswered') return;
     if (timeLeft <= 0) {
       setIsTimedOut(true);
-      processAnswer({ awarded: 0, max: BASE_POINTS }, null); 
+      const handleTimeout = async () => {
+        await processAnswer({ awarded: 0, max: BASE_POINTS }, null); 
+      };
+      handleTimeout();
       return;
     }
     const countdownTimer = setTimeout(() => setTimeLeft(t => t - 1), 1000);
     return () => clearTimeout(countdownTimer);
   }, [answerStatus, timeLeft, isReviewMode, processAnswer]);
 
-  const handleMcSubmit = () => {
+  const handleMcSubmit = async () => {
     if (selectedOptionIndex === null || currentQuestion.questionType !== QuestionType.MULTIPLE_CHOICE) return;
     const isCorrect = selectedOptionIndex === currentQuestion.correctAnswerIndex;
-    processAnswer({ awarded: isCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, selectedOptionIndex);
+    await processAnswer({ awarded: isCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, selectedOptionIndex);
   };
   
-  const handleTfSubmit = (answer: boolean) => {
+  const handleTfSubmit = async (answer: boolean) => {
     if (currentQuestion.questionType !== QuestionType.TRUE_FALSE) return;
     const isCorrect = answer === currentQuestion.correctAnswer;
-    processAnswer({ awarded: isCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, answer);
+    await processAnswer({ awarded: isCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, answer);
   };
 
   const handleFibSubmit = async (e: React.FormEvent) => {
@@ -176,12 +179,12 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
 
     if (isPerfectMatch || isAcceptable) {
         const comment = isAcceptable ? `We accepted your answer, but the ideal answer is: "${typedQuestion.correctAnswer}"` : undefined;
-        processAnswer({ awarded: BASE_POINTS, max: BASE_POINTS, comment }, userAnswerStr);
+        await processAnswer({ awarded: BASE_POINTS, max: BASE_POINTS, comment }, userAnswerStr);
     } else {
         setIsVerifyingAnswer(true);
         try {
             const validationResult = await validateFillInTheBlankAnswer(typedQuestion, userAnswerStr);
-            processAnswer({
+            await processAnswer({
               awarded: validationResult.pointsAwarded,
               max: BASE_POINTS,
               comment: validationResult.comment,
@@ -189,7 +192,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
 
         } catch (error) {
             console.error("AI validation failed:", error);
-            processAnswer({ awarded: 0, max: BASE_POINTS, comment: "AI validation failed." }, userAnswerStr);
+            await processAnswer({ awarded: 0, max: BASE_POINTS, comment: "AI validation failed." }, userAnswerStr);
         } finally {
             setIsVerifyingAnswer(false);
         }
