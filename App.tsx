@@ -11,6 +11,7 @@ import ExamScreen from './components/ExamScreen';
 import PredictionSetupScreen from './components/PredictionSetupScreen';
 import PredictionResultsScreen from './components/PredictionResultsScreen';
 import StatsScreen from './components/StatsScreen';
+import AnnouncementBanner from './components/common/AnnouncementBanner';
 import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedback } from './services/geminiService';
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
@@ -413,12 +414,15 @@ const App: React.FC = () => {
   };
 
   const mainContainerClasses = isPredictionFlow
-    ? 'min-h-screen flex flex-col items-center justify-start p-4 sm:p-6 lg:p-8'
+    ? 'flex-grow flex flex-col items-center justify-start p-4 sm:p-6 lg:p-8'
     : 'w-full max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 flex-grow flex flex-col justify-center';
 
   return (
-    <div className={mainContainerClasses}>
-      {renderContent()}
+    <div className="flex flex-col min-h-screen">
+      <AnnouncementBanner />
+      <main className={mainContainerClasses}>
+        {renderContent()}
+      </main>
     </div>
   );
 };
