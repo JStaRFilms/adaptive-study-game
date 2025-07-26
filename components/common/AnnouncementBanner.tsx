@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 const ANNOUNCEMENT_ID = 'feedback-srs-update-20240726'; // Change this ID for new announcements
 const ANNOUNCEMENT_MESSAGE = (
     <>
-        <strong>✨ New Feature:</strong> Personalized AI feedback and Spaced Repetition are here! Check your quiz results for AI Coach feedback and find your review items on the main screen. <strong>Note:</strong> uploadig powerpoints isn't working for now!
+        <strong>✨ New Feature:</strong> Personalized AI feedback and Spaced Repetition are here! Check your quiz results for AI Coach feedback and find your review items on the main screen. <strong>Note:</strong> uploadig powerpoint isn't working for now!
     </>
 );
 

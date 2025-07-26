@@ -33,6 +33,7 @@ const App: React.FC = () => {
   const [initialContent, setInitialContent] = useState<string | null>(null);
   const [appState, setAppState] = useState<AppState>(AppState.SETUP);
   const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [quizConfigForDisplay, setQuizConfigForDisplay] = useState<QuizConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [finalScore, setFinalScore] = useState<number>(0);
   const [studyMode, setStudyMode] = useState<StudyMode>(StudyMode.PRACTICE);
@@ -111,6 +112,7 @@ const App: React.FC = () => {
     setQuiz(null);
     setAnswerLog([]);
     setFeedback(null);
+    setQuizConfigForDisplay(config);
     const set = studySets.find(s => s.id === studySetId) || null;
     setCurrentStudySet(set);
     try {
@@ -163,6 +165,11 @@ const App: React.FC = () => {
     setAnswerLog([]);
     setFeedback(null);
     setCurrentStudySet(null); // SRS quiz is cross-set
+    setQuizConfigForDisplay({
+        numberOfQuestions: srsQuiz.questions.length,
+        mode: StudyMode.SRS,
+        knowledgeSource: KnowledgeSource.NOTES_ONLY
+    });
     setAppState(AppState.STUDYING);
   }, [getReviewPool]);
 
@@ -290,6 +297,7 @@ const App: React.FC = () => {
     setCurrentStudySet(null);
     setFeedback(null);
     setPredictionResults(null);
+    setQuizConfigForDisplay(null);
   }, []);
   
   const handlePredict = useCallback((studySetId: string) => {
@@ -341,6 +349,7 @@ const App: React.FC = () => {
       mode: StudyMode.REVIEW,
       knowledgeSource: KnowledgeSource.NOTES_ONLY,
       topics: topics,
+      customInstructions: `This is a focused review session. The user previously struggled with these topics: ${topics.join(', ')}. Generate questions that specifically test their understanding of these areas, focusing on concepts they likely misunderstood.`
     };
     
     await handleStartStudy(parts, config, currentStudySet.id);
@@ -383,7 +392,7 @@ const App: React.FC = () => {
       
       case AppState.STUDYING:
         if (!quiz) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
-        return <StudyScreen quiz={quiz} onFinish={handleFinishStudy} onQuit={handleRestart} mode={studyMode} updateSRSItem={updateSRSItem} />;
+        return <StudyScreen quiz={quiz} onFinish={handleFinishStudy} onQuit={handleRestart} mode={studyMode} updateSRSItem={updateSRSItem} quizConfig={quizConfigForDisplay} />;
       
       case AppState.RESULTS:
         return <ResultsScreen score={finalScore} answerLog={answerLog} onRestart={handleRestart} onReview={() => handleReview()} webSources={quiz?.webSources} feedback={feedback} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={handleStartFocusedQuiz}/>;

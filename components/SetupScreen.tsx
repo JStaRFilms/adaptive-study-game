@@ -199,13 +199,14 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     }
   };
   
-  const handleStartQuiz = (config: {numQuestions: number, studyMode: any, knowledgeSource: any, selectedTopics: string[]}) => {
+  const handleStartQuiz = (config: {numQuestions: number, studyMode: any, knowledgeSource: any, selectedTopics: string[], customInstructions: string}) => {
     if (!activeSet) return;
     const finalConfig: QuizConfig = {
       numberOfQuestions: config.numQuestions,
       mode: config.studyMode,
       knowledgeSource: config.knowledgeSource,
       topics: config.selectedTopics,
+      customInstructions: config.customInstructions,
     };
     onStart(preparedParts, finalConfig, activeSet.id);
   };

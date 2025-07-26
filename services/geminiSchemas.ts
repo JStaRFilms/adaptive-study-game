@@ -38,15 +38,21 @@ export const questionSchema = {
             description: "For TRUE_FALSE questions, the correct boolean answer. For other question types, this should be null.",
             nullable: true,
         },
-        correctAnswerString: {
-            type: Type.STRING,
-            description: "For FILL_IN_THE_BLANK questions, the correct string answer. For other question types, this should be null.",
+        correctAnswers: {
+            type: Type.ARRAY,
+            description: "For FILL_IN_THE_BLANK questions, an array of strings representing the correct answers for each blank in order. For other question types, this should be null.",
+            items: { type: Type.STRING },
             nullable: true,
         },
         acceptableAnswers: {
             type: Type.ARRAY,
-            description: "For FILL_IN_THE_BLANK questions, an optional array of acceptable alternative answers (e.g., common synonyms, misspellings, or typos).",
-            items: { type: Type.STRING },
+            description: "For FILL_IN_THE_BLANK questions, an optional array of arrays of acceptable alternative answers. Each inner array corresponds to an answer in the 'correctAnswers' array.",
+            items: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.STRING,
+                },
+            },
             nullable: true,
         }
     },
@@ -167,7 +173,7 @@ export const personalizedFeedbackSchema = {
         },
         narrowPasses: {
             type: Type.ARRAY,
-            description: "A list of specific questions where the user was partially correct or their answer was accepted but not ideal (e.g., partial points awarded, or AI feedback provided on a correct answer). Highlight these so the user can review them.",
+            description: "A list of specific questions FROM THE MOST RECENT QUIZ where the user was partially correct or their answer was accepted but not ideal (e.g., partial points awarded, or AI feedback provided on a correct answer). Do not include items from past quizzes. This is for reviewing shaky knowledge from the last session.",
             items: {
                 type: Type.OBJECT,
                 properties: {

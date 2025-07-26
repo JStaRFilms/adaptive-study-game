@@ -52,7 +52,7 @@ interface TopicSelectorProps {
     isProcessing: boolean;
     processingError: string | null;
     progressPercent: number;
-    onStartQuiz: (config: { numQuestions: number, studyMode: StudyMode, knowledgeSource: KnowledgeSource, selectedTopics: string[]}) => void;
+    onStartQuiz: (config: { numQuestions: number, studyMode: StudyMode, knowledgeSource: KnowledgeSource, selectedTopics: string[], customInstructions: string}) => void;
     onBack: () => void;
     onRegenerateTopics: () => void;
     onReanalyzeWithFiles: (files: File[]) => void;
@@ -63,6 +63,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
     activeSet, topics, isAnalyzingTopics, isProcessing, processingError, progressPercent, onStartQuiz, onBack, onRegenerateTopics, onReanalyzeWithFiles
 }) => {
     const [selectedTopics, setSelectedTopics] = useState<string[]>(topics || []);
+    const [customInstructions, setCustomInstructions] = useState('');
     const [numQuestions, setNumQuestions] = useState(10);
     const [studyMode, setStudyMode] = useState<StudyMode>(StudyMode.PRACTICE);
     const [knowledgeSource, setKnowledgeSource] = useState<KnowledgeSource>(KnowledgeSource.NOTES_ONLY);
@@ -73,7 +74,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
     const handleDeselectAll = () => setSelectedTopics([]);
 
     const handleStartClick = () => {
-        onStartQuiz({ numQuestions, studyMode, knowledgeSource, selectedTopics });
+        onStartQuiz({ numQuestions, studyMode, knowledgeSource, selectedTopics, customInstructions });
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -139,62 +140,67 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
                             <button onClick={handleDeselectAll} className="text-sm font-semibold text-brand-primary hover:underline">Deselect All</button>
                         </div>
                     </div>
-                    <div className="flex flex-col gap-3 max-h-96 overflow-y-auto pr-2">
-                         {isAnalyzingTopics ? <div className="flex justify-center items-center h-48"><LoadingSpinner /></div> : topics && topics.length > 0 ? (
-                            topics.map(topic => (
-                                <label key={topic} className={`flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-all border-2 ${selectedTopics.includes(topic) ? 'bg-brand-secondary/30 border-brand-primary' : 'bg-slate-800 border-slate-700 hover:border-slate-600'}`}>
-                                    <input type="checkbox" checked={selectedTopics.includes(topic)} onChange={() => handleTopicToggle(topic)} className="sr-only"/>
-                                    <div className={`w-6 h-6 rounded-md flex-shrink-0 flex items-center justify-center border-2 ${selectedTopics.includes(topic) ? 'bg-brand-primary border-brand-primary' : 'bg-slate-700 border-slate-600'}`}>
-                                        {selectedTopics.includes(topic) && (
-                                            <svg className="w-4 h-4 text-yellow-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                                        )}
-                                    </div>
-                                    <span className="font-medium text-text-primary flex-1">{topic}</span>
-                                </label>
-                            ))
-                        ) : <div className="text-center text-text-secondary flex flex-col justify-center items-center h-48 py-4"><p>No topics were generated.</p><p className="text-sm">Try regenerating or adding more content.</p></div>}
-                    </div>
+                    {isAnalyzingTopics ? (
+                        <div className="flex justify-center items-center h-24"><LoadingSpinner /></div>
+                    ) : (
+                        <div className="flex flex-wrap gap-2">
+                            {topics?.map(topic => (
+                                <button key={topic} onClick={() => handleTopicToggle(topic)} className={`px-3 py-2 text-sm rounded-full transition-all border-2 ${selectedTopics.includes(topic) ? 'bg-brand-primary border-brand-primary text-white font-bold' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}>
+                                    {selectedTopics.includes(topic) ? '✓ ' : ''}{topic}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
-                <div className="border-t border-gray-700 pt-6">
-                     <h3 className="text-xl font-bold text-text-primary mb-2">Add More Materials</h3>
-                    <p className="text-sm text-gray-400 mb-3">You can add supplemental files before generating the quiz.</p>
-                    <div className="bg-background-dark p-4 rounded-lg">
-                        <input type="file" id="fileUpload-topics" multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,audio/*,.md,text/markdown" onChange={handleFileChange} className="hidden"/>
-                        <label htmlFor="fileUpload-topics" className="w-full cursor-pointer bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-secondary transition-all inline-block text-center">Choose files</label>
+                <div className="border-t border-gray-700 pt-8">
+                    <h3 className="text-xl font-bold text-text-primary mb-2">Add More Materials</h3>
+                    <p className="text-sm text-text-secondary mb-3">You can add supplemental files before generating the quiz. This will re-analyze the content to find new topics.</p>
+                    <div className="flex flex-col gap-4">
+                        <input type="file" id="reanalyzeUpload" multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,audio/*,.md" onChange={handleFileChange} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary file:text-white hover:file:bg-brand-primary"/>
                         {files.length > 0 && (
-                          <div className="mt-4 text-left text-sm text-text-secondary p-3 rounded-md">
-                              <p className="font-bold mb-2">Files to add:</p>
-                              <ul className="space-y-2">
-                                  {files.map((f, i) => (
-                                    <li key={`${f.name}-${i}`} className="flex justify-between items-center group bg-gray-700/50 p-2 rounded-md">
-                                        <span className="truncate" title={f.name}>{f.name}</span>
-                                        <button onClick={() => handleRemoveFile(f)} className="p-1 rounded-full text-gray-400 hover:bg-red-500 hover:text-white ml-2 flex-shrink-0" aria-label={`Remove ${f.name}`}>
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                        </button>
-                                    </li>
-                                  ))}
-                              </ul>
-                               <button onClick={handleReanalyzeClick} className="mt-4 w-full bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-yellow-500 transition-all">Re-analyze with new files</button>
-                          </div>
+                            <div>
+                                <ul className="space-y-1 text-sm">
+                                    {files.map(f => (
+                                        <li key={f.name} className="flex justify-between items-center bg-gray-900/50 p-1.5 pl-3 rounded-md">
+                                            <span>{f.name}</span>
+                                            <button onClick={() => handleRemoveFile(f)} className="p-1 text-gray-400 hover:text-white">&times;</button>
+                                        </li>
+                                    ))}
+                                </ul>
+                                <button onClick={handleReanalyzeClick} className="mt-3 w-full px-6 py-2 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-500 transition-all">Re-analyze with {files.length} New File(s)</button>
+                            </div>
                         )}
                     </div>
                 </div>
 
-                <div className="border-t border-gray-700 pt-8 space-y-8 text-center">
-                    <QuizConfigurator 
-                        numQuestions={numQuestions} setNumQuestions={setNumQuestions}
-                        knowledgeSource={knowledgeSource} setKnowledgeSource={setKnowledgeSource}
-                        studyMode={studyMode} setStudyMode={setStudyMode}
+                <div className="border-t border-gray-700 pt-8">
+                    <h3 className="text-2xl font-bold text-text-primary mb-4">Custom Focus <span className="text-base font-normal text-text-secondary">(Optional)</span></h3>
+                     <p className="text-text-secondary mb-3 text-sm">
+                        Give the AI specific instructions to tailor your quiz. For example: "focus on chapters 5 and 6" or "create questions comparing photosynthesis and cellular respiration".
+                    </p>
+                    <textarea
+                        value={customInstructions}
+                        onChange={(e) => setCustomInstructions(e.target.value)}
+                        placeholder="Let's focus on..."
+                        className="w-full h-24 p-3 bg-gray-900 border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                        aria-label="Custom quiz instructions"
                     />
+                     {customInstructions && <p className="text-sm text-correct mt-2 animate-fade-in">✓ Your custom focus will be applied.</p>}
                 </div>
-            </div>
 
-            {processingError && <div className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg relative mt-6" role="alert"><span className="block sm:inline">{processingError}</span></div>}
-
-            <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
-                <button onClick={handleStartClick} disabled={selectedTopics.length === 0 || isProcessing || isAnalyzingTopics} className="w-full sm:w-auto px-12 py-4 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 flex items-center justify-center gap-2">Start Studying</button>
-                <button onClick={onBack} disabled={isProcessing || isAnalyzingTopics} className="w-full sm:w-auto px-8 py-3 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-all disabled:opacity-50">Back to Sets</button>
+                <div className="border-t border-gray-700 pt-8 mt-8 space-y-8 text-center">
+                    <QuizConfigurator 
+                        numQuestions={numQuestions}
+                        setNumQuestions={setNumQuestions}
+                        studyMode={studyMode}
+                        setStudyMode={setStudyMode}
+                        knowledgeSource={knowledgeSource}
+                        setKnowledgeSource={setKnowledgeSource}
+                    />
+                    {processingError && <div className="text-red-400 font-semibold">{processingError}</div>}
+                    <button onClick={handleStartClick} className="w-full sm:w-auto px-12 py-4 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all transform hover:scale-105">Start Quiz</button>
+                </div>
             </div>
         </div>
     );

@@ -1,7 +1,7 @@
 
 
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FillInTheBlankQuestion, FibValidationResult, FibValidationStatus, QuizResult } from '../types';
+import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult } from '../types';
 import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, personalizedFeedbackSchema, fibValidationSchema } from './geminiSchemas';
 import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFeedbackSystemInstruction, getFibValidationSystemInstruction } from './geminiPrompts';
 
@@ -45,10 +45,10 @@ export const generateTopics = async (userContentParts: PromptPart[]): Promise<st
 };
 
 export const generateQuiz = async (userContentParts: PromptPart[], config: QuizConfig): Promise<Quiz | null> => {
-  const { numberOfQuestions, knowledgeSource, topics, mode } = config;
+  const { numberOfQuestions, knowledgeSource, topics, mode, customInstructions } = config;
   
   const quizSchema = getQuizSchema(numberOfQuestions);
-  const systemInstruction = getQuizSystemInstruction(numberOfQuestions, knowledgeSource, mode, topics);
+  const systemInstruction = getQuizSystemInstruction(numberOfQuestions, knowledgeSource, mode, topics, customInstructions);
   
   const apiConfig: any = {
       systemInstruction,
@@ -118,9 +118,43 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
                     if (typeof correctAnswerBoolean !== 'boolean') return null;
                     return { questionType, questionText, correctAnswer: correctAnswerBoolean, explanation: q.explanation, topic };
                 case QuestionType.FILL_IN_THE_BLANK:
-                    const correctAnswerString = q.correctAnswerString || q.correctAnswer || q.missingTerm || q.blank;
-                    if (typeof correctAnswerString !== 'string' || !questionText.includes('___')) return null;
-                    return { questionType, questionText, correctAnswer: correctAnswerString, explanation: q.explanation, acceptableAnswers: q.acceptableAnswers || [], topic };
+                    const numBlanks = (questionText.match(/___/g) || []).length;
+                    if (numBlanks === 0) return null;
+
+                    // The AI might return `correctAnswers` (array) or `correctAnswerString` (single string for single blank).
+                    let correctAnswersArray = q.correctAnswers;
+                    if (!correctAnswersArray && q.correctAnswerString) {
+                        correctAnswersArray = [q.correctAnswerString];
+                    }
+                     if (!correctAnswersArray && Array.isArray(q.correctAnswer)) {
+                        correctAnswersArray = q.correctAnswer;
+                    }
+
+                    if (!Array.isArray(correctAnswersArray) || correctAnswersArray.some(i => typeof i !== 'string') || numBlanks !== correctAnswersArray.length) {
+                         console.warn(`Skipping invalid FIB question (answer/blank mismatch):`, q);
+                         return null;
+                    }
+                    
+                    let acceptableAnswersArrays = q.acceptableAnswers || [];
+                    // Handle case where it's an array of strings for a single blank question
+                    if (numBlanks === 1 && acceptableAnswersArrays.length > 0 && typeof acceptableAnswersArrays[0] === 'string') {
+                        acceptableAnswersArrays = [acceptableAnswersArrays];
+                    }
+                    
+                    // Validate structure of acceptableAnswers
+                    if (acceptableAnswersArrays.length > 0 && (acceptableAnswersArrays.length !== correctAnswersArray.length || acceptableAnswersArrays.some((sub: any) => !Array.isArray(sub)))) {
+                        console.warn(`Skipping invalid FIB question (acceptable answers format wrong):`, q);
+                        return null;
+                    }
+
+                    return { 
+                        questionType, 
+                        questionText, 
+                        correctAnswers: correctAnswersArray, 
+                        explanation: q.explanation, 
+                        acceptableAnswers: acceptableAnswersArrays, 
+                        topic 
+                    };
                 case QuestionType.OPEN_ENDED:
                      return { questionType, questionText, explanation: q.explanation, topic };
                 default:
@@ -271,25 +305,35 @@ export const generatePersonalizedFeedback = async (quizHistory: QuizResult[]): P
         return null;
     }
     
-    // Consolidate all answer logs from history
-    const allAnswerLogs = quizHistory.flatMap(r => r.answerLog);
+    // Sort history ascending by date to ensure the last item is the most recent.
+    const sortedHistory = [...quizHistory].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    const relevantLogData = sortedHistory.flatMap(result =>
+        result.answerLog.map(log => {
+            const pointsAwarded = typeof log.pointsAwarded === 'number' ? log.pointsAwarded : (log.isCorrect ? 10 : 0);
+            const maxPoints = typeof log.maxPoints === 'number' ? log.maxPoints : 10;
+            const topic = log.question.topic || "General Knowledge";
+            let userAnswerText: string;
+            if (typeof log.userAnswer === 'string') {
+                userAnswerText = log.userAnswer;
+            } else if (Array.isArray(log.userAnswer)) {
+                userAnswerText = log.userAnswer.join(', ');
+            } else {
+                userAnswerText = '[MC/TF Answer]';
+            }
 
-    const relevantLogData = allAnswerLogs.map(log => {
-        // Backward compatibility for older data that didn't have points or topics.
-        const pointsAwarded = typeof log.pointsAwarded === 'number' ? log.pointsAwarded : (log.isCorrect ? 10 : 0);
-        const maxPoints = typeof log.maxPoints === 'number' ? log.maxPoints : 10;
-        const topic = log.question.topic || "General Knowledge";
-
-        return {
-            topic,
-            question: log.question.questionText,
-            userAnswerText: typeof log.userAnswer === 'string' ? log.userAnswer : '[MC/TF Answer]',
-            isCorrect: log.isCorrect,
-            pointsAwarded,
-            maxPoints,
-            aiFeedback: log.aiFeedback,
-        };
-    });
+            return {
+                quizDate: result.date,
+                topic,
+                question: log.question.questionText,
+                userAnswerText: userAnswerText,
+                isCorrect: log.isCorrect,
+                pointsAwarded,
+                maxPoints,
+                aiFeedback: log.aiFeedback,
+            };
+        })
+    );
 
     if (relevantLogData.length === 0) {
         console.log("Skipping feedback generation: No answer log found.");
@@ -322,8 +366,8 @@ export const generatePersonalizedFeedback = async (quizHistory: QuizResult[]): P
 };
 
 
-export const validateFillInTheBlankAnswer = async (question: FillInTheBlankQuestion, userAnswer: string): Promise<FibValidationResult> => {
-    const systemInstruction = getFibValidationSystemInstruction(question.questionText, question.correctAnswer, userAnswer);
+export const validateFillInTheBlankAnswer = async (questionText: string, correctAnswer: string, userAnswer: string): Promise<FibValidationResult> => {
+    const systemInstruction = getFibValidationSystemInstruction(questionText, correctAnswer, userAnswer);
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
@@ -348,4 +392,47 @@ export const validateFillInTheBlankAnswer = async (question: FillInTheBlankQuest
         // Fallback to be strict if AI fails
         return { status: FibValidationStatus.INCORRECT, pointsAwarded: 0, comment: "Could not be validated." };
     }
+};
+
+export const generateVisualAid = async (conceptText: string): Promise<{ imageUrl: string; prompt: string }> => {
+    // 1. Generate a descriptive prompt for the image model
+    const promptGenerationSystemInstruction = `You are an AI assistant that creates vivid, detailed, and creative prompts for an image generation model. The user will provide a concept, and you must translate it into a prompt that will generate a helpful visual aid. The prompt should be conceptual, metaphorical, or diagrammatic. Focus on creating a visually striking and informative image. The prompt should be a single, descriptive paragraph.`;
+    
+    const promptResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: { parts: [{ text: `Generate an image prompt for this concept: ${conceptText}` }] },
+        config: {
+            systemInstruction: promptGenerationSystemInstruction,
+            temperature: 0.8,
+        },
+    });
+
+    const imagePrompt = promptResponse.text;
+
+    if (!imagePrompt) {
+        throw new Error("Could not generate a prompt for the visual aid.");
+    }
+    
+    // 2. Generate the image using the new prompt
+    const imageResponse = await ai.models.generateImages({
+        model: 'imagen-3.0-generate-002',
+        prompt: imagePrompt,
+        config: {
+          numberOfImages: 1,
+          outputMimeType: 'image/jpeg',
+          aspectRatio: '16:9',
+        },
+    });
+
+    if (!imageResponse.generatedImages || imageResponse.generatedImages.length === 0) {
+        throw new Error("The visual aid could not be generated.");
+    }
+
+    const base64ImageBytes = imageResponse.generatedImages[0].image?.imageBytes || '';
+    if (!base64ImageBytes) {
+        throw new Error("Failed to generate image: No image data received");
+    }
+    const imageUrl = `data:image/jpeg;base64,${base64ImageBytes}`;
+
+    return { imageUrl, prompt: imagePrompt };
 };

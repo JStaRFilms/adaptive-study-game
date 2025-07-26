@@ -39,6 +39,7 @@ export interface QuizConfig {
     mode: StudyMode;
     knowledgeSource: KnowledgeSource;
     topics?: string[];
+    customInstructions?: string;
 }
 
 export interface MultipleChoiceQuestion {
@@ -62,10 +63,10 @@ export interface TrueFalseQuestion {
 
 export interface FillInTheBlankQuestion {
   questionType: QuestionType.FILL_IN_THE_BLANK;
-  questionText: string; // Should contain a blank like '___'
-  correctAnswer: string;
+  questionText: string; // Should contain one or more blanks like '___'
+  correctAnswers: string[]; // An array of correct answers, one for each blank.
   explanation: string;
-  acceptableAnswers?: string[];
+  acceptableAnswers?: string[][]; // For each correct answer, an array of acceptable alternatives.
   topic?: string;
   studySetId?: string;
 }
@@ -109,7 +110,7 @@ export interface OpenEndedAnswer {
   images: { mimeType: string; data: string }[];
 }
 
-export type UserAnswer = string | number | boolean | OpenEndedAnswer | null;
+export type UserAnswer = string | string[] | number | boolean | OpenEndedAnswer | null;
 
 export interface AnswerLog {
   question: Question;

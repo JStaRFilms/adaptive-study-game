@@ -1,10 +1,12 @@
 
-
-import React from 'react';
+import React, { useState } from 'react';
 import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer, WebSource, PersonalizedFeedback } from '../types';
 import Markdown from './common/Markdown';
 import { extractAnswerForQuestion } from '../utils/textUtils';
 import LoadingSpinner from './common/LoadingSpinner';
+import { generateVisualAid } from '../services/geminiService';
+import ImageModal from './common/ImageModal';
+
 
 interface ReviewCardProps {
   log: AnswerLog;
@@ -12,9 +14,10 @@ interface ReviewCardProps {
   parsedAnswerText?: string | null;
   isExamReview?: boolean;
   webSources?: WebSource[];
+  onVisualize: (concept: string) => void;
 }
 
-const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, isExamReview, webSources }) => {
+const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, isExamReview, webSources, onVisualize }) => {
   const { question, userAnswer, isCorrect, pointsAwarded, maxPoints, aiFeedback, examFeedback } = log;
   
   const getStatus = () => {
@@ -57,7 +60,9 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
         case QuestionType.TRUE_FALSE:
             return <span className={answerStyle}>{userAnswer ? 'True' : 'False'}</span>;
         case QuestionType.FILL_IN_THE_BLANK:
-            return <span className={answerStyle}>"{userAnswer as string}"</span>;
+            const answers = Array.isArray(userAnswer) ? userAnswer : [userAnswer];
+            const answerText = answers.map(a => `"${a as string}"`).join(', ');
+            return <span className={answerStyle}>{answerText}</span>;
         case QuestionType.OPEN_ENDED:
             if (parsedAnswerText) {
                 return <div className="bg-gray-900 p-3 rounded-md whitespace-pre-wrap">{parsedAnswerText}</div>;
@@ -82,7 +87,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
             correctAnswerText = (question as TrueFalseQuestion).correctAnswer ? 'True' : 'False';
             break;
         case QuestionType.FILL_IN_THE_BLANK:
-            correctAnswerText = (question as FillInTheBlankQuestion).correctAnswer;
+            correctAnswerText = (question as FillInTheBlankQuestion).correctAnswers.map(a => `"${a}"`).join(', ');
             break;
         default:
             return null;
@@ -119,7 +124,22 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
         )}
         
         <div className="border-t border-gray-700 pt-3">
-            <p className="font-bold text-sm text-gray-400 mb-1">{question.questionType === QuestionType.OPEN_ENDED ? "GRADING RUBRIC" : "EXPLANATION"}</p>
+            <div className="flex justify-between items-center mb-1">
+                <p className="font-bold text-sm text-gray-400">
+                    {question.questionType === QuestionType.OPEN_ENDED ? "GRADING RUBRIC" : "EXPLANATION"}
+                </p>
+                <button
+                    onClick={() => onVisualize(question.explanation)}
+                    className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-brand-primary bg-brand-primary/10 rounded-md border border-brand-primary/30 hover:bg-brand-primary/20 transition-colors"
+                    aria-label="Visualize concept"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                    </svg>
+                    Visualize
+                </button>
+            </div>
             <Markdown content={question.explanation} webSources={webSources} className="prose prose-invert max-w-none text-text-secondary" />
         </div>
       </div>
@@ -267,6 +287,37 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, webSources, onRe
   let fullAnswerText: string | null = null;
   let submittedImages: OpenEndedAnswer['images'] = [];
 
+  const [isVisualizing, setIsVisualizing] = useState(false);
+  const [visError, setVisError] = useState<string | null>(null);
+  const [visModalData, setVisModalData] = useState<{
+    isOpen: boolean;
+    imageUrl: string | null;
+    imagePrompt: string | null;
+    conceptText: string | null;
+  }>({ isOpen: false, imageUrl: null, imagePrompt: null, conceptText: null });
+
+  const handleVisualize = async (concept: string) => {
+    setVisModalData({ isOpen: true, imageUrl: null, imagePrompt: null, conceptText: concept });
+    setIsVisualizing(true);
+    setVisError(null);
+    try {
+      const { imageUrl, prompt } = await generateVisualAid(concept);
+      setVisModalData(prev => ({ ...prev, imageUrl, imagePrompt: prompt }));
+    } catch (err) {
+      console.error("Error generating visual aid:", err);
+      setVisError(err instanceof Error ? err.message : "An unknown error occurred.");
+    } finally {
+      setIsVisualizing(false);
+    }
+  };
+  
+  const handleCloseVisModal = () => {
+    setVisModalData({ isOpen: false, imageUrl: null, imagePrompt: null, conceptText: null });
+    setIsVisualizing(false);
+    setVisError(null);
+  };
+
+
   if (isExamReview && answerLog.length > 0) {
       const firstOpenEndedLog = answerLog.find(log => log.question.questionType === QuestionType.OPEN_ENDED);
       if (firstOpenEndedLog) {
@@ -324,6 +375,7 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, webSources, onRe
             parsedAnswerText={parsedAnswers ? parsedAnswers[index] : null}
             isExamReview={isExamReview}
             webSources={webSources}
+            onVisualize={handleVisualize}
           />
         ))}
       </div>
@@ -346,6 +398,15 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, webSources, onRe
              <p className="text-xs text-text-secondary text-center mt-4">"Retake" uses the same questions. "Back to Study Sets" takes you to the main menu.</p>
         </div>
       </div>
+      <ImageModal 
+        isOpen={visModalData.isOpen}
+        onClose={handleCloseVisModal}
+        isLoading={isVisualizing}
+        error={visError}
+        imageUrl={visModalData.imageUrl}
+        imagePrompt={visModalData.imagePrompt}
+        conceptText={visModalData.conceptText}
+      />
     </div>
   );
 };

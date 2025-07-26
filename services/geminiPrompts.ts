@@ -1,7 +1,7 @@
 
 import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question } from '../types';
 
-export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[]): string => {
+export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[], customInstructions?: string): string => {
     let baseInstruction = '';
     
     if (mode === StudyMode.EXAM) {
@@ -24,10 +24,14 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
 - For EVERY question, you MUST include a 'topic' string property. If specific topics were requested, it must be one of them. Otherwise, it should be the most relevant topic from the material.
 - For MULTIPLE_CHOICE questions: Provide exactly 4 options and the 0-based index of the correct one.
 - For TRUE_FALSE questions: Provide a statement and its boolean truth value.
-- For FILL_IN_THE_BLANK questions: Provide a sentence with '___' for the missing term. Also, provide a generous list of 'acceptableAnswers' including common synonyms, misspellings, and plural/singular variations to avoid penalizing minor errors.
+- For FILL_IN_THE_BLANK questions: The 'questionText' can contain multiple '___' placeholders. The 'correctAnswers' property MUST be an array of strings with one answer for each '___', in order. The 'acceptableAnswers' property, if provided, MUST be an array of string arrays, corresponding to each correct answer. Provide a generous list of acceptable answers including common synonyms, misspellings, and plural/singular variations to avoid penalizing minor errors.
 - Use markdown for formatting, like **bold** for emphasis.`;
     }
     
+    if (customInstructions && customInstructions.trim()) {
+        baseInstruction += `\n- MOST IMPORTANT: The user has provided the following specific instructions which you MUST prioritize: "${customInstructions}".`;
+    }
+
     if (topics && topics.length > 0) {
         baseInstruction += `\n- The quiz must specifically focus on the following topics: ${topics.join(', ')}.`;
     }
@@ -49,7 +53,7 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
 - 'topic': (string) The main topic of the question.
 - For MULTIPLE_CHOICE: 'options' (array of 4 strings) and 'correctAnswerIndex' (integer).
 - For TRUE_FALSE: 'correctAnswerBoolean' (boolean).
-- For FILL_IN_THE_BLANK: 'correctAnswerString' (string) and optional 'acceptableAnswers' (array of strings).`;
+- For FILL_IN_THE_BLANK: 'correctAnswers' (array of strings) and optional 'acceptableAnswers' (array of array of strings).`;
 
                 baseInstruction += `\n\nYour response MUST be a single markdown JSON code block. Do not include any text outside of this block. The JSON object must have a 'questions' key, which is an array of question objects. Each question object must have these keys:
 ${schemaDescription}
@@ -157,18 +161,22 @@ ${hints || "Not provided"}
 export const getFeedbackSystemInstruction = (historyForPrompt: string): string => {
     return `You are a friendly and insightful study coach. Your goal is to provide personalized, actionable feedback to a student based on their quiz history for a particular subject.
 
-Analyze the provided quiz data, which is a JSON array of answer logs from MULTIPLE quiz sessions. Each log contains the question, topic, points awarded, max points, and any AI feedback.
+Analyze the provided quiz data, which is a JSON array of answer logs from MULTIPLE quiz sessions. Each log entry includes a \`quizDate\`. The most recent quiz is the one with the latest \`quizDate\`.
 
-Your analysis should be longitudinal. Look for patterns over time.
+Your analysis should be longitudinal, but **you must give special weight to the most recent quiz session.**
+
+**CRITICAL RULE:** If a user struggled with a topic in the past but answered ALL questions on that same topic correctly (i.e., received maximum points) in their MOST RECENT session, do NOT list it as a weakness or a "close call." Acknowledge their improvement instead, perhaps in the \`overallSummary\` or a \`strengthTopics\` comment. A "close call" should only be reported if it happened in the most recent quiz session.
+
+Look for patterns over time.
 
 Based on your analysis, you MUST generate a response in the specified JSON format. Your feedback should:
-1.  **Summarize Performance:** Start with a brief, encouraging overall summary of their performance on this subject across all sessions.
+1.  **Summarize Performance:** Start with a brief, encouraging overall summary of their performance on this subject across all sessions, noting recent improvements.
 2.  **Identify Strengths:** Pinpoint topics where the user has consistently done well (high accuracy).
-3.  **Identify Weaknesses:** Pinpoint topics where the user has consistently struggled (low accuracy). For each weak topic, you must:
+3.  **Identify Weaknesses:** Pinpoint topics where the user has consistently struggled (low accuracy), UNLESS they mastered it in the most recent session. For each weak topic, you must:
     a. Provide a comment explaining the weakness based on their history.
     b. Suggest a reasonable number of questions for a follow-up quiz.
     c. Generate a concise, effective 'youtubeSearchQuery' to help them find educational videos.
-4.  **Identify "Narrow Passes":** Scrutinize the answer log for questions where the user was awarded partial points (e.g., 5/10) or where \`aiFeedback\` exists. These are "close calls." List these out so the user can review their shaky knowledge.
+4.  **Identify "Narrow Passes":** Scrutinize the answer log for questions FROM THE MOST RECENT QUIZ where the user was awarded partial points or where \`aiFeedback\` exists. These are "close calls."
 5.  **Provide Actionable Advice:** Give a clear, concise recommendation for the user's next step.
 
 Here is the user's performance data, which is provided in the system instruction:

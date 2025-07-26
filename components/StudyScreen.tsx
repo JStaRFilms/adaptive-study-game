@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer } from '../types';
+import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig } from '../types';
 import ProgressBar from './common/ProgressBar';
 import TimerBar from './common/TimerBar';
 import Markdown from './common/Markdown';
 import Modal from './common/Modal';
+import Tooltip from './common/Tooltip';
 import { validateFillInTheBlankAnswer } from '../services/geminiService';
 
 interface StudyScreenProps {
@@ -13,6 +14,7 @@ interface StudyScreenProps {
   onQuit: () => void;
   mode: StudyMode;
   updateSRSItem: (question: Question, isCorrect: boolean) => Promise<void>;
+  quizConfig: QuizConfig | null;
 }
 
 type AnswerStatus = 'unanswered' | 'correct' | 'incorrect' | 'partial';
@@ -23,11 +25,11 @@ const SPEED_BONUS_POINTS = 5;
 const BASE_POINTS = 10;
 const STREAK_BONUS_MULTIPLIER = 2;
 
-const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScreenProps) => {
+const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }: StudyScreenProps) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
-  const [fillBlankAnswer, setFillBlankAnswer] = useState('');
+  const [fillBlankAnswers, setFillBlankAnswers] = useState<string[]>([]);
   const [answerStatus, setAnswerStatus] = useState<AnswerStatus>('unanswered');
   const [streak, setStreak] = useState(0);
   const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_LIMIT);
@@ -117,25 +119,31 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
 
             if (logEntry.question.questionType === QuestionType.MULTIPLE_CHOICE) {
                 setSelectedOptionIndex(logEntry.userAnswer as number | null);
-                setFillBlankAnswer('');
+                setFillBlankAnswers([]);
             } else if (logEntry.question.questionType === QuestionType.FILL_IN_THE_BLANK) {
-                setFillBlankAnswer(logEntry.userAnswer as string || '');
+                setFillBlankAnswers(logEntry.userAnswer as string[] || []);
                 setSelectedOptionIndex(null);
             } else { // True/False
                 setSelectedOptionIndex(null);
-                setFillBlankAnswer('');
+                setFillBlankAnswers([]);
             }
         } else {
+            // Reset for a new question
             setTimeLeft(QUESTION_TIME_LIMIT);
             setBonusPointsAwarded(0);
             setAnswerStatus('unanswered');
             setIsTimedOut(false);
             setSelectedOptionIndex(null);
-            setFillBlankAnswer('');
             setAnswerExplanation(null);
             setCorrectionFeedback(null);
+            if (currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
+                 const numBlanks = (currentQuestion as FillInTheBlankQuestion).correctAnswers.length;
+                 setFillBlankAnswers(Array(numBlanks).fill(''));
+            } else {
+                 setFillBlankAnswers([]);
+            }
         }
-    }, [currentQuestionIndex, answerLog, quiz.questions]);
+    }, [currentQuestionIndex, currentQuestion, answerLog, quiz.questions]);
 
 
   useEffect(() => {
@@ -143,14 +151,18 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
     if (timeLeft <= 0) {
       setIsTimedOut(true);
       const handleTimeout = async () => {
-        await processAnswer({ awarded: 0, max: BASE_POINTS }, null); 
+        let maxPts = BASE_POINTS;
+        if(currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK){
+            maxPts = (currentQuestion as FillInTheBlankQuestion).correctAnswers.length * BASE_POINTS;
+        }
+        await processAnswer({ awarded: 0, max: maxPts }, null); 
       };
       handleTimeout();
       return;
     }
     const countdownTimer = setTimeout(() => setTimeLeft(t => t - 1), 1000);
     return () => clearTimeout(countdownTimer);
-  }, [answerStatus, timeLeft, isReviewMode, processAnswer]);
+  }, [answerStatus, timeLeft, isReviewMode, processAnswer, currentQuestion]);
 
   const handleMcSubmit = async () => {
     if (selectedOptionIndex === null || currentQuestion.questionType !== QuestionType.MULTIPLE_CHOICE) return;
@@ -166,37 +178,49 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
 
   const handleFibSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const userAnswerStr = fillBlankAnswer.trim();
-    if (!userAnswerStr || currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK) return;
+    if (fillBlankAnswers.every(a => !a.trim()) || currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK) return;
+
+    setIsVerifyingAnswer(true);
 
     const typedQuestion = currentQuestion as FillInTheBlankQuestion;
-    const userAnswer = userAnswerStr.toLowerCase();
-    const correctAnswer = typedQuestion.correctAnswer.toLowerCase();
-    const acceptableAnswers = (typedQuestion.acceptableAnswers || []).map(a => a.toLowerCase());
+    const numBlanks = typedQuestion.correctAnswers.length;
+    const maxPoints = BASE_POINTS * numBlanks;
+    let awardedPoints = 0;
+    const comments: string[] = [];
 
-    const isPerfectMatch = userAnswer === correctAnswer;
-    const isAcceptable = !isPerfectMatch && acceptableAnswers.includes(userAnswer);
+    for (let i = 0; i < numBlanks; i++) {
+        const userAnswerStr = fillBlankAnswers[i] || '';
+        const userAnswerLower = userAnswerStr.trim().toLowerCase();
+        const correctAnswer = typedQuestion.correctAnswers[i].toLowerCase();
+        const acceptableAnswers = (typedQuestion.acceptableAnswers?.[i] || []).map(a => a.toLowerCase());
 
-    if (isPerfectMatch || isAcceptable) {
-        const comment = isAcceptable ? `We accepted your answer, but the ideal answer is: "${typedQuestion.correctAnswer}"` : undefined;
-        await processAnswer({ awarded: BASE_POINTS, max: BASE_POINTS, comment }, userAnswerStr);
-    } else {
-        setIsVerifyingAnswer(true);
-        try {
-            const validationResult = await validateFillInTheBlankAnswer(typedQuestion, userAnswerStr);
-            await processAnswer({
-              awarded: validationResult.pointsAwarded,
-              max: BASE_POINTS,
-              comment: validationResult.comment,
-            }, userAnswerStr);
-
-        } catch (error) {
-            console.error("AI validation failed:", error);
-            await processAnswer({ awarded: 0, max: BASE_POINTS, comment: "AI validation failed." }, userAnswerStr);
-        } finally {
-            setIsVerifyingAnswer(false);
+        if (userAnswerLower === correctAnswer || acceptableAnswers.includes(userAnswerLower)) {
+            awardedPoints += BASE_POINTS;
+        } else if (userAnswerStr.trim()) {
+            try {
+                const validationResult = await validateFillInTheBlankAnswer(
+                    typedQuestion.questionText,
+                    typedQuestion.correctAnswers[i],
+                    userAnswerStr
+                );
+                awardedPoints += validationResult.pointsAwarded;
+                if (validationResult.pointsAwarded > 0 && validationResult.comment) {
+                    comments.push(`Blank #${i + 1}: ${validationResult.comment}`);
+                }
+            } catch (error) {
+                console.error("AI validation failed for a blank:", error);
+                comments.push(`AI validation failed for blank #${i + 1}.`);
+            }
         }
     }
+
+    await processAnswer({
+        awarded: awardedPoints,
+        max: maxPoints,
+        comment: comments.join(' '),
+    }, fillBlankAnswers);
+
+    setIsVerifyingAnswer(false);
   };
   
   const renderAnswerFeedback = () => {
@@ -205,8 +229,15 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
     let feedbackContent = null;
     switch(currentQuestion.questionType) {
       case QuestionType.FILL_IN_THE_BLANK:
-        const userAnswerText = fillBlankAnswer.trim() ? `"${fillBlankAnswer}"` : "nothing";
-        feedbackContent = <><p className={`text-lg ${answerStatus !== 'incorrect' ? 'text-text-secondary' : 'text-incorrect'}`}>You answered: {userAnswerText}</p>{answerStatus === 'incorrect' && <p className="text-lg font-semibold mt-1">Correct answer: <span className="text-correct">{currentQuestion.correctAnswer}</span></p>}</>;
+        const fibQuestion = currentQuestion as FillInTheBlankQuestion;
+        const userAnswerText = fillBlankAnswers.map(a => `"${a.trim() || '...'}"`).join(', ');
+        const correctAnswersText = fibQuestion.correctAnswers.map(a => `"${a}"`).join(', ');
+        feedbackContent = (
+            <>
+                <p className={`text-lg ${answerStatus !== 'incorrect' ? 'text-text-secondary' : 'text-incorrect'}`}>You answered: {userAnswerText}</p>
+                {answerStatus === 'incorrect' && <p className="text-lg font-semibold mt-1">Correct answer(s): <span className="text-correct">{correctAnswersText}</span></p>}
+            </>
+        );
         break;
       case QuestionType.TRUE_FALSE:
         feedbackContent = answerStatus === 'incorrect' ? <p className="text-lg font-semibold">The correct answer was: <span className={currentQuestion.correctAnswer ? 'text-correct' : 'text-incorrect'}>{currentQuestion.correctAnswer ? 'True' : 'False'}</span></p> : null;
@@ -233,28 +264,35 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
     const isAnswered = answerStatus !== 'unanswered';
     
     if (currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
-        const [part1, ...rest] = currentQuestion.questionText.split('___');
-        const part2 = rest.join('___');
-        const inputSize = fillBlankAnswer.length > 0 ? fillBlankAnswer.length : 1;
+        const parts = currentQuestion.questionText.split('___');
         
         return (
              <form onSubmit={isAnswered || isVerifyingAnswer ? (e) => e.preventDefault() : handleFibSubmit} className="flex flex-col items-center gap-4">
-                <div className="text-2xl sm:text-3xl font-bold text-text-primary text-center flex flex-wrap items-center justify-center gap-2">
-                    <Markdown content={part1} as="span"/>
-                    <input
-                        type="text"
-                        value={fillBlankAnswer}
-                        onChange={isAnswered || isVerifyingAnswer ? undefined : e => setFillBlankAnswer(e.target.value)}
-                        readOnly={isAnswered || isVerifyingAnswer}
-                        className="mx-2 px-2 py-1 text-center w-auto max-w-xs bg-gray-900 border-b-2 border-brand-primary focus:outline-none focus:ring-0 text-brand-primary font-bold"
-                        autoFocus={!isAnswered}
-                        aria-label="Fill in the blank answer"
-                        size={inputSize}
-                    />
-                    <Markdown content={part2} as="span"/>
+                <div className="text-2xl sm:text-3xl font-bold text-text-primary text-center flex flex-wrap items-center justify-center gap-2 leading-relaxed">
+                    {parts.map((part, index) => (
+                      <React.Fragment key={index}>
+                        <Markdown content={part} as="span"/>
+                        {index < parts.length - 1 && (
+                             <input
+                                type="text"
+                                value={fillBlankAnswers[index] || ''}
+                                onChange={isAnswered || isVerifyingAnswer ? undefined : e => {
+                                    const newAnswers = [...fillBlankAnswers];
+                                    newAnswers[index] = e.target.value;
+                                    setFillBlankAnswers(newAnswers);
+                                }}
+                                readOnly={isAnswered || isVerifyingAnswer}
+                                className="inline-block mx-2 px-2 py-1 text-center bg-gray-900 border-b-2 border-brand-primary focus:outline-none focus:ring-0 text-brand-primary font-bold"
+                                autoFocus={!isAnswered && index === 0}
+                                aria-label={`Fill in the blank answer ${index + 1}`}
+                                size={Math.max(1, fillBlankAnswers[index]?.length || (currentQuestion as FillInTheBlankQuestion).correctAnswers[index].length/2)}
+                            />
+                        )}
+                      </React.Fragment>
+                    ))}
                 </div>
                 {!isAnswered && 
-                  <button type="submit" disabled={!fillBlankAnswer.trim() || isVerifyingAnswer} className="px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[160px]">
+                  <button type="submit" disabled={fillBlankAnswers.every(a => !a.trim()) || isVerifyingAnswer} className="mt-4 px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[160px]">
                       {isVerifyingAnswer && <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>}
                       {isVerifyingAnswer ? 'Verifying...' : 'Submit'}
                   </button>
@@ -336,6 +374,11 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
                 </div>
                 
                 <div className="flex justify-center items-center gap-x-4 sm:gap-x-6">
+                    {quizConfig?.customInstructions && (
+                         <Tooltip text="Quiz tailored with custom instructions">
+                            <span className="text-xs bg-purple-600 text-white font-bold px-2 py-1 rounded-full">Custom</span>
+                        </Tooltip>
+                    )}
                     <span>Score: <span className="text-brand-primary">{score}</span></span>
                     <span>Streak: <span className="text-white">{streak}x</span></span>
                 </div>
@@ -368,10 +411,10 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem }: StudyScree
       
       <div className="mt-6 min-h-[8rem] flex items-center justify-center">
         <div className="flex flex-col items-center justify-center gap-4 text-center">
-            {answerStatus !== 'unanswered' && renderFeedbackMessage()}
+            {answerStatus === 'unanswered' && !isVerifyingAnswer && renderFeedbackMessage()}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 {isReviewMode && currentQuestionIndex > 0 && <button onClick={goToPreviousQuestion} className="px-8 py-3 bg-gray-600 text-white font-bold rounded-lg shadow-md hover:bg-gray-500 transition-all text-lg animate-fade-in">← Previous</button>}
-                {answerStatus !== 'unanswered' && <button onClick={goToNextQuestion} className="px-8 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-brand-primary transition-all text-lg animate-fade-in">{currentQuestionIndex + 1 < totalQuestions ? 'Next Question →' : 'Finish Quiz'}</button>}
+                {answerStatus !== 'unanswered' && !isVerifyingAnswer && <button onClick={goToNextQuestion} className="px-8 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-brand-primary transition-all text-lg animate-fade-in">{currentQuestionIndex + 1 < totalQuestions ? 'Next Question →' : 'Finish Quiz'}</button>}
             </div>
         </div>
       </div>
