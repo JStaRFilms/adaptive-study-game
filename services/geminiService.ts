@@ -428,11 +428,12 @@ export const generateVisualAid = async (conceptText: string): Promise<{ imageUrl
         throw new Error("The visual aid could not be generated.");
     }
 
-    const generatedImage = imageResponse.generatedImages?.[0]?.image;
-    if (!generatedImage || !('imageBytes' in generatedImage)) {
-        throw new Error("Failed to generate image: Invalid image response format");
+    const base64ImageBytes = imageResponse.generatedImages?.[0]?.image?.imageBytes;
+    
+    if (!base64ImageBytes) {
+        throw new Error("The visual aid was generated, but the image data is missing.");
     }
-    const base64ImageBytes = generatedImage.imageBytes as string;
+    
     const imageUrl = `data:image/jpeg;base64,${base64ImageBytes}`;
 
     return { imageUrl, prompt: imagePrompt };

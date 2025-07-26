@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig } from '../types';
 import ProgressBar from './common/ProgressBar';
@@ -20,6 +21,7 @@ interface StudyScreenProps {
 type AnswerStatus = 'unanswered' | 'correct' | 'incorrect' | 'partial';
 
 const QUESTION_TIME_LIMIT = 20; // 20 seconds per question
+const FIB_TIME_LIMIT = 35; // Extra time for typing
 const SPEED_BONUS_THRESHOLD = 15; // Answer with >= 15s left for bonus
 const SPEED_BONUS_POINTS = 5;
 const BASE_POINTS = 10;
@@ -44,6 +46,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
   const isReviewMode = mode === StudyMode.REVIEW;
   const currentQuestion: Question = quiz.questions[currentQuestionIndex];
   const totalQuestions = quiz.questions.length;
+  const timeLimitForCurrentQuestion = currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK ? FIB_TIME_LIMIT : QUESTION_TIME_LIMIT;
 
   const goToNextQuestion = useCallback(() => {
     if (currentQuestionIndex + 1 < totalQuestions) {
@@ -129,7 +132,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
             }
         } else {
             // Reset for a new question
-            setTimeLeft(QUESTION_TIME_LIMIT);
+            setTimeLeft(timeLimitForCurrentQuestion);
             setBonusPointsAwarded(0);
             setAnswerStatus('unanswered');
             setIsTimedOut(false);
@@ -143,7 +146,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
                  setFillBlankAnswers([]);
             }
         }
-    }, [currentQuestionIndex, currentQuestion, answerLog, quiz.questions]);
+    }, [currentQuestionIndex, currentQuestion, answerLog, quiz.questions, timeLimitForCurrentQuestion]);
 
 
   useEffect(() => {
@@ -367,40 +370,60 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
   return (
     <div className="w-full max-w-3xl mx-auto p-4 flex flex-col animate-fade-in h-full">
       <header className="mb-6">
-        <div className="bg-surface-dark p-4 rounded-xl shadow-lg w-full">
-            <div className="grid grid-cols-3 items-center text-text-secondary font-semibold">
-                <div className="text-left">
-                    <button onClick={() => setIsQuitModalOpen(true)} className="text-sm font-semibold text-gray-400 hover:text-white transition-colors">End Session</button>
-                </div>
-                
-                <div className="flex justify-center items-center gap-x-4 sm:gap-x-6">
-                    {quizConfig?.customInstructions && (
-                         <Tooltip text="Quiz tailored with custom instructions">
-                            <span className="text-xs bg-purple-600 text-white font-bold px-2 py-1 rounded-full">Custom</span>
-                        </Tooltip>
-                    )}
-                    <span>Score: <span className="text-brand-primary">{score}</span></span>
-                    <span>Streak: <span className="text-white">{streak}x</span></span>
-                </div>
-                
-                <div className="flex justify-end items-center gap-x-4 sm:gap-x-6">
-                    {mode === StudyMode.PRACTICE ? (
-                        <span className="text-yellow-400 text-lg font-bold">{timeLeft}s</span>
-                    ) : (
-                        <span className="text-brand-secondary">{mode === StudyMode.SRS ? "SRS Review" : "Review Mode"}</span>
-                    )}
-                    <span>Q: {currentQuestionIndex + 1}/{totalQuestions}</span>
-                </div>
-            </div>
-            
-            <div className="mt-3">
-                {mode === StudyMode.PRACTICE ? (
-                    <TimerBar timeLeft={timeLeft} timeLimit={QUESTION_TIME_LIMIT} />
-                ) : (
-                     <ProgressBar progress={((currentQuestionIndex + 1) / totalQuestions) * 100} />
-                )}
-            </div>
-        </div>
+          <div className="bg-surface-dark p-3 sm:p-4 rounded-xl shadow-lg w-full">
+              <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-x-4 gap-y-2 text-text-secondary font-semibold">
+                  {/* Left Side: End Session */}
+                  <div className="flex-shrink-0">
+                      <button onClick={() => setIsQuitModalOpen(true)} className="font-semibold text-gray-400 hover:text-white transition-colors text-sm">
+                          End Session
+                      </button>
+                  </div>
+
+                  {/* Middle: Score and Streak (full width on mobile, centered) */}
+                  <div className="w-full sm:w-auto order-3 sm:order-2 flex-grow flex justify-center items-center gap-x-6 sm:gap-x-6 border-t sm:border-none border-gray-700 pt-3 sm:pt-0">
+                      <Tooltip text="Score">
+                          <div className="flex items-center gap-1.5">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                              <span className="text-lg text-brand-primary font-bold">{score}</span>
+                          </div>
+                      </Tooltip>
+                      <Tooltip text="Streak">
+                          <div className="flex items-center gap-1.5">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M15.312 11.342c-.068.093-.127.19-.182.292-.099.183-.19.37-.275.563-.146.335-.28.688-.403 1.052-.132.387-.247.79-.345 1.206-.05.207-.09.418-.124.632a9.04 9.04 0 0 1-1.423.513c-.32.094-.648.172-.98.228-.313.053-.63.093-.95.12-.323.028-.65.04-.978.04-.33 0-.658-.013-.986-.042-.328-.028-.655-.068-.983-.12-.327-.056-.656-.134-.978-.228a9.04 9.04 0 0 1-1.423-.513c-.034-.214-.074-.425-.124-.632-.098-.416-.213-.819-.345-1.206-.123-.364-.257-.717-.403-1.052-.085-.193-.176-.38-.275-.563C4.19 11.532 4.13 11.435 4.063 11.34c-.458-.636-.713-1.442-.69-2.263.023-.82.325-1.603.856-2.228.38-.44.82-.815 1.29-1.125.47-.31.96-.563 1.46-.75.48-.18.96-.3 1.44-.36.46-.06.9-.09 1.32-.09.42 0 .86.03 1.32.09.48.06.96.18 1.44.36.5.187 1 .44 1.46.75.47.31.91.685 1.29 1.125.53.625.833 1.408.856 2.228.023.821-.233 1.627-.69 2.264Z" clipRule="evenodd" /></svg>
+                              <span className="text-lg text-white font-bold">{streak}x</span>
+                          </div>
+                      </Tooltip>
+                      {quizConfig?.customInstructions && (
+                          <Tooltip text="Custom instructions active">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" /></svg>
+                          </Tooltip>
+                      )}
+                  </div>
+
+                  {/* Right Side: Timer & Q Count */}
+                  <div className="flex-shrink-0 order-2 sm:order-3">
+                      <div className="flex items-center gap-x-3 sm:gap-x-4">
+                          {mode === StudyMode.PRACTICE ? (
+                              <span className="text-yellow-400 font-bold text-lg">{timeLeft}s</span>
+                          ) : (
+                              <span className="text-brand-secondary text-xs font-bold uppercase">{mode === StudyMode.SRS ? "SRS Review" : "Review"}</span>
+                          )}
+                          <span className="font-mono text-sm bg-gray-900/50 px-2 py-1 rounded-md">
+                              {currentQuestionIndex + 1}/{totalQuestions}
+                          </span>
+                      </div>
+                  </div>
+              </div>
+              
+              {/* Progress Bar */}
+              <div className="mt-3">
+                  {mode === StudyMode.PRACTICE ? (
+                      <TimerBar timeLeft={timeLeft} timeLimit={timeLimitForCurrentQuestion} />
+                  ) : (
+                      <ProgressBar progress={((currentQuestionIndex + 1) / totalQuestions) * 100} />
+                  )}
+              </div>
+          </div>
       </header>
       
       <div className="bg-surface-dark p-6 sm:p-8 rounded-xl shadow-2xl flex flex-col justify-center flex-grow">
@@ -411,7 +434,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
       
       <div className="mt-6 min-h-[8rem] flex items-center justify-center">
         <div className="flex flex-col items-center justify-center gap-4 text-center">
-            {answerStatus === 'unanswered' && !isVerifyingAnswer && renderFeedbackMessage()}
+            {answerStatus !== 'unanswered' && !isVerifyingAnswer && renderFeedbackMessage()}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 {isReviewMode && currentQuestionIndex > 0 && <button onClick={goToPreviousQuestion} className="px-8 py-3 bg-gray-600 text-white font-bold rounded-lg shadow-md hover:bg-gray-500 transition-all text-lg animate-fade-in">← Previous</button>}
                 {answerStatus !== 'unanswered' && !isVerifyingAnswer && <button onClick={goToNextQuestion} className="px-8 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-brand-primary transition-all text-lg animate-fade-in">{currentQuestionIndex + 1 < totalQuestions ? 'Next Question →' : 'Finish Quiz'}</button>}

@@ -1,4 +1,5 @@
 
+
 import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question } from '../types';
 
 export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[], customInstructions?: string): string => {
@@ -25,6 +26,7 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
 - For MULTIPLE_CHOICE questions: Provide exactly 4 options and the 0-based index of the correct one.
 - For TRUE_FALSE questions: Provide a statement and its boolean truth value.
 - For FILL_IN_THE_BLANK questions: The 'questionText' can contain multiple '___' placeholders. The 'correctAnswers' property MUST be an array of strings with one answer for each '___', in order. The 'acceptableAnswers' property, if provided, MUST be an array of string arrays, corresponding to each correct answer. Provide a generous list of acceptable answers including common synonyms, misspellings, and plural/singular variations to avoid penalizing minor errors.
+- CRITICAL: For FILL_IN_THE_BLANK questions, the answers MUST be common, easily typeable words or numbers. AVOID answers that require special symbols, mathematical notations (e.g., Σ, ε, ∗), or anything not found on a standard keyboard. Use MULTIPLE_CHOICE for concepts that involve such symbols.
 - Use markdown for formatting, like **bold** for emphasis.`;
     }
     
