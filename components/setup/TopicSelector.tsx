@@ -177,7 +177,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
                 <div className="border-t border-gray-700 pt-8">
                     <h3 className="text-2xl font-bold text-text-primary mb-4">Custom Focus <span className="text-base font-normal text-text-secondary">(Optional)</span></h3>
                      <p className="text-text-secondary mb-3 text-sm">
-                        Give the AI specific instructions to tailor your quiz. For example: "focus on chapters 5 and 6" or "create questions comparing photosynthesis and cellular respiration".
+                        Give the AI specific instructions to tailor your quiz. For example: "focus on chapters 5 and 6" or "create fill in the gap questions comparing photosynthesis and cellular respiration".
                     </p>
                     <textarea
                         value={customInstructions}

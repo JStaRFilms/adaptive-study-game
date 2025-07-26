@@ -4,7 +4,7 @@ import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, Fil
 import Markdown from './common/Markdown';
 import { extractAnswerForQuestion } from '../utils/textUtils';
 import LoadingSpinner from './common/LoadingSpinner';
-import { generateVisualAid } from '../services/geminiService';
+// import { generateVisualAid } from '../services/geminiService'; // This is no longer called directly.
 import ImageModal from './common/ImageModal';
 
 
@@ -294,25 +294,23 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, webSources, onRe
     imageUrl: string | null;
     imagePrompt: string | null;
     conceptText: string | null;
-  }>({ isOpen: false, imageUrl: null, imagePrompt: null, conceptText: null });
+    mode: 'visualize' | 'coming_soon';
+  }>({ isOpen: false, imageUrl: null, imagePrompt: null, conceptText: null, mode: 'visualize' });
 
-  const handleVisualize = async (concept: string) => {
-    setVisModalData({ isOpen: true, imageUrl: null, imagePrompt: null, conceptText: concept });
-    setIsVisualizing(true);
+  const handleVisualize = (concept: string) => {
+    setVisModalData({
+      isOpen: true,
+      imageUrl: null,
+      imagePrompt: null,
+      conceptText: concept,
+      mode: 'coming_soon',
+    });
+    setIsVisualizing(false);
     setVisError(null);
-    try {
-      const { imageUrl, prompt } = await generateVisualAid(concept);
-      setVisModalData(prev => ({ ...prev, imageUrl, imagePrompt: prompt }));
-    } catch (err) {
-      console.error("Error generating visual aid:", err);
-      setVisError(err instanceof Error ? err.message : "An unknown error occurred.");
-    } finally {
-      setIsVisualizing(false);
-    }
   };
   
   const handleCloseVisModal = () => {
-    setVisModalData({ isOpen: false, imageUrl: null, imagePrompt: null, conceptText: null });
+    setVisModalData({ isOpen: false, imageUrl: null, imagePrompt: null, conceptText: null, mode: 'visualize' });
     setIsVisualizing(false);
     setVisError(null);
   };
@@ -406,6 +404,7 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, webSources, onRe
         imageUrl={visModalData.imageUrl}
         imagePrompt={visModalData.imagePrompt}
         conceptText={visModalData.conceptText}
+        mode={visModalData.mode}
       />
     </div>
   );
