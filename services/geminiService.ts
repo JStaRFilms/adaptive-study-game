@@ -1,9 +1,9 @@
 
 
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult } from '../types';
-import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, personalizedFeedbackSchema, fibValidationSchema } from './geminiSchemas';
-import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFeedbackSystemInstruction, getFibValidationSystemInstruction } from './geminiPrompts';
+import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide } from '../types';
+import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, personalizedFeedbackSchema, fibValidationSchema, studyGuideSchema } from './geminiSchemas';
+import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFeedbackSystemInstruction, getFibValidationSystemInstruction, getStudyGuideInstruction } from './geminiPrompts';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable not set.");
@@ -293,6 +293,38 @@ export const generateExamPrediction = async (data: any): Promise<PredictedQuesti
 
     } catch(error) {
         console.error("Error generating exam prediction:", error);
+        throw error;
+    }
+};
+
+export const generateStudyGuideForPrediction = async (question: PredictedQuestion): Promise<StudyGuide> => {
+    const systemInstruction = getStudyGuideInstruction(question);
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: [{ text: "Please generate the study guide based on the system instruction." }] },
+            config: {
+                systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: studyGuideSchema,
+                temperature: 0.6,
+            },
+        });
+
+        const jsonText = response.text;
+        if (!jsonText) {
+            throw new Error("Study guide API returned an empty response.");
+        }
+        const result = JSON.parse(jsonText.trim());
+        
+        if (result.answerOutline && Array.isArray(result.youtubeSearchQueries)) {
+            return result as StudyGuide;
+        }
+        throw new Error("Study guide API returned an invalid format.");
+
+    } catch(error) {
+        console.error("Error generating study guide:", error);
         throw error;
     }
 };

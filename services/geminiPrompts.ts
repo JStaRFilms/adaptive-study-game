@@ -1,6 +1,6 @@
 
 
-import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question } from '../types';
+import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion } from '../types';
 
 export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[], customInstructions?: string): string => {
     let baseInstruction = '';
@@ -160,12 +160,29 @@ ${hints || "Not provided"}
     return promptParts;
 };
 
+export const getStudyGuideInstruction = (question: PredictedQuestion): string => {
+    return `You are an expert study assistant. A student has a predicted exam question and needs help preparing for it. Your task is to generate a comprehensive study guide for this single question.
+
+**Predicted Exam question:** "${question.questionText}"
+**Topic:** ${question.topic}
+**Reasoning for Prediction:** ${question.reasoning}
+
+Based on this, you must generate two things:
+1.  **Answer Outline:** A detailed, well-structured answer outline of what a complete, high-scoring answer should include. This should not be a full essay, but a clear roadmap for the student.
+    **MARKDOWN RULES:**
+    - Use a single asterisk followed by a space for bullet points (e.g., "* Item").
+    - Use double asterisks for bold text (e.g., "**Important Concept**").
+    - Do NOT use single asterisks for italics or any other emphasis. Stick to bold and bullets.
+    - Ensure your markdown is clean and correctly formatted. For example, a line can be a bullet, or bold, or both, but avoid messy combinations like \`* **Word:**** Text\`. Correct would be \`* **Word:** Text\`.
+2.  **YouTube Search Queries:** A list of 2-3 distinct, effective search queries that will help the student find high-quality educational videos on YouTube to understand the underlying concepts.
+
+Your response MUST be a JSON object matching the required schema.`;
+};
+
 export const getFeedbackSystemInstruction = (historyForPrompt: string): string => {
     return `You are a friendly and insightful study coach. Your goal is to provide personalized, actionable feedback to a student based on their quiz history for a particular subject.
 
 Analyze the provided quiz data, which is a JSON array of answer logs from MULTIPLE quiz sessions. Each log entry includes a \`quizDate\`. The most recent quiz is the one with the latest \`quizDate\`.
-
-Your analysis should be longitudinal, but **you must give special weight to the most recent quiz session.**
 
 **CRITICAL RULE:** If a user struggled with a topic in the past but answered ALL questions on that same topic correctly (i.e., received maximum points) in their MOST RECENT session, do NOT list it as a weakness or a "close call." Acknowledge their improvement instead, perhaps in the \`overallSummary\` or a \`strengthTopics\` comment. A "close call" should only be reported if it happened in the most recent quiz session.
 

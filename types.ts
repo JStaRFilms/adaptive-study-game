@@ -148,6 +148,11 @@ export interface PredictionResult {
   results: PredictedQuestion[];
 }
 
+export interface StudyGuide {
+  answerOutline: string;
+  youtubeSearchQueries: string[];
+}
+
 export type PromptPart = { text: string } | { inlineData: { mimeType: string; data: string } };
 
 export interface PersonalizedFeedback {

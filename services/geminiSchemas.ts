@@ -138,6 +138,22 @@ export const predictionSchema = {
     required: ["predictions"]
 };
 
+export const studyGuideSchema = {
+    type: Type.OBJECT,
+    properties: {
+        answerOutline: {
+            type: Type.STRING,
+            description: "A detailed, well-structured answer outline for the provided exam question. Use markdown for lists and emphasis (e.g., * bullet point, **bold text**). This should guide the student on how to form a complete answer."
+        },
+        youtubeSearchQueries: {
+            type: Type.ARRAY,
+            description: "An array of 2-3 concise, effective search queries for finding educational YouTube videos about this topic.",
+            items: { type: Type.STRING }
+        }
+    },
+    required: ["answerOutline", "youtubeSearchQueries"]
+};
+
 export const personalizedFeedbackSchema = {
     type: Type.OBJECT,
     properties: {
