@@ -50,7 +50,7 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 
 ## 🚀 Project Philosophy
 > This project is built on a few core principles:
-> 1.  **AI-First Experience**: Leveraging the powerful, multimodal `gemini-2.5-flash` model to provide intelligent features that feel like magic.
+> 1.  **AI-First Experience**: Leveraging the powerful, multimodal `gemini-2.5-flash` model to provide intelligent features that feel like a magic.
 > 2.  **Frictionless Development**: By using browser-native ES Modules and a CDN (`esm.sh`), the project avoids complex build steps. There's no `npm install`, no bundler configuration—just modern web technologies.
 > 3.  **User-Centric Design**: The entire experience, from the landing page to the quiz review screen, is designed to be intuitive, engaging, and effective for learning. Data is stored locally in the user's browser, ensuring privacy and persistence without a backend.
 
@@ -90,15 +90,30 @@ This application is designed to run in a web-based development environment that 
 
 ### Configuration
 
-The application requires a Google Gemini API key to function. This key must be available as an environment variable named `API_KEY`.
+The application requires a Google Gemini API key to function. The key(s) must be available as an environment variable. The app follows a clear rule: **it will use `API_KEY_POOL` if it's available; otherwise, it will fall back to using `API_KEY`**.
 
-The application's code (`services/geminiService.ts`) expects to access the key via `process.env.API_KEY`. Please ensure this environment variable is correctly configured in your deployment or development environment.
+#### Recommended Method (for one or more keys)
 
-**Note**: The API key is not to be hard-coded into the application. The app is built with the assumption that the execution environment securely provides this key.
+Use the `API_KEY_POOL` environment variable. Provide one or more keys separated by commas. This is the best way to use the app's load balancing and failover features.
+
+**Example with multiple keys:**
+`API_KEY_POOL="key_one,key_two,key_three"`
+
+**Example with a single key:**
+`API_KEY_POOL="my_only_key"`
+
+#### Legacy Method (for a single key)
+
+If you only have one key and prefer the old method, you can use the `API_KEY` variable. This is supported for backward compatibility.
+
+**Example:**
+`API_KEY="my_only_key"`
+
+**Note**: If `API_KEY_POOL` is set, `API_KEY` will be **ignored**. There is no need to set both variables.
 
 ### Running the Application
 
-1. Ensure the `API_KEY` environment variable is set.
+1. Ensure the `API_KEY_POOL` or `API_KEY` environment variable is set.
 2. Serve the `index.html` file from the root of the project directory.
 3. Open the served URL in your web browser. The application will initialize and be ready to use.
 
