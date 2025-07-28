@@ -26,9 +26,9 @@ class ApiKeyManager {
   private keyCooldowns: Map<string, CooldownInfo> = new Map();
 
   constructor() {
-    const keyPoolEnv = process.env.API_KEY_POOL || process.env.API_KEY;
+    const keyPoolEnv = process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY;
     if (!keyPoolEnv) {
-      console.error("API_KEY_POOL or API_KEY environment variable not set.");
+      console.error("API_KEY_POOL, API_KEY, or GEMINI_API_KEY environment variable not set.");
       return;
     }
     this.keys = keyPoolEnv.split(',').map(k => k.trim()).filter(Boolean);

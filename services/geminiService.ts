@@ -5,8 +5,8 @@ import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruc
 import { ModelIdentifier } from './aiConstants';
 import { apiKeyManager } from './apiKeyManager';
 
-if (!process.env.API_KEY_POOL && !process.env.API_KEY) {
-    throw new Error("API_KEY_POOL or API_KEY environment variable not set.");
+if (!process.env.API_KEY_POOL && !process.env.API_KEY && !process.env.GEMINI_API_KEY) {
+    throw new Error("API_KEY_POOL, API_KEY, or GEMINI_API_KEY environment variable not set.");
 }
 
 const MAX_RETRIES = 5;

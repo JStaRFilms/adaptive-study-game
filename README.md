@@ -90,11 +90,15 @@ This application is designed to run in a web-based development environment that 
 
 ### Configuration
 
-The application requires a Google Gemini API key to function. The key(s) must be available as an environment variable. The app follows a clear rule: **it will use `API_KEY_POOL` if it's available; otherwise, it will fall back to using `API_KEY`**.
+The application requires a Google Gemini API key to function. The key(s) must be available as an environment variable. The app checks for variables in the following order of precedence:
+
+1.  **`API_KEY_POOL`**: For one or more keys, comma-separated. **This is the recommended method** for enabling load balancing and failover.
+2.  **`API_KEY`**: A fallback for a single key, supported for backward compatibility.
+3.  **`GEMINI_API_KEY`**: A final fallback, primarily for compatibility with certain development environments (like Vite configs that expose this variable).
 
 #### Recommended Method (for one or more keys)
 
-Use the `API_KEY_POOL` environment variable. Provide one or more keys separated by commas. This is the best way to use the app's load balancing and failover features.
+Use the `API_KEY_POOL` environment variable.
 
 **Example with multiple keys:**
 `API_KEY_POOL="key_one,key_two,key_three"`
@@ -102,21 +106,44 @@ Use the `API_KEY_POOL` environment variable. Provide one or more keys separated 
 **Example with a single key:**
 `API_KEY_POOL="my_only_key"`
 
-#### Legacy Method (for a single key)
+#### Fallback Methods (for a single key)
 
-If you only have one key and prefer the old method, you can use the `API_KEY` variable. This is supported for backward compatibility.
+If `API_KEY_POOL` is not set, the app will look for `API_KEY` or `GEMINI_API_KEY`.
 
 **Example:**
-`API_KEY="my_only_key"`
+`API_KEY="my_single_key"`
 
-**Note**: If `API_KEY_POOL` is set, `API_KEY` will be **ignored**. There is no need to set both variables.
+or
+
+`GEMINI_API_KEY="my_single_key"`
+
+**Note**: It is best practice to use `API_KEY_POOL`. If `API_KEY_POOL` is set, all other key variables will be **ignored**.
 
 ### Running the Application
 
-1. Ensure the `API_KEY_POOL` or `API_KEY` environment variable is set.
+1. Ensure one of the API key environment variables is set (`API_KEY_POOL`, `API_KEY`, or `GEMINI_API_KEY`).
 2. Serve the `index.html` file from the root of the project directory.
 3. Open the served URL in your web browser. The application will initialize and be ready to use.
 
+# vite.config.ts
+import path from 'path';
+import { defineConfig, loadEnv } from 'vite';
+
+export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, '.', '');
+    return {
+      define: {
+        'process.env.API_KEY_POOL': JSON.stringify(env.API_KEY_POOL),
+        'process.env.API_KEY': JSON.stringify(env.API_KEY),
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+      },
+      resolve: {
+        alias: {
+          '@': path.resolve(__dirname, '.'),
+        }
+      }
+    };
+});
 
 ## 🗺️ Roadmap
 
