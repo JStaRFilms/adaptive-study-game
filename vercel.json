@@ -4,8 +4,10 @@
       "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist"
+        "distDir": "dist",
+        "installCommand": "npm install"
       }
     }
-  ]
+  ],
+  "nodeVersion": "20.x"
 }
