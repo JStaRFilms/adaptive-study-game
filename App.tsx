@@ -1,6 +1,9 @@
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource } from './types';
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import SetupScreen from './components/SetupScreen';
 import StudyScreen from './components/StudyScreen';
 import ResultsScreen from './components/ResultsScreen';
@@ -20,8 +23,6 @@ import { useSRS } from './hooks/useSRS';
 import { processFilesToParts } from './utils/fileProcessor';
 import { initializeDb } from './utils/db';
 import MigrationScreen from './components/MigrationScreen';
-import { SpeedInsights } from '@vercel/speed-insights/react';
-import { Analytics } from '@vercel/analytics/react';
 
 const LEGACY_STORAGE_KEYS = [
   'adaptive-study-game-sets',
@@ -285,7 +286,7 @@ const App: React.FC = () => {
     } else {
       // This case handles reviewing the *current* session's results immediately after finishing
       logToReview = answerLog;
-      setQuiz({ questions: answerLog.map((l: AnswerLog) => l.question), webSources: quiz?.webSources });
+      setQuiz({ questions: answerLog.map(l => l.question), webSources: quiz?.webSources });
     }
     setAnswerLog(logToReview);
     setAppState(AppState.REVIEWING);

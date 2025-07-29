@@ -43,7 +43,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
   const [isVerifyingAnswer, setIsVerifyingAnswer] = useState(false);
   const [isTimedOut, setIsTimedOut] = useState(false);
 
-  const isReviewMode = mode === StudyMode.REVIEW;
+  const isUntimedMode = mode === StudyMode.REVIEW || mode === StudyMode.SRS;
   const currentQuestion: Question = quiz.questions[currentQuestionIndex];
   const totalQuestions = quiz.questions.length;
   const timeLimitForCurrentQuestion = currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK ? FIB_TIME_LIMIT : QUESTION_TIME_LIMIT;
@@ -92,7 +92,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
     if (isFullyCorrect || isPartiallyCorrect) {
       const streakBonus = isFullyCorrect ? (streak * STREAK_BONUS_MULTIPLIER) : 0;
       let currentSpeedBonus = 0;
-      if (!isReviewMode && timeLeft >= SPEED_BONUS_THRESHOLD && isFullyCorrect) {
+      if (!isUntimedMode && timeLeft >= SPEED_BONUS_THRESHOLD && isFullyCorrect) {
         currentSpeedBonus = SPEED_BONUS_POINTS;
         setBonusPointsAwarded(currentSpeedBonus);
       }
@@ -103,7 +103,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
       setStreak(0);
       setAnswerStatus('incorrect');
     }
-  }, [answerStatus, streak, timeLeft, isReviewMode, currentQuestion, mode, updateSRSItem]);
+  }, [answerStatus, streak, timeLeft, isUntimedMode, currentQuestion, mode, updateSRSItem]);
 
     useEffect(() => {
         const logEntry = answerLog.find(log => log.question === quiz.questions[currentQuestionIndex]);
@@ -150,7 +150,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
 
 
   useEffect(() => {
-    if (isReviewMode || answerStatus !== 'unanswered') return;
+    if (isUntimedMode || answerStatus !== 'unanswered') return;
     if (timeLeft <= 0) {
       setIsTimedOut(true);
       const handleTimeout = async () => {
@@ -165,7 +165,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
     }
     const countdownTimer = setTimeout(() => setTimeLeft(t => t - 1), 1000);
     return () => clearTimeout(countdownTimer);
-  }, [answerStatus, timeLeft, isReviewMode, processAnswer, currentQuestion]);
+  }, [answerStatus, timeLeft, isUntimedMode, processAnswer, currentQuestion]);
 
   const handleMcSubmit = async () => {
     if (selectedOptionIndex === null || currentQuestion.questionType !== QuestionType.MULTIPLE_CHOICE) return;
@@ -344,7 +344,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
             <div className="text-center">
                 <p className="text-2xl font-bold text-correct animate-pulse">Correct! 🎉</p>
                 {correctionFeedback && <p className="text-base text-yellow-300 mt-2">{correctionFeedback}</p>}
-                {!isReviewMode && bonusPointsAwarded > 0 && <p className="text-lg font-bold text-yellow-400">+{bonusPointsAwarded} Speed Bonus!</p>}
+                {!isUntimedMode && bonusPointsAwarded > 0 && <p className="text-lg font-bold text-yellow-400">+{bonusPointsAwarded} Speed Bonus!</p>}
             </div>
         );
     }
@@ -359,7 +359,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
     if (answerStatus === 'incorrect') {
         return (
             <div className="text-center">
-                <p className="text-2xl font-bold text-incorrect">{isTimedOut && !isReviewMode ? "Time's Up! ⌛" : "Incorrect 🙁"}</p>
+                <p className="text-2xl font-bold text-incorrect">{isTimedOut && !isUntimedMode ? "Time's Up! ⌛" : "Incorrect 🙁"}</p>
                  {correctionFeedback && <p className="text-base text-yellow-300 mt-2">{correctionFeedback}</p>}
             </div>
         );
@@ -436,7 +436,7 @@ const StudyScreen = ({ quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig }
         <div className="flex flex-col items-center justify-center gap-4 text-center">
             {answerStatus !== 'unanswered' && !isVerifyingAnswer && renderFeedbackMessage()}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                {isReviewMode && currentQuestionIndex > 0 && <button onClick={goToPreviousQuestion} className="px-8 py-3 bg-gray-600 text-white font-bold rounded-lg shadow-md hover:bg-gray-500 transition-all text-lg animate-fade-in">← Previous</button>}
+                {mode === StudyMode.REVIEW && currentQuestionIndex > 0 && <button onClick={goToPreviousQuestion} className="px-8 py-3 bg-gray-600 text-white font-bold rounded-lg shadow-md hover:bg-gray-500 transition-all text-lg animate-fade-in">← Previous</button>}
                 {answerStatus !== 'unanswered' && !isVerifyingAnswer && <button onClick={goToNextQuestion} className="px-8 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-brand-primary transition-all text-lg animate-fade-in">{currentQuestionIndex + 1 < totalQuestions ? 'Next Question →' : 'Finish Quiz'}</button>}
             </div>
         </div>

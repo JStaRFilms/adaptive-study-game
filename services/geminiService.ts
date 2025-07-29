@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, GenerateImagesResponse } from "@google/genai";
 import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide } from '../types';
 import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, personalizedFeedbackSchema, fibValidationSchema, studyGuideSchema } from './geminiSchemas';
 import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFeedbackSystemInstruction, getFibValidationSystemInstruction, getStudyGuideInstruction } from './geminiPrompts';
@@ -59,7 +59,7 @@ export const generateTopics = async (userContentParts: PromptPart[]): Promise<st
     const contents = { parts: [{ text: instruction }, ...userContentParts] };
     
     try {
-        const response = await apiCallWithRetry(
+        const response = await apiCallWithRetry<GenerateContentResponse>(
             (client, model) => client.models.generateContent({
                 model,
                 contents: contents,
@@ -110,7 +110,7 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
   }
   
   try {
-      const response = await apiCallWithRetry(
+      const response = await apiCallWithRetry<GenerateContentResponse>(
           (client, model) => client.models.generateContent({
               model,
               contents: { parts: userContentParts },
@@ -245,7 +245,7 @@ export const gradeExam = async (questions: Question[], submission: OpenEndedAnsw
     }
     
     try {
-        const response = await apiCallWithRetry(
+        const response = await apiCallWithRetry<GenerateContentResponse>(
             (client, model) => client.models.generateContent({
                 model,
                 contents: { parts: userContentParts },
@@ -299,7 +299,7 @@ export const generateExamPrediction = async (data: any): Promise<PredictedQuesti
     const userPromptParts = getPredictionUserPromptParts(data);
     
     try {
-        const response = await apiCallWithRetry(
+        const response = await apiCallWithRetry<GenerateContentResponse>(
             (client, model) => client.models.generateContent({
                 model,
                 contents: { parts: userPromptParts },
@@ -334,7 +334,7 @@ export const generateStudyGuideForPrediction = async (question: PredictedQuestio
     const systemInstruction = getStudyGuideInstruction(question);
     
     try {
-        const response = await apiCallWithRetry(
+        const response = await apiCallWithRetry<GenerateContentResponse>(
             (client, model) => client.models.generateContent({
                 model,
                 contents: { parts: [{ text: "Please generate the study guide based on the system instruction." }] },
@@ -385,7 +385,7 @@ export const generatePersonalizedFeedback = async (quizHistory: QuizResult[]): P
     const systemInstruction = getFeedbackSystemInstruction(JSON.stringify(relevantLogData, null, 2));
 
     try {
-        const response = await apiCallWithRetry(
+        const response = await apiCallWithRetry<GenerateContentResponse>(
             (client, model) => client.models.generateContent({
                 model,
                 contents: { parts: [{ text: "Please generate the feedback based on the data in the system instruction." }] },
@@ -412,7 +412,7 @@ export const generatePersonalizedFeedback = async (quizHistory: QuizResult[]): P
 export const validateFillInTheBlankAnswer = async (questionText: string, correctAnswer: string, userAnswer: string): Promise<FibValidationResult> => {
     const systemInstruction = getFibValidationSystemInstruction(questionText, correctAnswer, userAnswer);
     try {
-        const response = await apiCallWithRetry(
+        const response = await apiCallWithRetry<GenerateContentResponse>(
             (client, model) => client.models.generateContent({
                 model,
                 contents: { parts: [{ text: "Evaluate the user's answer based on the system instruction."}] },
@@ -439,7 +439,7 @@ export const validateFillInTheBlankAnswer = async (questionText: string, correct
 export const generateVisualAid = async (conceptText: string): Promise<{ imageUrl: string; prompt: string }> => {
     const promptGenerationSystemInstruction = `You are an AI assistant that creates vivid, detailed, and creative prompts for an image generation model. The user will provide a concept, and you must translate it into a prompt that will generate a helpful visual aid. The prompt should be conceptual, metaphorical, or diagrammatic. Focus on creating a visually striking and informative image. The prompt should be a single, descriptive paragraph.`;
     
-    const promptResponse = await apiCallWithRetry(
+    const promptResponse = await apiCallWithRetry<GenerateContentResponse>(
         (client, model) => client.models.generateContent({
             model,
             contents: { parts: [{ text: `Generate an image prompt for this concept: ${conceptText}` }] },
@@ -451,7 +451,7 @@ export const generateVisualAid = async (conceptText: string): Promise<{ imageUrl
     const imagePrompt = promptResponse.text;
     if (!imagePrompt) throw new Error("Could not generate a prompt for the visual aid.");
     
-    const imageResponse = await apiCallWithRetry(
+    const imageResponse = await apiCallWithRetry<GenerateImagesResponse>(
         (client, model) => client.models.generateImages({
             model,
             prompt: imagePrompt,
