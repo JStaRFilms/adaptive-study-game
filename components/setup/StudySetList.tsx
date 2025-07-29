@@ -1,7 +1,5 @@
-
-
 import React, { useState } from 'react';
-import { StudySet } from '../../types';
+import { StudySet, PromptPart } from '../../types';
 import Modal from '../common/Modal';
 import Tooltip from '../common/Tooltip';
 
@@ -14,7 +12,7 @@ interface StudySetListProps {
   onEditSet: (set: StudySet) => void;
   onDeleteSet: (id: string) => void;
   onPredict: (id: string) => void;
-  onPrepareForQuiz: (set: StudySet) => void;
+  onPrepareForQuiz: (parts: PromptPart[], set: StudySet) => void;
   onShowHistory: (set: StudySet) => void;
   onShowStats: () => void;
   onStartSrsQuiz: () => void;
@@ -25,7 +23,7 @@ const StudySetList: React.FC<StudySetListProps> = ({
   studySets,
   error,
   processingError,
-  isProcessing,
+  isProcessing: isGloballyProcessing,
   onNewSet,
   onEditSet,
   onDeleteSet,
@@ -38,11 +36,40 @@ const StudySetList: React.FC<StudySetListProps> = ({
 }) => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [setForDetails, setSetForDetails] = useState<StudySet | null>(null);
+  const [currentlyProcessingSetId, setCurrentlyProcessingSetId] = useState<string|null>(null);
 
   const handleShowDetails = (set: StudySet) => {
     setSetForDetails(set);
     setIsDetailsModalOpen(true);
   };
+
+  const handlePrepareWrapper = async (set: StudySet) => {
+      setCurrentlyProcessingSetId(set.id);
+      try {
+        const parts: PromptPart[] = [];
+        if (set.content?.trim()) {
+            parts.push({ text: set.content.trim() });
+        }
+        if (set.persistedFiles) {
+            for (const pFile of set.persistedFiles) {
+                if (pFile.type.startsWith('image/') || pFile.type.startsWith('audio/')) {
+                    parts.push({ inlineData: { mimeType: pFile.type, data: pFile.data }});
+                } else {
+                    // For persisted PDFs, DOCX, etc., the text is already in `set.content`.
+                    // The image parts of PDFs are not persisted yet, so this logic is simplified.
+                    // When PDF-page-as-image is implemented, that data would be in persistedFiles.
+                }
+            }
+        }
+        onPrepareForQuiz(parts, set);
+      } catch (e) {
+        console.error("Error preparing quiz parts", e);
+      } finally {
+        setCurrentlyProcessingSetId(null);
+      }
+  };
+
+  const isProcessing = isGloballyProcessing || !!currentlyProcessingSetId;
 
   return (
     <div className="animate-fade-in">
@@ -95,7 +122,7 @@ const StudySetList: React.FC<StudySetListProps> = ({
               <div className="flex-grow min-w-0">
                 <h3 className="font-bold text-xl text-text-primary">{set.name}</h3>
                 <p className="text-sm text-text-secondary hidden sm:flex items-center gap-2">
-                    {set.fileInfo && set.fileInfo.length > 0 && <><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a3 3 0 10-6 0v4a3 3 0 106 0V7a1 1 0 112 0v4a5 5 0 01-10 0V7a3 3 0 013-3z" clipRule="evenodd" /></svg>{set.fileInfo.length} files</>}
+                    {set.persistedFiles && set.persistedFiles.length > 0 && <><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a3 3 0 10-6 0v4a3 3 0 106 0V7a1 1 0 112 0v4a5 5 0 01-10 0V7a3 3 0 013-3z" clipRule="evenodd" /></svg>{set.persistedFiles.length} files</>}
                     <span className="truncate">{set.content.substring(0, 100)}...</span>
                 </p>
               </div>
@@ -104,7 +131,9 @@ const StudySetList: React.FC<StudySetListProps> = ({
                   <button onClick={() => onPredict(set.id)} className="px-3 py-2 text-sm bg-purple-600 text-white font-bold rounded-md hover:bg-purple-500 transition-all">Predict</button>
                 </Tooltip>
                 <Tooltip text="Start a quiz with this set" position="top">
-                  <button onClick={() => onPrepareForQuiz(set)} disabled={isProcessing} className="px-3 py-2 text-sm bg-brand-primary text-white font-bold rounded-md hover:bg-brand-secondary transition-all disabled:bg-gray-500">Study</button>
+                  <button onClick={() => handlePrepareWrapper(set)} disabled={isProcessing} className="px-3 py-2 text-sm bg-brand-primary text-white font-bold rounded-md hover:bg-brand-secondary transition-all disabled:bg-gray-500">
+                    {currentlyProcessingSetId === set.id ? '...' : 'Study'}
+                  </button>
                 </Tooltip>
                 <Tooltip text="View past quiz results" position="top">
                   <button onClick={() => onShowHistory(set)} className="px-3 py-2 text-sm bg-gray-600 text-white font-bold rounded-md hover:bg-gray-500 transition-all">History</button>
@@ -124,9 +153,9 @@ const StudySetList: React.FC<StudySetListProps> = ({
         </div>
       )}
       <Modal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} title={`Details for "${setForDetails?.name}"`}>
-        {setForDetails?.fileInfo && setForDetails.fileInfo.length > 0 ? (
+        {setForDetails?.persistedFiles && setForDetails.persistedFiles.length > 0 ? (
             <ul className="space-y-2 text-text-secondary max-h-80 overflow-y-auto">
-                {setForDetails.fileInfo.map((file, index) => (
+                {setForDetails.persistedFiles.map((file, index) => (
                     <li key={index} className="flex items-center gap-3 bg-gray-700/50 p-2 rounded-md">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" /></svg>
                         <span className="truncate">{file.name}</span>

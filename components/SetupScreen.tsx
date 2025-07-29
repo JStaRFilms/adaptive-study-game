@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { StudySet, QuizConfig, PromptPart, QuizResult } from '../types';
 import { generateTopics } from '../services/geminiService';
@@ -82,215 +83,261 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     setProgressPercent(percent);
   }, []);
 
-  const handlePrepareForQuiz = useCallback(async (set: StudySet, supplementalFiles: File[] = []) => {
-    resetState();
-    setActiveSet(set);
-    setIsProcessing(true);
-    setProcessingError(null);
-    setProgressPercent(0);
+    const handlePrepareForQuiz = useCallback(async (parts: PromptPart[], set: StudySet, supplementalFiles: File[] = []) => {
+        resetState();
+        setActiveSet(set);
+        setIsProcessing(true);
+        setProcessingError(null);
+        setProgressPercent(0);
+        setPreparedParts(parts); // Set parts immediately from the list screen
 
-    try {
-        const onReanalyzeProgress = (message: string, percent: number) => {
-            setProgressMessage(message);
-            setProgressPercent(Math.round(percent * 0.7)); // Reserve 30% for topic step
-        };
+        try {
+            let currentSet = set;
 
-        const { parts, combinedText, fileInfo } = await processFilesToParts(set.content, supplementalFiles, onReanalyzeProgress);
-        setPreparedParts(parts);
-        
-        let currentSet = set;
-        if (supplementalFiles.length > 0) {
-            const updatedSetData: StudySet = {
-                ...set,
-                content: combinedText.trim(),
-                fileInfo: [...(set.fileInfo || []), ...fileInfo],
-                topics: [] // Invalidate topics if new files are added
+            // This block is now only for generating topics, not reprocessing files
+            const onTopicProgress = (message: string, percent: number) => {
+                setProgressMessage(message);
+                setProgressPercent(percent);
             };
-            await updateSet(updatedSetData);
-            currentSet = updatedSetData;
-        }
-        setActiveSet(currentSet);
-
-        // Check for existing topics
-        if (currentSet.topics && currentSet.topics.length > 0) {
-            setProgressMessage('Loading existing topics...');
+            onTopicProgress('Checking for topics...', 25);
+            
+            // Check for existing topics
+            if (currentSet.topics && currentSet.topics.length > 0) {
+                onTopicProgress('Loading existing topics...', 100);
+                setTopics(currentSet.topics);
+            } else {
+                onTopicProgress('Analyzing for topics...', 75);
+                const generatedTopics = await generateTopics(parts);
+                
+                const updatedSetWithTopics: StudySet = { ...currentSet, topics: generatedTopics };
+                await updateSet(updatedSetWithTopics);
+                setActiveSet(updatedSetWithTopics);
+                setTopics(generatedTopics);
+                onTopicProgress('Topics generated!', 90);
+            }
+            
             setProgressPercent(100);
-            setTopics(currentSet.topics);
-        } else {
-            setProgressMessage('Analyzing for topics...');
-            setProgressPercent(75);
+            await new Promise(res => setTimeout(res, 300));
+
+            setAction('TOPIC_SELECTION');
+        } catch (err) {
+            console.error("Error preparing quiz:", err);
+            const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
+            setProcessingError(errorMessage);
+            setAction('LIST');
+        } finally {
+            setIsProcessing(false);
+        }
+    }, [resetState, updateSet]);
+
+    const fullSaveAndAnalyze = async (data: {name: string, content: string, files: File[]}) => {
+        setIsProcessing(true);
+        setProcessingError(null);
+
+        try {
+            const { combinedText, persistedFiles } = await processFilesToParts(data.content, data.files, onProgress);
+            
+            let currentSet: StudySet;
+            let finalPersistedFiles = persistedFiles;
+
+            if (activeSet) { // Editing
+                finalPersistedFiles = [...(activeSet.persistedFiles || []), ...persistedFiles];
+                currentSet = { ...activeSet, name: data.name, content: combinedText.trim(), persistedFiles: finalPersistedFiles, topics: [] }; // Clear topics on content change
+                await updateSet(currentSet);
+            } else { // Creating
+                currentSet = await addSet({ name: data.name, content: combinedText.trim(), persistedFiles: finalPersistedFiles, topics: [] });
+            }
+            
+            // Now that the set is saved, prepare the parts for topic analysis
+            const parts: PromptPart[] = [];
+            if (currentSet.content) { parts.push({ text: currentSet.content }); }
+            if (currentSet.persistedFiles) {
+                currentSet.persistedFiles.forEach(pf => {
+                     if (pf.type.startsWith('image/') || pf.type.startsWith('audio/')) {
+                        parts.push({ inlineData: { mimeType: pf.type, data: pf.data } });
+                     }
+                });
+            }
+            setPreparedParts(parts);
+            
+            setIsProcessing(false);
+            setIsAnalyzingTopics(true);
             const generatedTopics = await generateTopics(parts);
+            setTopics(generatedTopics);
             
             // Save the new topics to the study set
             const updatedSetWithTopics: StudySet = { ...currentSet, topics: generatedTopics };
             await updateSet(updatedSetWithTopics);
             setActiveSet(updatedSetWithTopics);
-            setTopics(generatedTopics);
-            setProgressPercent(90);
+            
+            setIsAnalyzingTopics(false);
+            setAction('TOPIC_SELECTION');
+        } catch (err) {
+            console.error("Error during analysis pipeline:", err);
+            setProcessingError(err instanceof Error ? err.message : "An unknown error occurred.");
+            setIsProcessing(false);
+            setIsAnalyzingTopics(false);
         }
-        
-        setProgressPercent(100);
-        await new Promise(res => setTimeout(res, 300));
-
-        setAction('TOPIC_SELECTION');
-    } catch (err) {
-        console.error("Error preparing quiz:", err);
-        const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
-        setProcessingError(errorMessage);
-        setAction('LIST');
-    } finally {
-        setIsProcessing(false);
-    }
-  }, [resetState, updateSet]);
-
-  const fullSaveAndAnalyze = async (data: {name: string, content: string, files: File[]}) => {
-    setIsProcessing(true);
-    setProcessingError(null);
-
-    try {
-        const { parts, combinedText, fileInfo } = await processFilesToParts(data.content, data.files, onProgress);
-        setPreparedParts(parts);
-        
-        setIsProcessing(false);
-        setIsAnalyzingTopics(true);
-
-        const generatedTopics = await generateTopics(parts);
-        setTopics(generatedTopics);
-        
-        setIsAnalyzingTopics(false);
-        
-        let currentSet: StudySet;
-        if (activeSet) { // Editing
-            currentSet = { ...activeSet, name: data.name, content: combinedText.trim(), fileInfo: [...(activeSet.fileInfo || []), ...fileInfo], topics: generatedTopics };
-            await updateSet(currentSet);
-        } else { // Creating
-            currentSet = await addSet({ name: data.name, content: combinedText.trim(), fileInfo, topics: generatedTopics });
-        }
-        setActiveSet(currentSet);
-
-        setAction('TOPIC_SELECTION');
-    } catch (err) {
-        console.error("Error during analysis pipeline:", err);
-        setProcessingError(err instanceof Error ? err.message : "An unknown error occurred.");
-        setIsProcessing(false);
-        setIsAnalyzingTopics(false);
-    }
-  };
-
-  const fullSaveOnly = async (data: {name: string, content: string, files: File[]}) => {
-    setIsProcessing(true);
-    setProcessingError(null);
-    try {
-        const { combinedText, fileInfo } = await processFilesToParts(data.content, data.files, onProgress);
-        if (activeSet) {
-            const contentChanged = activeSet.content !== combinedText.trim();
-            const filesChanged = data.files.length > 0;
-            // Clear topics if content changed, otherwise preserve them.
-            const newTopics = (contentChanged || filesChanged) ? [] : activeSet.topics || [];
-            await updateSet({ ...activeSet, name: data.name, content: combinedText.trim(), fileInfo: [...(activeSet.fileInfo || []), ...fileInfo], topics: newTopics });
-        } else {
-            await addSet({ name: data.name, content: combinedText.trim(), fileInfo, topics: [] });
-        }
-        handleShowList();
-    } catch (err) {
-        setProcessingError(err instanceof Error ? err.message : "An error occurred.");
-    } finally {
-        setIsProcessing(false);
-    }
-  };
-  
-  const handleStartQuiz = (config: {numQuestions: number, studyMode: any, knowledgeSource: any, selectedTopics: string[], customInstructions: string}) => {
-    if (!activeSet) return;
-    const finalConfig: QuizConfig = {
-      numberOfQuestions: config.numQuestions,
-      mode: config.studyMode,
-      knowledgeSource: config.knowledgeSource,
-      topics: config.selectedTopics,
-      customInstructions: config.customInstructions,
     };
-    onStart(preparedParts, finalConfig, activeSet.id);
-  };
+    
+    const fullSaveOnly = async (data: {name: string, content: string, files: File[]}) => {
+        setIsProcessing(true);
+        setProcessingError(null);
+        try {
+            const { combinedText, persistedFiles } = await processFilesToParts(data.content, data.files, onProgress);
+            
+            if (activeSet) {
+                const contentChanged = activeSet.content !== combinedText.trim() || persistedFiles.length > 0;
+                const finalPersistedFiles = [...(activeSet.persistedFiles || []), ...persistedFiles];
+                await updateSet({ 
+                    ...activeSet, 
+                    name: data.name, 
+                    content: combinedText.trim(),
+                    persistedFiles: finalPersistedFiles,
+                    topics: contentChanged ? [] : activeSet.topics || [] // Clear topics if content changed
+                });
+            } else {
+                await addSet({ name: data.name, content: combinedText.trim(), persistedFiles, topics: [] });
+            }
+            handleShowList();
+        } catch (err) {
+            setProcessingError(err instanceof Error ? err.message : "An error occurred.");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
   
-  const handleRegenerateTopics = async () => {
-    if (!activeSet) return;
-    setIsAnalyzingTopics(true);
-    try {
-        const generatedTopics = await generateTopics(preparedParts);
-        const updatedSetWithTopics: StudySet = { ...activeSet, topics: generatedTopics };
-        await updateSet(updatedSetWithTopics);
-        setActiveSet(updatedSetWithTopics);
-        setTopics(generatedTopics);
-    } catch (err) {
-        console.error("Error regenerating topics", err);
-    } finally {
-        setIsAnalyzingTopics(false);
-    }
-  };
+    const handleStartQuiz = (config: {numQuestions: number, studyMode: any, knowledgeSource: any, selectedTopics: string[], customInstructions: string}) => {
+        if (!activeSet) return;
+        const finalConfig: QuizConfig = {
+          numberOfQuestions: config.numQuestions,
+          mode: config.studyMode,
+          knowledgeSource: config.knowledgeSource,
+          topics: config.selectedTopics,
+          customInstructions: config.customInstructions,
+        };
+        onStart(preparedParts, finalConfig, activeSet.id);
+    };
+  
+    const handleRegenerateTopics = async () => {
+        if (!activeSet) return;
+        setIsAnalyzingTopics(true);
+        try {
+            const generatedTopics = await generateTopics(preparedParts);
+            const updatedSetWithTopics: StudySet = { ...activeSet, topics: generatedTopics };
+            await updateSet(updatedSetWithTopics);
+            setActiveSet(updatedSetWithTopics);
+            setTopics(generatedTopics);
+        } catch (err) {
+            console.error("Error regenerating topics", err);
+        } finally {
+            setIsAnalyzingTopics(false);
+        }
+    };
 
-  const handleReanalyzeWithFiles = async (files: File[]) => {
+    const handleReanalyzeWithFiles = async (files: File[]) => {
       if (!activeSet) return;
-      await handlePrepareForQuiz(activeSet, files);
-  };
+        setIsProcessing(true);
+        setProcessingError(null);
+
+        try {
+            const { combinedText: newText, persistedFiles: newPersistedFiles } = await processFilesToParts('', files, onProgress);
+            const updatedSetData: StudySet = {
+                ...activeSet,
+                content: (activeSet.content + '\n' + newText).trim(),
+                persistedFiles: [...(activeSet.persistedFiles || []), ...newPersistedFiles],
+                topics: [] // Invalidate topics since content changed
+            };
+            await updateSet(updatedSetData);
+            
+            const parts: PromptPart[] = [];
+            if (updatedSetData.content) { parts.push({ text: updatedSetData.content }); }
+            if (updatedSetData.persistedFiles) {
+                updatedSetData.persistedFiles.forEach(pf => {
+                    if (pf.type.startsWith('image/') || pf.type.startsWith('audio/')) {
+                        parts.push({ inlineData: { mimeType: pf.type, data: pf.data } });
+                    }
+                });
+            }
+            setPreparedParts(parts);
+            
+            setIsProcessing(false);
+            setIsAnalyzingTopics(true);
+            const generatedTopics = await generateTopics(parts);
+            setTopics(generatedTopics);
+
+            const finalSetWithTopics = { ...updatedSetData, topics: generatedTopics };
+            await updateSet(finalSetWithTopics);
+            setActiveSet(finalSetWithTopics);
+            
+            setIsAnalyzingTopics(false);
+        } catch (err) {
+            console.error("Error re-analyzing with files", err);
+            setProcessingError(err instanceof Error ? err.message : "An error occurred.");
+            setIsProcessing(false);
+            setIsAnalyzingTopics(false);
+        }
+    };
   
-  const handleNewSet = () => {
-    resetState();
-    setAction('CREATE_EDIT');
-  };
+    const handleNewSet = () => {
+        resetState();
+        setAction('CREATE_EDIT');
+    };
 
-  const handleEditSet = (set: StudySet) => {
-    resetState();
-    setActiveSet(set);
-    setAction('CREATE_EDIT');
-  };
+    const handleEditSet = (set: StudySet) => {
+        resetState();
+        setActiveSet(set);
+        setAction('CREATE_EDIT');
+    };
 
-  const handleShowHistory = (set: StudySet) => {
+    const handleShowHistory = (set: StudySet) => {
       setActiveSet(set);
       setAction('HISTORY');
-  };
+    };
 
-  const handleDeleteSet = async (id: string) => {
-    if (window.confirm("Are you sure you want to permanently delete this study set?")) {
-        await deleteSet(id);
-    }
-  };
+    const handleDeleteSet = async (id: string) => {
+        if (window.confirm("Are you sure you want to permanently delete this study set?")) {
+            await deleteSet(id);
+        }
+    };
 
-  switch (action) {
-    case 'CREATE_EDIT':
-      return <StudySetForm 
+    switch (action) {
+        case 'CREATE_EDIT':
+          return <StudySetForm 
+                    activeSet={activeSet}
+                    initialContent={initialContent}
+                    isProcessing={isProcessing}
+                    isAnalyzingTopics={isAnalyzingTopics}
+                    processingError={processingError}
+                    progressMessage={progressMessage}
+                    progressPercent={progressPercent}
+                    onSave={fullSaveAndAnalyze}
+                    onSaveOnly={fullSaveOnly}
+                    onCancel={handleShowList}
+                 />;
+        case 'TOPIC_SELECTION':
+            return activeSet ? <TopicSelector 
                 activeSet={activeSet}
-                initialContent={initialContent}
-                isProcessing={isProcessing}
+                topics={topics}
                 isAnalyzingTopics={isAnalyzingTopics}
+                isProcessing={isProcessing}
                 processingError={processingError}
-                progressMessage={progressMessage}
                 progressPercent={progressPercent}
-                onSave={fullSaveAndAnalyze}
-                onSaveOnly={fullSaveOnly}
-                onCancel={handleShowList}
-             />;
-    case 'TOPIC_SELECTION':
-        return activeSet ? <TopicSelector 
-            activeSet={activeSet}
-            topics={topics}
-            isAnalyzingTopics={isAnalyzingTopics}
-            isProcessing={isProcessing}
-            processingError={processingError}
-            progressPercent={progressPercent}
-            onStartQuiz={handleStartQuiz}
-            onBack={handleShowList}
-            onRegenerateTopics={handleRegenerateTopics}
-            onReanalyzeWithFiles={handleReanalyzeWithFiles}
-        /> : null;
-    case 'HISTORY':
-        return activeSet ? <QuizHistoryView 
-            activeSet={activeSet}
-            history={history.filter(h => h.studySetId === activeSet.id)}
-            onBack={handleShowList}
-            onReviewHistory={onReviewHistory}
-        /> : null;
-    case 'LIST':
-    default:
-      return <StudySetList 
+                onStartQuiz={handleStartQuiz}
+                onBack={handleShowList}
+                onRegenerateTopics={handleRegenerateTopics}
+                onReanalyzeWithFiles={handleReanalyzeWithFiles}
+            /> : null;
+        case 'HISTORY':
+            return activeSet ? <QuizHistoryView 
+                activeSet={activeSet}
+                history={history.filter(h => h.studySetId === activeSet.id)}
+                onBack={handleShowList}
+                onReviewHistory={onReviewHistory}
+            /> : null;
+        case 'LIST':
+        default:
+            return <StudySetList 
                 studySets={studySets}
                 error={error}
                 processingError={processingError}
@@ -298,14 +345,14 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                 onNewSet={handleNewSet}
                 onEditSet={handleEditSet}
                 onDeleteSet={handleDeleteSet}
-                onPrepareForQuiz={handlePrepareForQuiz}
+                onPrepareForQuiz={(parts, set) => handlePrepareForQuiz(parts, set, [])}
                 onPredict={onPredict}
                 onShowHistory={handleShowHistory}
                 onShowStats={onShowStats}
                 onStartSrsQuiz={onStartSrsQuiz}
                 reviewPoolCount={reviewPoolCount}
-             />;
-  }
+            />;
+    }
 };
 
 export default SetupScreen;

@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect } from 'react';
 import { StudySet } from '../../types';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -102,14 +103,20 @@ const StudySetForm: React.FC<StudySetFormProps> = ({
     const handleSaveAndAnalyzeClick = () => {
         setInternalError(null);
         if (!name.trim()) { setInternalError("Please provide a name for your new study set."); return; }
-        if (!content.trim() && files.length === 0) { setInternalError("Please provide some study material to analyze."); return; }
+        if (!content.trim() && files.length === 0 && (!activeSet || !activeSet.persistedFiles || activeSet.persistedFiles.length === 0)) { 
+            setInternalError("Please provide some study material to analyze."); 
+            return; 
+        }
         onSave({ name, content, files });
     };
 
     const handleSaveOnlyClick = () => {
         setInternalError(null);
         if (!name.trim()) { setInternalError("Please provide a name."); return; }
-        if (!content.trim() && files.length === 0) { setInternalError("Please provide some study material to save."); return; }
+        if (!content.trim() && files.length === 0 && (!activeSet || !activeSet.persistedFiles || activeSet.persistedFiles.length === 0)) { 
+            setInternalError("Please provide some study material to save."); 
+            return; 
+        }
         onSaveOnly({ name, content, files });
     };
     
@@ -126,11 +133,11 @@ const StudySetForm: React.FC<StudySetFormProps> = ({
                             <label htmlFor="setName" className="block text-lg font-medium text-text-secondary mb-2">Set Name</label>
                             <input type="text" id="setName" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Biology Chapter 4" className="w-full p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"/>
                         </div>
-                        {activeSet?.fileInfo && activeSet.fileInfo.length > 0 && (
+                        {activeSet?.persistedFiles && activeSet.persistedFiles.length > 0 && (
                             <div>
                                 <h3 className="text-lg font-medium text-text-secondary mb-2">Included Materials</h3>
                                 <ul className="space-y-1 text-sm text-gray-400 max-h-24 overflow-y-auto pr-2">
-                                    {activeSet.fileInfo.map((f, i) => <li key={i} className="truncate">- {f.name}</li>)}
+                                    {activeSet.persistedFiles.map((f, i) => <li key={i} className="truncate">- {f.name}</li>)}
                                 </ul>
                             </div>
                         )}

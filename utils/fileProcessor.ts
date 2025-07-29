@@ -2,7 +2,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
-import { PromptPart, FileInfo } from '../types';
+import { PromptPart, PersistedFile } from '../types';
 
 if (pdfjsLib.version) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
@@ -12,7 +12,7 @@ export const processFilesToParts = async (
     baseText: string, 
     filesToProcess: File[],
     onProgressUpdate: (message: string, percent: number) => void
-): Promise<{parts: PromptPart[], combinedText: string, fileInfo: FileInfo[]}> => {
+): Promise<{parts: PromptPart[], combinedText: string, persistedFiles: PersistedFile[]}> => {
     onProgressUpdate('Initializing...', 0);
     const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -23,7 +23,7 @@ export const processFilesToParts = async (
 
     const parts: PromptPart[] = [];
     let combinedText = baseText;
-    const fileInfo: FileInfo[] = filesToProcess.map(f => ({ name: f.name, type: f.type }));
+    const persistedFiles: PersistedFile[] = [];
     const totalFiles = filesToProcess.length;
 
     if (totalFiles > 0) {
@@ -36,11 +36,16 @@ export const processFilesToParts = async (
             onProgressUpdate(`Reading ${file.name}...`, fileProgressStart);
 
             if (file.type.startsWith('image/')) {
-                parts.push({ inlineData: { mimeType: file.type, data: await toBase64(file) } });
+                const data = await toBase64(file);
+                parts.push({ inlineData: { mimeType: file.type, data: data } });
+                persistedFiles.push({ name: file.name, type: file.type, data: data });
             } else if (file.type.startsWith('audio/')) {
-                 parts.push({ inlineData: { mimeType: file.type, data: await toBase64(file) } });
+                 const data = await toBase64(file);
+                 parts.push({ inlineData: { mimeType: file.type, data: data } });
+                 persistedFiles.push({ name: file.name, type: file.type, data: data });
                 combinedText += `\n\n[Content from audio file: ${file.name}]`;
             } else if (file.type === 'application/pdf') {
+                persistedFiles.push({ name: file.name, type: file.type, data: await toBase64(file) }); // Save original PDF
                 const arrayBuffer = await file.arrayBuffer();
                 const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
                 let pdfText = '';
@@ -62,14 +67,18 @@ export const processFilesToParts = async (
                     canvas.height = viewport.height;
                     canvas.width = viewport.width;
                     if (!context) continue;
-                    await page.render({ canvasContext: context, viewport }).promise;
+                    // The `page.render` call failed because the `RenderParameters` type requires a 'canvas' property.
+                    // The fix is to pass the created canvas element into the render parameters object.
+                    await page.render({ canvasContext: context, viewport, canvas }).promise;
                     const base64Image = canvas.toDataURL('image/jpeg', 0.9);
-                    parts.push({ inlineData: { mimeType: 'image/jpeg', data: base64Image.split(',')[1] } });
+                    const pageData = base64Image.split(',')[1];
+                    parts.push({ inlineData: { mimeType: 'image/jpeg', data: pageData } });
                 }
             } else if (file.name.endsWith('.docx')) {
                 const arrayBuffer = await file.arrayBuffer();
                 const result = await mammoth.extractRawText({ arrayBuffer });
                 combinedText += '\n\n' + result.value;
+                persistedFiles.push({ name: file.name, type: file.type, data: await toBase64(file) });
             } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.csv')) {
                  const arrayBuffer = await file.arrayBuffer();
                  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
@@ -77,8 +86,11 @@ export const processFilesToParts = async (
                      const csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
                      combinedText += `\n\n--- Content from ${file.name} / Sheet: ${sheetName} ---\n${csvText}`;
                  });
+                 persistedFiles.push({ name: file.name, type: file.type, data: await toBase64(file) });
             } else if (file.type === 'text/plain' || file.name.endsWith('.md') || file.type === 'text/markdown') {
-                 combinedText += '\n\n' + await file.text();
+                 const text = await file.text();
+                 combinedText += '\n\n' + text;
+                 persistedFiles.push({ name: file.name, type: file.type, data: btoa(unescape(encodeURIComponent(text))) });
             }
             processedFiles++;
         }
@@ -90,5 +102,5 @@ export const processFilesToParts = async (
         parts.unshift({ text: combinedText.trim() });
     }
 
-    return { parts, combinedText, fileInfo };
+    return { parts, combinedText, persistedFiles };
 };

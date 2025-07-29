@@ -1,8 +1,10 @@
 
 
-export interface FileInfo {
+
+export interface PersistedFile {
   name: string;
   type: string;
+  data: string; // base64 encoded data
 }
 
 export enum QuestionType {
@@ -30,7 +32,7 @@ export interface StudySet {
   name: string;
   content: string;
   createdAt: string;
-  fileInfo?: FileInfo[];
+  persistedFiles?: PersistedFile[];
   topics?: string[];
 }
 
