@@ -8,6 +8,5 @@
         "installCommand": "npm install"
       }
     }
-  ],
-  "nodeVersion": "20.x"
+  ]
 }
