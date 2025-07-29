@@ -21,6 +21,7 @@ import { processFilesToParts } from './utils/fileProcessor';
 import { initializeDb } from './utils/db';
 import MigrationScreen from './components/MigrationScreen';
 import { SpeedInsights } from '@vercel/speed-insights/react';
+import { Analytics } from '@vercel/analytics/react';
 
 const LEGACY_STORAGE_KEYS = [
   'adaptive-study-game-sets',
@@ -434,6 +435,7 @@ const App: React.FC = () => {
         {renderContent()}
       </main>
       <SpeedInsights />
+      <Analytics />
     </div>
   );
 };
