@@ -20,6 +20,7 @@ import { useSRS } from './hooks/useSRS';
 import { processFilesToParts } from './utils/fileProcessor';
 import { initializeDb } from './utils/db';
 import MigrationScreen from './components/MigrationScreen';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 const LEGACY_STORAGE_KEYS = [
   'adaptive-study-game-sets',
@@ -283,7 +284,7 @@ const App: React.FC = () => {
     } else {
       // This case handles reviewing the *current* session's results immediately after finishing
       logToReview = answerLog;
-      setQuiz({ questions: answerLog.map(l => l.question), webSources: quiz?.webSources });
+      setQuiz({ questions: answerLog.map((l: AnswerLog) => l.question), webSources: quiz?.webSources });
     }
     setAnswerLog(logToReview);
     setAppState(AppState.REVIEWING);
@@ -432,6 +433,7 @@ const App: React.FC = () => {
       <main className={mainContainerClasses}>
         {renderContent()}
       </main>
+      <SpeedInsights />
     </div>
   );
 };
