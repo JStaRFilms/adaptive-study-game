@@ -1,5 +1,7 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource } from './types';
+import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question } from './types';
+import { GoogleGenAI, Chat } from '@google/genai';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import SetupScreen from './components/SetupScreen';
@@ -14,6 +16,7 @@ import PredictionResultsScreen from './components/PredictionResultsScreen';
 import StatsScreen from './components/StatsScreen';
 import AnnouncementBanner from './components/common/AnnouncementBanner';
 import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedback } from './services/geminiService';
+import { getChatSystemInstruction } from './services/geminiPrompts';
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
 import { usePredictions } from './hooks/usePredictions';
@@ -54,6 +57,13 @@ const App: React.FC = () => {
   // Migration State
   const [isMigrating, setIsMigrating] = useState(false);
   const [migrationChecked, setMigrationChecked] = useState(false);
+
+  // Chat State
+  const [chat, setChat] = useState<Chat | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isAITyping, setIsAITyping] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   const [history, addQuizResult] = useQuizHistory();
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
@@ -123,6 +133,28 @@ const App: React.FC = () => {
       }
       if (generatedQuiz && generatedQuiz.questions.length > 0) {
         setQuiz(generatedQuiz);
+
+        // Initialize Chat
+        const firstKey = (process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY)?.split(',')[0].trim();
+        if (firstKey && set) {
+            try {
+                const ai = new GoogleGenAI({ apiKey: firstKey });
+                const systemInstruction = getChatSystemInstruction(set, generatedQuiz);
+                const newChat = ai.chats.create({
+                    model: 'gemini-2.5-flash',
+                    config: { systemInstruction },
+                });
+                setChat(newChat);
+                setChatMessages([
+                    { role: 'model', text: `Hi! I'm your AI study coach. I have context on your notes for "${set.name}" and the questions in this quiz. Ask me anything about the current question!` }
+                ]);
+                setChatError(null);
+            } catch (e) {
+                console.error("Failed to initialize chat", e);
+                setChatError("Could not start AI chat session.");
+            }
+        }
+
         if (config.mode === StudyMode.EXAM) {
             setAppState(AppState.EXAM_IN_PROGRESS);
         } else {
@@ -299,6 +331,11 @@ const App: React.FC = () => {
     setFeedback(null);
     setPredictionResults(null);
     setQuizConfigForDisplay(null);
+    setChat(null);
+    setChatMessages([]);
+    setIsChatOpen(false);
+    setIsAITyping(false);
+    setChatError(null);
   }, []);
   
   const handlePredict = useCallback((studySetId: string) => {
@@ -367,6 +404,60 @@ const App: React.FC = () => {
     setAppState(AppState.STATS);
   }, []);
 
+  const handleSendMessage = useCallback(async (userVisibleMessage: string, aiPrompt: string, currentQuestion: Question) => {
+    if (!chat || isAITyping) return;
+
+    const userMessage: ChatMessage = { role: 'user', text: userVisibleMessage };
+    setChatMessages(prev => [...prev, userMessage]);
+    setIsAITyping(true);
+    setChatError(null);
+
+    // Add a placeholder for the model's response and start streaming
+    setChatMessages(prev => [...prev, { role: 'model', text: '' }]);
+
+    try {
+      const contextualMessage = `The user is on the following question:\n"""\n${currentQuestion.questionText}\n"""\n\n${aiPrompt}`;
+      
+      const stream = await chat.sendMessageStream({ message: contextualMessage });
+
+      for await (const chunk of stream) {
+        const chunkText = chunk.text;
+        if (chunkText) {
+          setChatMessages(prev => {
+            const lastMessage = prev[prev.length - 1];
+            // Ensure we are updating the model's message
+            if (lastMessage && lastMessage.role === 'model') {
+              const updatedMessages = [...prev];
+              updatedMessages[prev.length - 1] = {
+                ...lastMessage,
+                text: lastMessage.text + chunkText,
+              };
+              return updatedMessages;
+            }
+            return prev; // Should not happen with the placeholder logic
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Chat error:", err);
+      const errorText = err instanceof Error ? err.message : "An error occurred in the chat.";
+      setChatError(errorText);
+      // Replace the placeholder with an error message or add a new one
+      setChatMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage && lastMessage.role === 'model' && lastMessage.text === '') {
+          const updatedMessages = [...prev];
+          updatedMessages[prev.length - 1] = { role: 'model', text: `Sorry, I encountered an error: ${errorText}` };
+          return updatedMessages;
+        }
+        return [...prev, { role: 'model', text: `Sorry, I encountered an error: ${errorText}` }];
+      });
+    } finally {
+      setIsAITyping(false);
+    }
+  }, [chat, isAITyping]);
+
+
   if (!migrationChecked) {
     // Show a generic spinner while we check for migration status
     return <div className="flex justify-center items-center min-h-screen"><LoadingSpinner /></div>;
@@ -389,11 +480,34 @@ const App: React.FC = () => {
           appState === AppState.PROCESSING ? 'Generating your quiz...' :
           appState === AppState.GRADING ? gradingMessage :
           'The AI detective is on the case...';
-        return <div className="flex flex-col items-center justify-center min-h-[80vh]"><LoadingSpinner /><p className="mt-4 text-lg text-text-secondary">{message}</p>{appState === AppState.GRADING && gradingError && <button onClick={handleRetryGrading} className="mt-4 px-4 py-2 bg-brand-primary text-white font-bold rounded-lg hover:bg-brand-secondary">Retry Grading</button>}</div>;
+        return (
+          <div className="flex flex-col items-center justify-center min-h-[80vh]">
+            <LoadingSpinner />
+            <p className="mt-4 text-lg text-text-secondary">{message}</p>
+            <p className="mt-2 text-sm text-yellow-400">Please keep this page open. Leaving the app may interrupt the process.</p>
+            {appState === AppState.GRADING && gradingError && <button onClick={handleRetryGrading} className="mt-4 px-4 py-2 bg-brand-primary text-white font-bold rounded-lg hover:bg-brand-secondary">Retry Grading</button>}
+          </div>
+        );
       
       case AppState.STUDYING:
         if (!quiz) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
-        return <StudyScreen quiz={quiz} onFinish={handleFinishStudy} onQuit={handleRestart} mode={studyMode} updateSRSItem={updateSRSItem} quizConfig={quizConfigForDisplay} />;
+        return <StudyScreen 
+                    quiz={quiz} 
+                    onFinish={handleFinishStudy} 
+                    onQuit={handleRestart} 
+                    mode={studyMode} 
+                    updateSRSItem={updateSRSItem} 
+                    quizConfig={quizConfigForDisplay}
+                    // Chat Props
+                    chatMessages={chatMessages}
+                    isChatOpen={isChatOpen}
+                    isAITyping={isAITyping}
+                    chatError={chatError}
+                    isChatEnabled={!!chat}
+                    onSendMessage={handleSendMessage}
+                    onToggleChat={() => setIsChatOpen(!isChatOpen)}
+                    onCloseChat={() => setIsChatOpen(false)}
+                />;
       
       case AppState.RESULTS:
         return <ResultsScreen score={finalScore} answerLog={answerLog} onRestart={handleRestart} onReview={() => handleReview()} webSources={quiz?.webSources} feedback={feedback} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={handleStartFocusedQuiz}/>;

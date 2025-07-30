@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage, MultipleChoiceQuestion } from '../types';
-import ProgressBar from './common/ProgressBar';
-import TimerBar from './common/TimerBar';
-import Markdown from './common/Markdown';
-import Modal from './common/Modal';
-import Tooltip from './common/Tooltip';
-import ChatPanel from './common/ChatPanel';
-import { validateFillInTheBlankAnswer } from '../services/geminiService';
+import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage } from './types';
+import ProgressBar from './components/common/ProgressBar';
+import TimerBar from './components/common/TimerBar';
+import Markdown from './components/common/Markdown';
+import Modal from './components/common/Modal';
+import Tooltip from './components/common/Tooltip';
+import ChatPanel from './components/common/ChatPanel';
+import { validateFillInTheBlankAnswer } from './services/geminiService';
 
 interface StudyScreenProps {
   quiz: Quiz;
@@ -22,7 +22,7 @@ interface StudyScreenProps {
   isAITyping: boolean;
   chatError: string | null;
   isChatEnabled: boolean;
-  onSendMessage: (userVisibleMessage: string, aiPrompt: string, currentQuestion: Question) => Promise<void>;
+  onSendMessage: (message: string, currentQuestion: Question) => void;
   onToggleChat: () => void;
   onCloseChat: () => void;
 }
@@ -55,7 +55,6 @@ const StudyScreen = ({
   const [isQuitModalOpen, setIsQuitModalOpen] = useState(false);
   const [isVerifyingAnswer, setIsVerifyingAnswer] = useState(false);
   const [isTimedOut, setIsTimedOut] = useState(false);
-  const [explanationRequestedMap, setExplanationRequestedMap] = useState<Record<number, boolean>>({});
   
   const isUntimedMode = mode === StudyMode.REVIEW || mode === StudyMode.SRS;
   const currentQuestion: Question = quiz.questions[currentQuestionIndex];
@@ -90,20 +89,19 @@ const StudyScreen = ({
         await updateSRSItem(currentQuestion, isFullyCorrect);
     }
     
-    const newLogEntry: AnswerLog = {
+    const isPartiallyCorrect = awarded > 0 && awarded < max;
+
+    setAnswerLog(prevLog => [...prevLog, {
       question: currentQuestion,
       userAnswer,
       isCorrect: isFullyCorrect,
       pointsAwarded: awarded,
       maxPoints: max,
       aiFeedback: comment,
-    };
-    setAnswerLog(prevLog => [...prevLog, newLogEntry]);
+    }]);
 
     setAnswerExplanation(currentQuestion.explanation);
     setCorrectionFeedback(comment || null);
-    
-    const isPartiallyCorrect = awarded > 0 && awarded < max;
 
     if (isFullyCorrect || isPartiallyCorrect) {
       const streakBonus = isFullyCorrect ? (streak * STREAK_BONUS_MULTIPLIER) : 0;
@@ -197,7 +195,7 @@ const StudyScreen = ({
 
   const handleFibSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (fillBlankAnswers.every(a => !a.trim()) || currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK) return;
+    if (fillBlankAnswers.every((a: string) => !a.trim()) || currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK) return;
 
     setIsVerifyingAnswer(true);
 
@@ -242,61 +240,9 @@ const StudyScreen = ({
     setIsVerifyingAnswer(false);
   };
   
-    const handleOpenChat = () => {
-        // First, toggle the chat panel visibility
-        onToggleChat();
-
-        // Check if we need to auto-send an explanation request
-        const isIncorrectOrPartial = answerStatus === 'incorrect' || answerStatus === 'partial';
-        const hasNotRequested = !explanationRequestedMap[currentQuestionIndex];
-
-        if (isIncorrectOrPartial && hasNotRequested && !isChatOpen) {
-            const currentLog = answerLog.find(l => l.question.questionText === currentQuestion.questionText);
-            if (currentLog) {
-                let userAnswerText = '';
-                if (currentLog.userAnswer === null) {
-                    userAnswerText = "no answer was provided";
-                } else if (typeof currentLog.userAnswer === 'boolean') {
-                    userAnswerText = currentLog.userAnswer ? '"True"' : '"False"';
-                } else if (typeof currentLog.userAnswer === 'number' && currentLog.question.questionType === QuestionType.MULTIPLE_CHOICE) {
-                    userAnswerText = `option ${String.fromCharCode(65 + currentLog.userAnswer)}: "${(currentLog.question as MultipleChoiceQuestion).options[currentLog.userAnswer]}"`;
-                } else if (Array.isArray(currentLog.userAnswer)) {
-                    userAnswerText = (currentLog.userAnswer as string[]).map(a => `"${a}"`).join(', ');
-                }
-
-                const aiPrompt = `I answered ${userAnswerText} and it was marked ${answerStatus}. Please explain why my answer was wrong and what the correct answer is.`;
-                const userVisibleMessage = "Explain why I got this wrong.";
-
-                onSendMessage(userVisibleMessage, aiPrompt, currentQuestion);
-
-                // Mark that we've requested it for this question index
-                setExplanationRequestedMap(prev => ({ ...prev, [currentQuestionIndex]: true }));
-            }
-        }
-    };
-  
   const handleSendMessageWrapper = (message: string) => {
       if (!isChatAllowedNow) return;
-      
-      const currentLog = answerLog.find(l => l.question.questionText === currentQuestion.questionText);
-      let aiPrompt = message;
-
-      if (currentLog) {
-        let userAnswerText = '';
-        if (currentLog.userAnswer === null) {
-            userAnswerText = "no answer was provided";
-        } else if (typeof currentLog.userAnswer === 'boolean') {
-            userAnswerText = currentLog.userAnswer.toString();
-        } else if (typeof currentLog.userAnswer === 'number' && currentLog.question.questionType === QuestionType.MULTIPLE_CHOICE) {
-            userAnswerText = `"${(currentLog.question as MultipleChoiceQuestion).options[currentLog.userAnswer]}"`;
-        } else if (Array.isArray(currentLog.userAnswer)) {
-            userAnswerText = (currentLog.userAnswer as string[]).map(a => `"${a}"`).join(', ');
-        }
-        
-        aiPrompt = `My previous answer to this question was ${userAnswerText}, which was marked ${currentLog.isCorrect ? 'correct' : 'incorrect'}. My new question is: ${message}`;
-      }
-    
-      onSendMessage(message, aiPrompt, currentQuestion);
+      onSendMessage(message, currentQuestion);
   };
 
   const renderAnswerFeedback = () => {
@@ -345,7 +291,7 @@ const StudyScreen = ({
         return (
              <form onSubmit={isAnswered || isVerifyingAnswer ? (e) => e.preventDefault() : handleFibSubmit} className="flex flex-col items-center gap-4">
                 <div className="text-2xl sm:text-3xl font-bold text-text-primary text-center flex flex-wrap items-center justify-center gap-2 leading-relaxed">
-                    {parts.map((part, index) => (
+                    {parts.map((part: string, index: number) => (
                       <React.Fragment key={index}>
                         <Markdown content={part} as="span"/>
                         {index < parts.length - 1 && (
@@ -381,7 +327,7 @@ const StudyScreen = ({
         if (currentQuestion.questionType === QuestionType.MULTIPLE_CHOICE) {
             return (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {currentQuestion.options.map((option, index) => {
+                    {currentQuestion.options.map((option: string, index: number) => {
                         const isCorrect = index === currentQuestion.correctAnswerIndex;
                         const isSelected = index === selectedOptionIndex;
                         let style = 'bg-surface-dark opacity-60 cursor-not-allowed';
@@ -400,7 +346,7 @@ const StudyScreen = ({
             return (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {currentQuestion.options.map((option, index) => <button key={index} onClick={() => setSelectedOptionIndex(index)} className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${selectedOptionIndex === index ? 'bg-brand-primary ring-2 ring-white' : 'bg-surface-dark hover:bg-gray-600'}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><Markdown content={option} as="span" /></button>)}
+                  {currentQuestion.options.map((option: string, index: number) => <button key={index} onClick={() => setSelectedOptionIndex(index)} className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${selectedOptionIndex === index ? 'bg-brand-primary ring-2 ring-white' : 'bg-surface-dark hover:bg-gray-600'}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><Markdown content={option} as="span" /></button>)}
                 </div>
                 <div className="mt-6 flex justify-center"><button onClick={handleMcSubmit} disabled={selectedOptionIndex === null} className="px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed">Submit</button></div>
               </>
@@ -517,7 +463,7 @@ const StudyScreen = ({
 
       <ChatPanel 
         isOpen={isChatOpen}
-        onOpen={handleOpenChat}
+        onOpen={onToggleChat}
         onClose={onCloseChat}
         onSendMessage={handleSendMessageWrapper}
         messages={chatMessages}

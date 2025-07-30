@@ -1,6 +1,5 @@
 
-
-import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion } from '../types';
+import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, QuizResult, AnswerLog, StudySet, OpenEndedAnswer, Quiz } from '../types';
 
 export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[], customInstructions?: string): string => {
     let baseInstruction = '';
@@ -172,8 +171,8 @@ Based on this, you must generate two things:
     **MARKDOWN RULES:**
     - Use a single asterisk followed by a space for bullet points (e.g., "* Item").
     - Use double asterisks for bold text (e.g., "**Important Concept**").
-    - Do NOT use single asterisks for italics or any other emphasis. Stick to bold and bullets.
-    - Ensure your markdown is clean and correctly formatted. For example, a line can be a bullet, or bold, or both, but avoid messy combinations like \`* **Word:**** Text\`. Correct would be \`* **Word:** Text\`.
+    - Use single asterisks for italicized text (e.g., "*emphasized term*").
+    - Ensure your markdown is clean and correctly formatted.
 2.  **YouTube Search Queries:** A list of 2-3 distinct, effective search queries that will help the student find high-quality educational videos on YouTube to understand the underlying concepts.
 
 Your response MUST be a JSON object matching the required schema.`;
@@ -192,7 +191,7 @@ Based on your analysis, you MUST generate a response in the specified JSON forma
 1.  **Summarize Performance:** Start with a brief, encouraging overall summary of their performance on this subject across all sessions, noting recent improvements.
 2.  **Identify Strengths:** Pinpoint topics where the user has consistently done well (high accuracy).
 3.  **Identify Weaknesses:** Pinpoint topics where the user has consistently struggled (low accuracy), UNLESS they mastered it in the most recent session. For each weak topic, you must:
-    a. Provide a comment explaining the weakness based on their history.
+    a. Provide a comment explaining why this is a weakness based on their history.
     b. Suggest a reasonable number of questions for a follow-up quiz.
     c. Generate a concise, effective 'youtubeSearchQuery' to help them find educational videos.
 4.  **Identify "Narrow Passes":** Scrutinize the answer log for questions FROM THE MOST RECENT QUIZ where the user was awarded partial points or where \`aiFeedback\` exists. These are "close calls."
@@ -203,6 +202,23 @@ ${historyForPrompt}
 
 Now, generate the feedback based on this data, adhering strictly to the JSON schema. The user prompt will be a simple trigger to start.
 `;
+};
+
+export const getChatSystemInstruction = (studySet: StudySet, quiz: Quiz): string => {
+    const quizQuestionText = quiz.questions.map((q, i) => `${i + 1}. ${q.questionText}`).join('\n');
+    return `You are an expert AI Study Coach. Your goal is to help a student who is currently taking a quiz. Be encouraging, helpful, and guide them towards the answer without simply giving it away.
+
+The user is studying from a set named "${studySet.name}". The core content for this set is as follows:
+---
+${studySet.content}
+---
+
+The questions in their current quiz are:
+---
+${quizQuestionText}
+---
+
+The user will ask you questions. Their message will include the specific question they are currently looking at. Use all the provided context to give the best possible answer. If they ask for a direct answer, try to guide them with a hint or by explaining a related concept instead. Answer concisely.`;
 };
 
 export const getFibValidationSystemInstruction = (questionText: string, correctAnswer: string, userAnswer: string): string => {

@@ -235,7 +235,58 @@
       border-radius: 50%;
       animation: float-particle 8s infinite linear;
   }
+  
+  /* Custom styles for markdown content in chat/review */
+  .prose .table-wrapper {
+    overflow-x: auto;
+    width: 100%;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    border-radius: 8px;
+    border: 1px solid #4a5568; /* Border on the container */
+  }
+  .prose .table-wrapper table {
+    /* width: 100% has been removed to allow table to expand naturally */
+    border-collapse: collapse;
+  }
+  .prose .table-wrapper th, 
+  .prose .table-wrapper td {
+    padding: 0.75em 1em;
+    color: inherit;
+    white-space: nowrap;
+    text-align: left;
+    border-bottom: 1px solid #4a5568;
+  }
+  .prose .table-wrapper th {
+    background-color: #1f2937; /* surface-dark / gray-800 */
+    font-weight: bold;
+  }
+  .prose .table-wrapper tr:last-child td {
+    border-bottom: none;
+  }
+
+  .prose code:not(pre > code) {
+    background-color: #2d3748;
+    padding: 0.1em 0.3em;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.9em;
+  }
+  .prose pre {
+    background-color: #111827; /* background-dark / gray-900 from tailwind */
+    padding: 1em;
+    border-radius: 8px;
+    overflow-x: auto;
+    color: inherit;
+  }
+  .prose pre code {
+    padding: 0;
+    background-color: transparent;
+    border-radius: 0;
+    font-size: 1em;
+  }
 </style>
+<link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-background-dark text-text-primary font-sans">
     <div id="root"></div>

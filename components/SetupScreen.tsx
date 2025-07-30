@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { StudySet, QuizConfig, PromptPart, QuizResult } from '../types';
 import { generateTopics } from '../services/geminiService';
@@ -8,6 +9,25 @@ import StudySetList from './setup/StudySetList';
 import StudySetForm from './setup/StudySetForm';
 import TopicSelector from './setup/TopicSelector';
 import QuizHistoryView from './setup/QuizHistoryView';
+import LoadingSpinner from './common/LoadingSpinner';
+import ProgressBar from './common/ProgressBar';
+
+const ProcessingModal: React.FC<{ title: string; message: string; progress: number; }> = ({ title, message, progress }) => (
+    <div className="fixed inset-0 bg-background-dark bg-opacity-90 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4 animate-fade-in">
+        <div className="bg-surface-dark p-8 rounded-2xl shadow-2xl w-full max-w-md text-center">
+            <h2 className="text-2xl font-bold text-text-primary mb-6">{title}</h2>
+            <div className="flex justify-center mb-6">
+                <LoadingSpinner />
+            </div>
+            <p className="text-xl font-semibold text-text-secondary mb-4">{message}</p>
+            <div className="w-full max-w-xs mx-auto mb-4">
+                <ProgressBar progress={progress} />
+            </div>
+            <p className="text-sm text-text-secondary mb-4">This may take a moment...</p>
+            <p className="text-sm text-yellow-400 font-semibold">Please keep this page open. Leaving the app may interrupt the process.</p>
+        </div>
+    </div>
+);
 
 interface SetupScreenProps {
   onStart: (parts: PromptPart[], config: QuizConfig, studySetId: string) => void;
@@ -300,6 +320,16 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
             await deleteSet(id);
         }
     };
+
+    if (isProcessing && action === 'LIST' && activeSet) {
+      return (
+          <ProcessingModal
+              title={`Preparing "${activeSet.name}"`}
+              message={progressMessage || 'Analyzing topics...'}
+              progress={progressPercent}
+          />
+      );
+    }
 
     switch (action) {
         case 'CREATE_EDIT':

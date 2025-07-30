@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect } from 'react';
 import { StudySet } from '../../types';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -16,7 +13,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ files, onFileChange, onRemo
   <div>
       <label htmlFor="fileUpload" className="block text-lg font-medium text-text-secondary mb-3">Add Materials</label>
       <p className="text-sm text-gray-400 mb-2">Upload documents (.txt, .pdf, .docx, .md), spreadsheets (.xlsx, .csv), images (.png, .jpg), and audio (.mp3, .m4a, .wav).</p>
-      <input type="file" id="fileUpload" multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,audio/*,.md,text/markdown" onChange={onFileChange} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-primary file:text-white hover:file:bg-brand-secondary"/>
+      <input type="file" id="fileUpload" multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,audio/*,.md,text/markdown,.pptx" onChange={onFileChange} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-primary file:text-white hover:file:bg-brand-secondary"/>
       {files.length > 0 && (
         <div className="mt-4 text-left text-sm text-text-secondary bg-background-dark/50 p-3 rounded-md">
             <p className="font-bold mb-1">Files to add:</p>
@@ -44,6 +41,7 @@ const ProcessingView = ({ message, progress }: { message: string, progress: numb
         <p className="text-2xl font-bold text-text-primary mt-6 mb-4">{message}</p>
         <div className="w-full max-w-sm"><ProgressBar progress={progress} /></div>
         <p className="mt-4 text-text-secondary">This may take a moment...</p>
+        <p className="mt-2 text-sm text-yellow-400">Please keep this page open. Leaving the app may interrupt the process.</p>
     </div>
 );
 

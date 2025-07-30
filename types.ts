@@ -1,6 +1,4 @@
 
-
-
 export interface PersistedFile {
   name: string;
   type: string;
@@ -156,6 +154,11 @@ export interface StudyGuide {
 }
 
 export type PromptPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+}
 
 export interface PersonalizedFeedback {
   overallSummary: string;

@@ -34,7 +34,8 @@ An intelligent study tool that uses the Google Gemini API to transform your note
   - **Notes Only**: Strictly uses the materials you provide.
   - **Notes + AI Knowledge**: Supplements your notes with the AI's vast general knowledge.
   - **Notes + Web Search**: Uses Google Search to find the latest information on your topic.
-- **AI Study Coach**: After each quiz, receive personalized feedback from an AI coach that analyzes your performance to identify your strengths and weaknesses.
+- **AI Study Coach Chat**: While taking a quiz, slide out a chat panel to ask the AI for hints or explanations about the current question. The AI has context on your notes and the quiz.
+- **AI Study Coach Feedback**: After each quiz, receive personalized feedback from an AI coach that analyzes your performance to identify your strengths and weaknesses.
 - **Actionable Recommendations**: The AI coach provides clear next steps, including a one-click button to instantly generate a new, focused practice quiz on the topics you need to improve on.
 - **Multiple Question & Study Modes**:
   - **Practice Mode**: Timed multiple choice, true/false, and fill-in-the-blank questions.

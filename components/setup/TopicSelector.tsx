@@ -157,7 +157,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
                     <h3 className="text-xl font-bold text-text-primary mb-2">Add More Materials</h3>
                     <p className="text-sm text-text-secondary mb-3">You can add supplemental files before generating the quiz. This will re-analyze the content to find new topics.</p>
                     <div className="flex flex-col gap-4">
-                        <input type="file" id="reanalyzeUpload" multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,audio/*,.md" onChange={handleFileChange} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary file:text-white hover:file:bg-brand-primary"/>
+                        <input type="file" id="reanalyzeUpload" multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,audio/*,.md,.pptx" onChange={handleFileChange} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary file:text-white hover:file:bg-brand-primary"/>
                         {files.length > 0 && (
                             <div>
                                 <ul className="space-y-1 text-sm">

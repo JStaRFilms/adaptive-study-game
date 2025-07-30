@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-const ANNOUNCEMENT_ID = 'feedback-srs-update-20240726'; // Change this ID for new announcements
+const ANNOUNCEMENT_ID = 'powerpoint-chat-scroll-20240727'; // Change this ID for new announcements
 const ANNOUNCEMENT_MESSAGE = (
     <>
-        <strong>✨ New Feature:</strong> Personalized AI feedback and Spaced Repetition are here! Check your quiz results for AI Coach feedback and find your review items on the main screen. <strong>Note:</strong> uploadig powerpoint isn't working for now!
+        <strong>✨ New Features:</strong> You can now upload PowerPoint files! Plus, the AI Chat experience has been upgraded with smoother scrolling.
     </>
 );
 

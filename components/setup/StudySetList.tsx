@@ -3,6 +3,7 @@ import { StudySet, PromptPart } from '../../types';
 import Modal from '../common/Modal';
 import Tooltip from '../common/Tooltip';
 
+
 interface StudySetListProps {
   studySets: StudySet[];
   error: string | null;
@@ -23,7 +24,7 @@ const StudySetList: React.FC<StudySetListProps> = ({
   studySets,
   error,
   processingError,
-  isProcessing: isGloballyProcessing,
+  isProcessing,
   onNewSet,
   onEditSet,
   onDeleteSet,
@@ -36,40 +37,26 @@ const StudySetList: React.FC<StudySetListProps> = ({
 }) => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [setForDetails, setSetForDetails] = useState<StudySet | null>(null);
-  const [currentlyProcessingSetId, setCurrentlyProcessingSetId] = useState<string|null>(null);
 
   const handleShowDetails = (set: StudySet) => {
     setSetForDetails(set);
     setIsDetailsModalOpen(true);
   };
 
-  const handlePrepareWrapper = async (set: StudySet) => {
-      setCurrentlyProcessingSetId(set.id);
-      try {
-        const parts: PromptPart[] = [];
-        if (set.content?.trim()) {
-            parts.push({ text: set.content.trim() });
-        }
-        if (set.persistedFiles) {
-            for (const pFile of set.persistedFiles) {
-                if (pFile.type.startsWith('image/') || pFile.type.startsWith('audio/')) {
-                    parts.push({ inlineData: { mimeType: pFile.type, data: pFile.data }});
-                } else {
-                    // For persisted PDFs, DOCX, etc., the text is already in `set.content`.
-                    // The image parts of PDFs are not persisted yet, so this logic is simplified.
-                    // When PDF-page-as-image is implemented, that data would be in persistedFiles.
-                }
+  const handlePrepareWrapper = (set: StudySet) => {
+    const parts: PromptPart[] = [];
+    if (set.content?.trim()) {
+        parts.push({ text: set.content.trim() });
+    }
+    if (set.persistedFiles) {
+        for (const pFile of set.persistedFiles) {
+            if (pFile.type.startsWith('image/') || pFile.type.startsWith('audio/')) {
+                parts.push({ inlineData: { mimeType: pFile.type, data: pFile.data }});
             }
         }
-        onPrepareForQuiz(parts, set);
-      } catch (e) {
-        console.error("Error preparing quiz parts", e);
-      } finally {
-        setCurrentlyProcessingSetId(null);
-      }
+    }
+    onPrepareForQuiz(parts, set);
   };
-
-  const isProcessing = isGloballyProcessing || !!currentlyProcessingSetId;
 
   return (
     <div className="animate-fade-in">
@@ -131,8 +118,8 @@ const StudySetList: React.FC<StudySetListProps> = ({
                   <button onClick={() => onPredict(set.id)} className="px-3 py-2 text-sm bg-purple-600 text-white font-bold rounded-md hover:bg-purple-500 transition-all">Predict</button>
                 </Tooltip>
                 <Tooltip text="Start a quiz with this set" position="top">
-                  <button onClick={() => handlePrepareWrapper(set)} disabled={isProcessing} className="px-3 py-2 text-sm bg-brand-primary text-white font-bold rounded-md hover:bg-brand-secondary transition-all disabled:bg-gray-500">
-                    {currentlyProcessingSetId === set.id ? '...' : 'Study'}
+                  <button onClick={() => handlePrepareWrapper(set)} disabled={isProcessing} className="px-3 py-2 text-sm bg-brand-primary text-white font-bold rounded-md hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-wait min-w-[60px] text-center">
+                    Study
                   </button>
                 </Tooltip>
                 <Tooltip text="View past quiz results" position="top">

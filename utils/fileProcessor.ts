@@ -44,6 +44,11 @@ export const processFilesToParts = async (
                  parts.push({ inlineData: { mimeType: file.type, data: data } });
                  persistedFiles.push({ name: file.name, type: file.type, data: data });
                 combinedText += `\n\n[Content from audio file: ${file.name}]`;
+            } else if (file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' || file.name.endsWith('.pptx')) {
+                const data = await toBase64(file);
+                parts.push({ inlineData: { mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', data: data } });
+                persistedFiles.push({ name: file.name, type: file.type, data: data });
+                combinedText += `\n\n[Content from PowerPoint file: ${file.name}]`;
             } else if (file.type === 'application/pdf') {
                 persistedFiles.push({ name: file.name, type: file.type, data: await toBase64(file) }); // Save original PDF
                 const arrayBuffer = await file.arrayBuffer();
@@ -67,9 +72,11 @@ export const processFilesToParts = async (
                     canvas.height = viewport.height;
                     canvas.width = viewport.width;
                     if (!context) continue;
-                    // The `page.render` call failed because the `RenderParameters` type requires a 'canvas' property.
-                    // The fix is to pass the created canvas element into the render parameters object.
-                    await page.render({ canvasContext: context, viewport, canvas }).promise;
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: viewport
+                    };
+                    await page.render(renderContext).promise;
                     const base64Image = canvas.toDataURL('image/jpeg', 0.9);
                     const pageData = base64Image.split(',')[1];
                     parts.push({ inlineData: { mimeType: 'image/jpeg', data: pageData } });

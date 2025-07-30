@@ -72,7 +72,7 @@ const EvidenceFolder: React.FC<{
             onClick={() => fileInputRef.current?.click()}
             className={`p-4 border-2 border-dashed rounded-sm text-center cursor-pointer transition-colors ${isDragging ? 'border-case-accent-red bg-red-100/50' : 'border-case-text-secondary hover:border-case-text-primary'}`}
         >
-            <input type="file" id={id} multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,.md" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+            <input type="file" id={id} multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,.md,.pptx" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
             <p className="text-case-text-secondary pointer-events-none">{description}</p>
         </div>
       {files.length > 0 && (
@@ -173,6 +173,7 @@ const PredictionSetupScreen: React.FC<PredictionSetupScreenProps> = ({ studySet,
             <div className="flex flex-col items-center justify-center min-h-[50vh] text-case-paper font-display">
                <LoadingSpinner />
                <p className="mt-4 text-lg">Building case file... initiating analysis...</p>
+               <p className="mt-2 text-sm text-yellow-300">Please keep this page open to ensure analysis completes.</p>
             </div>
         );
     }
