@@ -22,13 +22,11 @@ interface ChatPanelProps {
     error: string | null;
     isEnabled: boolean;
     disabledTooltipText?: string;
-    questionIdentifier: string;
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
     isOpen, onOpen, onClose, onSendMessage, messages, isTyping, error, isEnabled, 
-    disabledTooltipText = "Chat is disabled", 
-    questionIdentifier 
+    disabledTooltipText = "Chat is disabled"
 }) => {
     const [inputValue, setInputValue] = useState('');
     const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
@@ -53,16 +51,21 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       return () => clearTimeout(timer);
     }, []);
 
+    // When the panel opens, ensure we scroll to the bottom.
+    // This is especially important for desktop where the panel might have been
+    // closed while scrolled up.
+    useEffect(() => {
+        if(isOpen) {
+            setTimeout(() => scrollToBottom('auto'), 100);
+        }
+    }, [isOpen])
+
     const handleScroll = () => {
         const container = scrollableContainerRef.current;
         if (container) {
             // A buffer of 10px helps with precision issues
             const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 10;
-            if (isAtBottom) {
-                setUserHasScrolledUp(false);
-            } else {
-                setUserHasScrolledUp(true);
-            }
+            setUserHasScrolledUp(!isAtBottom);
         }
     };
 
@@ -76,7 +79,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     };
 
     const ChatInterface = (
-         <div key={questionIdentifier} className="flex flex-col h-full bg-gray-900/80 backdrop-blur-md animate-fade-in">
+         <div className="flex flex-col h-full bg-gray-900/80 backdrop-blur-md animate-fade-in">
             <header className="flex items-center justify-between p-4 border-b border-gray-700 flex-shrink-0">
                 <h2 className="text-lg font-bold text-text-primary">AI Study Coach</h2>
                 <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-600">

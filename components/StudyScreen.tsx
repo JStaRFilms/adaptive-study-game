@@ -516,6 +516,7 @@ const StudyScreen = ({
       </div>
 
       <ChatPanel 
+        key={currentQuestion.questionText}
         isOpen={isChatOpen}
         onOpen={handleOpenChat}
         onClose={onCloseChat}
@@ -525,7 +526,6 @@ const StudyScreen = ({
         error={chatError}
         isEnabled={isChatAllowedNow}
         disabledTooltipText="Answer the question to unlock the AI Coach"
-        questionIdentifier={currentQuestion.questionText}
       />
 
       <Modal isOpen={isQuitModalOpen} onClose={() => setIsQuitModalOpen(false)} title="End Study Session?">
