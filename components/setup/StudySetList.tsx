@@ -55,6 +55,11 @@ const StudySetList: React.FC<StudySetListProps> = ({
             }
         }
     }
+    if (set.youtubeUrls) {
+        set.youtubeUrls.forEach(url => {
+            parts.push({text: `\n\n[Content from YouTube video: ${url}]\nThis content should be analyzed by watching the video or reading its transcript.`});
+        });
+    }
     onPrepareForQuiz(parts, set);
   };
 
@@ -108,10 +113,11 @@ const StudySetList: React.FC<StudySetListProps> = ({
             <div key={set.id} className="bg-surface-dark p-4 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center transition-shadow hover:shadow-lg gap-4">
               <div className="flex-grow min-w-0">
                 <h3 className="font-bold text-xl text-text-primary">{set.name}</h3>
-                <p className="text-sm text-text-secondary hidden sm:flex items-center gap-2">
-                    {set.persistedFiles && set.persistedFiles.length > 0 && <><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a3 3 0 10-6 0v4a3 3 0 106 0V7a1 1 0 112 0v4a5 5 0 01-10 0V7a3 3 0 013-3z" clipRule="evenodd" /></svg>{set.persistedFiles.length} files</>}
+                <div className="text-sm text-text-secondary hidden sm:flex items-center gap-3 mt-1">
+                    {set.persistedFiles && set.persistedFiles.length > 0 && <span className="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a3 3 0 10-6 0v4a3 3 0 106 0V7a1 1 0 112 0v4a5 5 0 01-10 0V7a3 3 0 013-3z" clipRule="evenodd" /></svg>{set.persistedFiles.length} files</span>}
+                    {set.youtubeUrls && set.youtubeUrls.length > 0 && <span className="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>{set.youtubeUrls.length} videos</span>}
                     <span className="truncate">{set.content.substring(0, 100)}...</span>
-                </p>
+                </div>
               </div>
               <div className="flex gap-2 flex-shrink-0 self-end sm:self-center flex-wrap justify-end">
                 <Tooltip text="AI Exam Predictor" position="top">
@@ -140,16 +146,35 @@ const StudySetList: React.FC<StudySetListProps> = ({
         </div>
       )}
       <Modal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} title={`Details for "${setForDetails?.name}"`}>
-        {setForDetails?.persistedFiles && setForDetails.persistedFiles.length > 0 ? (
-            <ul className="space-y-2 text-text-secondary max-h-80 overflow-y-auto">
-                {setForDetails.persistedFiles.map((file, index) => (
-                    <li key={index} className="flex items-center gap-3 bg-gray-700/50 p-2 rounded-md">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" /></svg>
-                        <span className="truncate">{file.name}</span>
-                    </li>
-                ))}
-            </ul>
-        ) : <p className="text-text-secondary">No files are associated with this study set.</p>}
+        {setForDetails?.persistedFiles && setForDetails.persistedFiles.length > 0 && (
+            <div>
+                <h4 className="font-bold text-gray-300 mb-2">Uploaded Files</h4>
+                <ul className="space-y-2 text-text-secondary max-h-40 overflow-y-auto">
+                    {setForDetails.persistedFiles.map((file, index) => (
+                        <li key={index} className="flex items-center gap-3 bg-gray-700/50 p-2 rounded-md">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" /></svg>
+                            <span className="truncate">{file.name}</span>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        )}
+        {setForDetails?.youtubeUrls && setForDetails.youtubeUrls.length > 0 && (
+            <div className="mt-4">
+                <h4 className="font-bold text-gray-300 mb-2">YouTube Videos</h4>
+                <ul className="space-y-2 text-text-secondary max-h-40 overflow-y-auto">
+                    {setForDetails.youtubeUrls.map((url, index) => (
+                        <li key={index} className="flex items-center gap-3 bg-gray-700/50 p-2 rounded-md">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="truncate hover:underline" title={url}>{url}</a>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        )}
+        {(!setForDetails?.persistedFiles || setForDetails.persistedFiles.length === 0) && (!setForDetails?.youtubeUrls || setForDetails.youtubeUrls.length === 0) &&
+            <p className="text-text-secondary">No files or videos are associated with this study set.</p>
+        }
       </Modal>
     </div>
   );

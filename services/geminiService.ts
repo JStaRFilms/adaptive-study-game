@@ -58,25 +58,41 @@ async function apiCallWithRetry<T>(
 export const generateTopics = async (userContentParts: PromptPart[]): Promise<string[]> => {
     const instruction = getTopicsInstruction();
     const contents = { parts: [{ text: instruction }, ...userContentParts] };
+    const hasYoutubeUrl = userContentParts.some(part => 'text' in part && part.text.includes('[Content from YouTube video:'));
+
+    const apiConfig: any = {
+        temperature: 0.2,
+    };
+
+    if (hasYoutubeUrl) {
+        apiConfig.tools = [{googleSearch: {}}];
+    } else {
+        apiConfig.responseMimeType = "application/json";
+        apiConfig.responseSchema = topicsSchema;
+    }
     
     try {
         const response = await apiCallWithRetry<GenerateContentResponse>(
             (client, model) => client.models.generateContent({
                 model,
                 contents: contents,
-                config: {
-                    responseMimeType: "application/json",
-                    responseSchema: topicsSchema,
-                    temperature: 0.2,
-                },
+                config: apiConfig,
             }),
             'topicAnalysis'
         );
 
-        const jsonText = response.text;
-        if (!jsonText) {
+        if (!response.text) {
             console.error("Error generating topics: API returned no text.");
             return ["General Knowledge"];
+        }
+        
+        let jsonText = response.text;
+        
+        if (hasYoutubeUrl) {
+            const match = jsonText.match(/```json\n([\s\S]*)\n```/);
+            if (match) {
+                jsonText = match[1];
+            }
         }
         const result = JSON.parse(jsonText.trim());
 
@@ -93,7 +109,14 @@ export const generateTopics = async (userContentParts: PromptPart[]): Promise<st
 };
 
 export const generateQuiz = async (userContentParts: PromptPart[], config: QuizConfig): Promise<Quiz | null> => {
-  const { numberOfQuestions, knowledgeSource, topics, mode, customInstructions } = config;
+  const { numberOfQuestions, topics, mode, customInstructions } = config;
+  let { knowledgeSource } = config;
+
+  const hasYoutubeUrl = userContentParts.some(part => 'text' in part && part.text.includes('[Content from YouTube video:'));
+  if (hasYoutubeUrl && knowledgeSource !== KnowledgeSource.WEB_SEARCH) {
+    console.log("YouTube URL detected, promoting knowledge source to WEB_SEARCH for this call.");
+    knowledgeSource = KnowledgeSource.WEB_SEARCH;
+  }
   
   const quizSchema = getQuizSchema(numberOfQuestions);
   const systemInstruction = getQuizSystemInstruction(numberOfQuestions, knowledgeSource, mode, topics, customInstructions);

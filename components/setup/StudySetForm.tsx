@@ -35,6 +35,58 @@ const FileUploader: React.FC<FileUploaderProps> = ({ files, onFileChange, onRemo
   </div>
 );
 
+const YoutubeUrlUploader: React.FC<{
+  urls: string[];
+  onAddUrl: (url: string) => void;
+  onRemoveUrl: (url: string) => void;
+}> = ({ urls, onAddUrl, onRemoveUrl }) => {
+  const [currentUrl, setCurrentUrl] = useState('');
+
+  const handleAddClick = () => {
+    if (currentUrl.trim() && (currentUrl.includes('youtube.com') || currentUrl.includes('youtu.be'))) {
+      onAddUrl(currentUrl);
+      setCurrentUrl('');
+    }
+  };
+
+  return (
+    <div>
+      <label htmlFor="youtubeUrl" className="block text-lg font-medium text-text-secondary mb-3">Add YouTube Videos</label>
+      <p className="text-sm text-gray-400 mb-2">Provide links to YouTube videos for the AI to analyze.</p>
+      <div className="flex gap-2">
+        <input 
+          type="url" 
+          id="youtubeUrl" 
+          value={currentUrl} 
+          onChange={e => setCurrentUrl(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddClick(); }}}
+          placeholder="https://www.youtube.com/watch?v=..."
+          className="w-full p-2 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+        />
+        <button type="button" onClick={handleAddClick} className="px-4 py-2 bg-brand-secondary text-white font-bold rounded-lg hover:bg-brand-primary whitespace-nowrap">Add URL</button>
+      </div>
+       {urls.length > 0 && (
+        <div className="mt-4 text-left text-sm text-text-secondary bg-background-dark/50 p-3 rounded-md">
+            <p className="font-bold mb-1">YouTube videos to analyze:</p>
+            <ul className="space-y-2">
+                {urls.map((url) => (
+                  <li key={url} className="flex justify-between items-center group bg-gray-700/50 p-2 rounded-md">
+                      <span className="truncate" title={url}>
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline-block mr-2 align-text-bottom text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                          {url}
+                      </span>
+                      <button onClick={() => onRemoveUrl(url)} className="p-1 rounded-full text-gray-400 hover:bg-red-500 hover:text-white opacity-50 group-hover:opacity-100 transition-all ml-2 flex-shrink-0" aria-label={`Remove ${url}`}>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                  </li>
+                ))}
+            </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ProcessingView = ({ message, progress }: { message: string, progress: number }) => (
     <div className="bg-surface-dark p-8 rounded-xl min-h-[40vh] flex flex-col justify-center items-center text-center animate-fade-in">
         <LoadingSpinner />
@@ -53,8 +105,8 @@ interface StudySetFormProps {
     processingError: string | null;
     progressMessage: string | null;
     progressPercent: number;
-    onSave: (data: { name: string; content: string; files: File[] }) => void;
-    onSaveOnly: (data: { name: string; content: string; files: File[] }) => void;
+    onSave: (data: { name: string; content: string; files: File[]; youtubeUrls: string[] }) => void;
+    onSaveOnly: (data: { name: string; content: string; files: File[]; youtubeUrls: string[] }) => void;
     onCancel: () => void;
 }
 
@@ -64,6 +116,7 @@ const StudySetForm: React.FC<StudySetFormProps> = ({
     const [name, setName] = useState('');
     const [content, setContent] = useState('');
     const [files, setFiles] = useState<File[]>([]);
+    const [youtubeUrls, setYoutubeUrls] = useState<string[]>([]);
     const [internalError, setInternalError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -71,14 +124,17 @@ const StudySetForm: React.FC<StudySetFormProps> = ({
             setName(activeSet.name);
             setContent(activeSet.content);
             setFiles([]); // Don't show existing files in the "add" list
+            setYoutubeUrls(activeSet.youtubeUrls || []);
         } else if (initialContent) {
             setContent(initialContent);
             setName('');
             setFiles([]);
+            setYoutubeUrls([]);
         } else {
             setName('');
             setContent('');
             setFiles([]);
+            setYoutubeUrls([]);
         }
     }, [activeSet, initialContent]);
 
@@ -98,26 +154,30 @@ const StudySetForm: React.FC<StudySetFormProps> = ({
         setFiles(prevFiles => prevFiles.filter(f => f !== fileToRemove));
     };
 
-    const handleSaveAndAnalyzeClick = () => {
+    const handleAddUrl = (url: string) => {
+        if (!youtubeUrls.includes(url)) {
+            setYoutubeUrls(prev => [...prev, url]);
+        }
+    }
+    const handleRemoveUrl = (urlToRemove: string) => {
+        setYoutubeUrls(prev => prev.filter(url => url !== urlToRemove));
+    }
+
+    const validateAndSubmit = (submitAction: (data: any) => void) => {
         setInternalError(null);
-        if (!name.trim()) { setInternalError("Please provide a name for your new study set."); return; }
-        if (!content.trim() && files.length === 0 && (!activeSet || !activeSet.persistedFiles || activeSet.persistedFiles.length === 0)) { 
-            setInternalError("Please provide some study material to analyze."); 
+        if (!name.trim()) { 
+            setInternalError("Please provide a name for your new study set.");
             return; 
         }
-        onSave({ name, content, files });
+        
+        const hasContent = content.trim().length > 0 || files.length > 0 || youtubeUrls.length > 0;
+        if (!hasContent) { 
+            setInternalError("Please provide some study material (text, files, or YouTube URLs) to analyze."); 
+            return; 
+        }
+        submitAction({ name, content, files, youtubeUrls });
     };
 
-    const handleSaveOnlyClick = () => {
-        setInternalError(null);
-        if (!name.trim()) { setInternalError("Please provide a name."); return; }
-        if (!content.trim() && files.length === 0 && (!activeSet || !activeSet.persistedFiles || activeSet.persistedFiles.length === 0)) { 
-            setInternalError("Please provide some study material to save."); 
-            return; 
-        }
-        onSaveOnly({ name, content, files });
-    };
-    
     return (
         <div className="animate-fade-in w-full max-w-2xl mx-auto flex flex-col flex-grow">
             <h1 className="text-3xl sm:text-4xl font-bold text-text-primary mb-6 text-center">{activeSet ? 'Edit Study Set' : 'Create New Study Set'}</h1>
@@ -144,14 +204,15 @@ const StudySetForm: React.FC<StudySetFormProps> = ({
                             <textarea id="setContent" value={content} onChange={e => setContent(e.target.value)} placeholder="Paste your study material here, or upload files below." className="w-full h-40 p-3 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"/>
                         </div>
                         <FileUploader files={files} onFileChange={handleFileChange} onRemoveFile={handleRemoveFile} />
+                        <YoutubeUrlUploader urls={youtubeUrls} onAddUrl={handleAddUrl} onRemoveUrl={handleRemoveUrl} />
                     </div>
                 )}
             </div>
             
             {(processingError || internalError) && !isProcessing && <div className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg relative mt-6" role="alert"><span className="block sm:inline">{processingError || internalError}</span></div>}
             <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
-                <button onClick={handleSaveAndAnalyzeClick} disabled={isProcessing || isAnalyzingTopics || !name.trim()} className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 flex items-center justify-center gap-2">Next: Configure Quiz</button>
-                <button onClick={handleSaveOnlyClick} disabled={isProcessing || isAnalyzingTopics || !name.trim()} className="w-full sm:w-auto px-6 py-3 bg-brand-secondary text-white font-bold rounded-lg hover:bg-brand-primary transition-all disabled:bg-gray-500">{activeSet ? 'Save Changes' : 'Save & Close'}</button>
+                <button onClick={() => validateAndSubmit(onSave)} disabled={isProcessing || isAnalyzingTopics || !name.trim()} className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 flex items-center justify-center gap-2">Next: Configure Quiz</button>
+                <button onClick={() => validateAndSubmit(onSaveOnly)} disabled={isProcessing || isAnalyzingTopics || !name.trim()} className="w-full sm:w-auto px-6 py-3 bg-brand-secondary text-white font-bold rounded-lg hover:bg-brand-primary transition-all disabled:bg-gray-500">{activeSet ? 'Save Changes' : 'Save & Close'}</button>
                 <button onClick={onCancel} disabled={isProcessing || isAnalyzingTopics} className="w-full sm:w-auto px-6 py-3 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-all disabled:opacity-50">Cancel</button>
             </div>
         </div>

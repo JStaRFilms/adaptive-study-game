@@ -1,4 +1,5 @@
 
+
 export interface PersistedFile {
   name: string;
   type: string;
@@ -32,6 +33,7 @@ export interface StudySet {
   createdAt: string;
   persistedFiles?: PersistedFile[];
   topics?: string[];
+  youtubeUrls?: string[];
 }
 
 export interface QuizConfig {

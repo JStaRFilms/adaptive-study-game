@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { StudySet, QuizConfig, PromptPart, QuizResult } from '../types';
 import { generateTopics } from '../services/geminiService';
@@ -103,7 +104,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     setProgressPercent(percent);
   }, []);
 
-    const handlePrepareForQuiz = useCallback(async (parts: PromptPart[], set: StudySet, supplementalFiles: File[] = []) => {
+    const handlePrepareForQuiz = useCallback(async (parts: PromptPart[], set: StudySet) => {
         resetState();
         setActiveSet(set);
         setIsProcessing(true);
@@ -150,7 +151,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
         }
     }, [resetState, updateSet]);
 
-    const fullSaveAndAnalyze = async (data: {name: string, content: string, files: File[]}) => {
+    const fullSaveAndAnalyze = async (data: {name: string, content: string, files: File[], youtubeUrls: string[]}) => {
         setIsProcessing(true);
         setProcessingError(null);
 
@@ -162,10 +163,10 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
 
             if (activeSet) { // Editing
                 finalPersistedFiles = [...(activeSet.persistedFiles || []), ...persistedFiles];
-                currentSet = { ...activeSet, name: data.name, content: combinedText.trim(), persistedFiles: finalPersistedFiles, topics: [] }; // Clear topics on content change
+                currentSet = { ...activeSet, name: data.name, content: combinedText.trim(), persistedFiles: finalPersistedFiles, topics: [], youtubeUrls: data.youtubeUrls }; // Clear topics on content change
                 await updateSet(currentSet);
             } else { // Creating
-                currentSet = await addSet({ name: data.name, content: combinedText.trim(), persistedFiles: finalPersistedFiles, topics: [] });
+                currentSet = await addSet({ name: data.name, content: combinedText.trim(), persistedFiles: finalPersistedFiles, topics: [], youtubeUrls: data.youtubeUrls });
             }
             
             // Now that the set is saved, prepare the parts for topic analysis
@@ -178,6 +179,12 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                      }
                 });
             }
+            if (currentSet.youtubeUrls) {
+                currentSet.youtubeUrls.forEach(url => {
+                    parts.push({text: `\n\n[Content from YouTube video: ${url}]\nThis content should be analyzed by watching the video or reading its transcript.`});
+                });
+            }
+
             setPreparedParts(parts);
             
             setIsProcessing(false);
@@ -200,24 +207,28 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
         }
     };
     
-    const fullSaveOnly = async (data: {name: string, content: string, files: File[]}) => {
+    const fullSaveOnly = async (data: {name: string, content: string, files: File[], youtubeUrls: string[]}) => {
         setIsProcessing(true);
         setProcessingError(null);
         try {
             const { combinedText, persistedFiles } = await processFilesToParts(data.content, data.files, onProgress);
             
             if (activeSet) {
-                const contentChanged = activeSet.content !== combinedText.trim() || persistedFiles.length > 0;
+                const contentChanged = activeSet.content !== combinedText.trim() 
+                    || persistedFiles.length > 0 
+                    || JSON.stringify(activeSet.youtubeUrls) !== JSON.stringify(data.youtubeUrls);
+
                 const finalPersistedFiles = [...(activeSet.persistedFiles || []), ...persistedFiles];
                 await updateSet({ 
                     ...activeSet, 
                     name: data.name, 
                     content: combinedText.trim(),
                     persistedFiles: finalPersistedFiles,
+                    youtubeUrls: data.youtubeUrls,
                     topics: contentChanged ? [] : activeSet.topics || [] // Clear topics if content changed
                 });
             } else {
-                await addSet({ name: data.name, content: combinedText.trim(), persistedFiles, topics: [] });
+                await addSet({ name: data.name, content: combinedText.trim(), persistedFiles, topics: [], youtubeUrls: data.youtubeUrls });
             }
             handleShowList();
         } catch (err) {
@@ -375,7 +386,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                 onNewSet={handleNewSet}
                 onEditSet={handleEditSet}
                 onDeleteSet={handleDeleteSet}
-                onPrepareForQuiz={(parts, set) => handlePrepareForQuiz(parts, set, [])}
+                onPrepareForQuiz={handlePrepareForQuiz}
                 onPredict={onPredict}
                 onShowHistory={handleShowHistory}
                 onShowStats={onShowStats}

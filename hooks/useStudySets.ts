@@ -31,6 +31,7 @@ export const useStudySets = (): [
       ...newSet,
       id: new Date().toISOString() + Math.random(),
       createdAt: new Date().toISOString(),
+      youtubeUrls: newSet.youtubeUrls || [],
     };
     await add(STORE_NAME, setWithId);
     await refreshSets();

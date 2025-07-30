@@ -1,5 +1,4 @@
-
-import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, QuizResult, AnswerLog, StudySet, OpenEndedAnswer, Quiz } from '../types';
+import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, StudySet, Quiz } from '../types';
 
 export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[], customInstructions?: string): string => {
     let baseInstruction = '';
@@ -67,13 +66,13 @@ ${schemaDescription}
             break;
     }
     
-    baseInstruction += `\n\nThe user's study materials (text, images, audio transcriptions) are provided in the user prompt.`;
+    baseInstruction += `\n- The user's study materials (text, images, audio transcriptions, and video links) are provided in the user prompt. If a YouTube URL is provided (e.g., '[Content from YouTube video: ...]'), you MUST treat the URL as a primary source of information. Use your ability to access web content to understand the video's transcript or content when generating questions.`;
     return baseInstruction;
 };
 
 
 export const getTopicsInstruction = (): string => {
-    return "You are an expert at analyzing text and identifying key themes. Based on the provided study materials (which can include text and images), identify the main topics or subjects discussed. Your response must be a JSON object containing a single key 'topics' which is an array of strings. Each string should be a concise topic name (e.g., 'Cellular Respiration', 'The Krebs Cycle', 'World War II Causes').";
+    return "You are an expert at analyzing text and identifying key themes. Based on the provided study materials (which can include text, images, and content from YouTube URLs), identify the main topics or subjects discussed. If a YouTube URL is provided, you must access its content to inform the topics. Your response must be a JSON object containing a single key 'topics' which is an array of strings. Each string should be a concise topic name (e.g., 'Cellular Respiration', 'The Krebs Cycle', 'World War II Causes').";
 };
 
 
