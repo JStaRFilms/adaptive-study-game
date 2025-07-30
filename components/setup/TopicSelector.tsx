@@ -12,7 +12,7 @@ const QuizConfigurator: React.FC<{
     <>
         <div>
             <label htmlFor="numQuestions" className="block text-lg font-medium text-text-secondary mb-2">Number of Questions</label>
-            <input type="number" id="numQuestions" value={numQuestions} onChange={e => setNumQuestions(parseInt(e.target.value, 10))} min="5" max="50" className="w-32 p-2 text-center text-xl bg-gray-900 border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"/>
+            <input type="number" id="numQuestions" value={Number.isNaN(numQuestions) ? '' : numQuestions} onChange={e => setNumQuestions(parseInt(e.target.value, 10))} min="5" max="50" className="w-32 p-2 text-center text-xl bg-gray-900 border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"/>
         </div>
         <div>
             <h3 className="text-lg font-medium text-text-secondary mb-3">Knowledge Source</h3>
