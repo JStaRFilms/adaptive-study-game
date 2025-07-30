@@ -176,6 +176,9 @@ const StudySetList: React.FC<StudySetListProps> = ({
             <p className="text-text-secondary">No files or videos are associated with this study set.</p>
         }
       </Modal>
+      <p className="text-center mt-8 text-xs italic text-text-secondary/80">
+        Don't forget to refresh the app at least once a day because I update it regularly.
+      </p>
     </div>
   );
 };
