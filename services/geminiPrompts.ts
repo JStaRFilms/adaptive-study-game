@@ -203,13 +203,32 @@ Now, generate the feedback based on this data, adhering strictly to the JSON sch
 `;
 };
 
+const getFullStudySetContext = (studySet: StudySet): string => {
+    let context = studySet.content || '';
+
+    if (studySet.persistedFiles && studySet.persistedFiles.length > 0) {
+        const fileNames = studySet.persistedFiles.map(f => f.name).join(', ');
+        context += `\n\n[This study set also includes content from the following uploaded files: ${fileNames}. You have access to the content of these files.]`;
+    }
+    
+    if (studySet.youtubeUrls && studySet.youtubeUrls.length > 0) {
+        studySet.youtubeUrls.forEach(url => {
+            context += `\n\n[This study set includes content from the YouTube video at this URL, which you must use as a primary source: ${url}. You have access to the content of this video.]`;
+        });
+    }
+
+    return context;
+};
+
 export const getChatSystemInstruction = (studySet: StudySet, quiz: Quiz): string => {
     const quizQuestionText = quiz.questions.map((q, i) => `${i + 1}. ${q.questionText}`).join('\n');
+    const fullContext = getFullStudySetContext(studySet);
+    
     return `You are an expert AI Study Coach. Your goal is to help a student who is currently taking a quiz. Be encouraging, helpful, and guide them towards the answer without simply giving it away.
 
 The user is studying from a set named "${studySet.name}". The core content for this set is as follows:
 ---
-${studySet.content}
+${fullContext}
 ---
 
 The questions in their current quiz are:

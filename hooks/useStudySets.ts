@@ -31,6 +31,8 @@ export const useStudySets = (): [
       ...newSet,
       id: new Date().toISOString() + Math.random(),
       createdAt: new Date().toISOString(),
+      persistedFiles: newSet.persistedFiles || [],
+      topics: newSet.topics || [],
       youtubeUrls: newSet.youtubeUrls || [],
     };
     await add(STORE_NAME, setWithId);
@@ -39,7 +41,13 @@ export const useStudySets = (): [
   }, [refreshSets]);
 
   const updateSet = useCallback(async (updatedSet: StudySet) => {
-    await put(STORE_NAME, updatedSet);
+    const setToSave: StudySet = {
+      ...updatedSet,
+      persistedFiles: updatedSet.persistedFiles || [],
+      topics: updatedSet.topics || [],
+      youtubeUrls: updatedSet.youtubeUrls || [],
+    };
+    await put(STORE_NAME, setToSave);
     await refreshSets();
   }, [refreshSets]);
 

@@ -1,13 +1,12 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage } from './types';
-import ProgressBar from './components/common/ProgressBar';
-import TimerBar from './components/common/TimerBar';
-import Markdown from './components/common/Markdown';
-import Modal from './components/common/Modal';
-import Tooltip from './components/common/Tooltip';
-import ChatPanel from './components/common/ChatPanel';
-import { validateFillInTheBlankAnswer } from './services/geminiService';
+import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, QuizConfig, ChatMessage, UserAnswer } from '@/types';
+import ProgressBar from '@/components/common/ProgressBar';
+import TimerBar from '@/components/common/TimerBar';
+import Markdown from '@/components/common/Markdown';
+import Modal from '@/components/common/Modal';
+import Tooltip from '@/components/common/Tooltip';
+import ChatPanel from '@/components/common/ChatPanel';
+import { validateFillInTheBlankAnswer } from '@/services/geminiService';
 
 interface StudyScreenProps {
   quiz: Quiz;
@@ -60,7 +59,6 @@ const StudyScreen = ({
   const currentQuestion: Question = quiz.questions[currentQuestionIndex];
   const totalQuestions = quiz.questions.length;
   const timeLimitForCurrentQuestion = currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK ? FIB_TIME_LIMIT : QUESTION_TIME_LIMIT;
-  const isChatAllowedNow = isChatEnabled && answerStatus !== 'unanswered';
 
   const goToNextQuestion = useCallback(() => {
     if (currentQuestionIndex + 1 < totalQuestions) {
@@ -195,7 +193,7 @@ const StudyScreen = ({
 
   const handleFibSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (fillBlankAnswers.every((a: string) => !a.trim()) || currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK) return;
+    if (fillBlankAnswers.every(a => !a.trim()) || currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK) return;
 
     setIsVerifyingAnswer(true);
 
@@ -241,7 +239,6 @@ const StudyScreen = ({
   };
   
   const handleSendMessageWrapper = (message: string) => {
-      if (!isChatAllowedNow) return;
       onSendMessage(message, currentQuestion);
   };
 
@@ -291,7 +288,7 @@ const StudyScreen = ({
         return (
              <form onSubmit={isAnswered || isVerifyingAnswer ? (e) => e.preventDefault() : handleFibSubmit} className="flex flex-col items-center gap-4">
                 <div className="text-2xl sm:text-3xl font-bold text-text-primary text-center flex flex-wrap items-center justify-center gap-2 leading-relaxed">
-                    {parts.map((part: string, index: number) => (
+                    {parts.map((part, index) => (
                       <React.Fragment key={index}>
                         <Markdown content={part} as="span"/>
                         {index < parts.length - 1 && (
@@ -327,7 +324,7 @@ const StudyScreen = ({
         if (currentQuestion.questionType === QuestionType.MULTIPLE_CHOICE) {
             return (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {currentQuestion.options.map((option: string, index: number) => {
+                    {currentQuestion.options.map((option, index) => {
                         const isCorrect = index === currentQuestion.correctAnswerIndex;
                         const isSelected = index === selectedOptionIndex;
                         let style = 'bg-surface-dark opacity-60 cursor-not-allowed';
@@ -346,7 +343,7 @@ const StudyScreen = ({
             return (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {currentQuestion.options.map((option: string, index: number) => <button key={index} onClick={() => setSelectedOptionIndex(index)} className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${selectedOptionIndex === index ? 'bg-brand-primary ring-2 ring-white' : 'bg-surface-dark hover:bg-gray-600'}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><Markdown content={option} as="span" /></button>)}
+                  {currentQuestion.options.map((option, index) => <button key={index} onClick={() => setSelectedOptionIndex(index)} className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${selectedOptionIndex === index ? 'bg-brand-primary ring-2 ring-white' : 'bg-surface-dark hover:bg-gray-600'}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><Markdown content={option} as="span" /></button>)}
                 </div>
                 <div className="mt-6 flex justify-center"><button onClick={handleMcSubmit} disabled={selectedOptionIndex === null} className="px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed">Submit</button></div>
               </>
@@ -469,8 +466,7 @@ const StudyScreen = ({
         messages={chatMessages}
         isTyping={isAITyping}
         error={chatError}
-        isEnabled={isChatAllowedNow}
-        disabledTooltipText="Answer the question to unlock the AI Coach"
+        isEnabled={isChatEnabled}
         questionIdentifier={currentQuestion.questionText}
       />
 
