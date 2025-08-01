@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question } from './types';
+import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer } from './types';
 import { GoogleGenAI, Chat } from '@google/genai';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -16,7 +16,7 @@ import PredictionResultsScreen from './components/PredictionResultsScreen';
 import StatsScreen from './components/StatsScreen';
 import AnnouncementBanner from './components/common/AnnouncementBanner';
 import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedback } from './services/geminiService';
-import { getChatSystemInstruction } from './services/geminiPrompts';
+import { getStudyChatSystemInstruction, getReviewChatSystemInstruction } from './services/geminiPrompts';
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
 import { usePredictions } from './hooks/usePredictions';
@@ -37,12 +37,12 @@ const App: React.FC = () => {
   const [initialContent, setInitialContent] = useState<string | null>(null);
   const [appState, setAppState] = useState<AppState>(AppState.SETUP);
   const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [studyMode, setStudyMode] = useState<StudyMode>(StudyMode.PRACTICE);
   const [quizConfigForDisplay, setQuizConfigForDisplay] = useState<QuizConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [finalScore, setFinalScore] = useState<number>(0);
-  const [studyMode, setStudyMode] = useState<StudyMode>(StudyMode.PRACTICE);
   const [answerLog, setAnswerLog] = useState<AnswerLog[]>([]);
   const [currentStudySet, setCurrentStudySet] = useState<StudySet | null>(null);
+  const [currentResult, setCurrentResult] = useState<QuizResult | null>(null);
   const [predictionResults, setPredictionResults] = useState<PredictedQuestion[] | null>(null);
   
   // Grading & Retry State
@@ -65,7 +65,8 @@ const App: React.FC = () => {
   const [isAITyping, setIsAITyping] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
 
-  const [history, addQuizResult] = useQuizHistory();
+
+  const [history, addQuizResult, updateQuizResult] = useQuizHistory();
   const [studySets, addSet, updateSet, deleteSet] = useStudySets();
   const [predictions, addOrUpdatePrediction] = usePredictions();
   const [, updateSRSItem, getReviewPool] = useSRS();
@@ -139,7 +140,7 @@ const App: React.FC = () => {
         if (firstKey && set) {
             try {
                 const ai = new GoogleGenAI({ apiKey: firstKey });
-                const systemInstruction = getChatSystemInstruction(set, generatedQuiz);
+                const systemInstruction = getStudyChatSystemInstruction(set, generatedQuiz);
                 const newChat = ai.chats.create({
                     model: 'gemini-2.5-flash',
                     config: { systemInstruction },
@@ -206,62 +207,73 @@ const App: React.FC = () => {
     setAppState(AppState.STUDYING);
   }, [getReviewPool]);
 
-  const handleFinishStudy = useCallback(async (score: number, log: AnswerLog[]) => {
-    setFinalScore(score);
+  const handleFinishStudy = useCallback((log: AnswerLog[]) => {
     setAnswerLog(log);
     setAppState(AppState.RESULTS);
     setSubmissionForRetry(null);
     setGradingError(null);
     
+    const totalPointsAwarded = log.reduce((sum, l) => sum + l.pointsAwarded, 0);
+    const totalMaxPoints = log.reduce((sum, l) => sum + (l.maxPoints || 0), 0);
+    const accuracy = totalMaxPoints > 0 ? Math.round((totalPointsAwarded / totalMaxPoints) * 100) : 0;
+    const finalScore = totalPointsAwarded;
+
     if (studyMode === StudyMode.SRS) {
         setFeedback(null);
+        setCurrentResult({
+            id: `srs-session-${new Date().toISOString()}`,
+            studySetId: 'srs-set',
+            date: new Date().toISOString(),
+            score: finalScore,
+            accuracy,
+            answerLog: log,
+            mode: StudyMode.SRS,
+        });
         return;
     }
 
     if (!currentStudySet) return;
     
-    const totalPointsAwarded = log.reduce((sum, l) => sum + l.pointsAwarded, 0);
-    const totalMaxPoints = log.reduce((sum, l) => sum + l.maxPoints, 0);
-    const accuracy = totalMaxPoints > 0 ? Math.round((totalPointsAwarded / totalMaxPoints) * 100) : 0;
+    // Immediately calculate and show results, then fetch feedback
+    (async () => {
+        const initialResultData: Omit<QuizResult, 'id'> = {
+            studySetId: currentStudySet.id,
+            date: new Date().toISOString(),
+            score: finalScore,
+            accuracy: accuracy,
+            answerLog: log,
+            webSources: quiz?.webSources,
+            mode: studyMode,
+            feedback: null,
+            chatHistory: chatMessages,
+        };
+        
+        const initialResult = await addQuizResult(initialResultData);
+        setCurrentResult(initialResult);
 
-    const resultStub: Omit<QuizResult, 'id' | 'feedback'> = {
-        studySetId: currentStudySet.id,
-        date: new Date().toISOString(),
-        score: score,
-        accuracy: accuracy,
-        answerLog: log,
-        webSources: quiz?.webSources,
-        mode: studyMode,
-    };
-    
-    let generatedFeedback: PersonalizedFeedback | null = null;
-    if (studyMode !== StudyMode.EXAM) {
-        setIsGeneratingFeedback(true);
-        try {
-            // Get the full history for this specific study set and add the current result for analysis
-            const fullHistoryForAnalysis = [
-                ...history.filter(h => h.studySetId === currentStudySet.id), 
-                { ...resultStub, id: 'temp-id', feedback: null } // Add current result for analysis
-            ];
-            
-            generatedFeedback = await generatePersonalizedFeedback(fullHistoryForAnalysis);
-            setFeedback(generatedFeedback);
+        if (studyMode !== StudyMode.EXAM) {
+            setIsGeneratingFeedback(true);
+            setFeedback(null);
 
-        } catch (feedbackError) {
-            console.error("Failed to generate personalized feedback:", feedbackError);
-            setFeedback(null); // Keep feedback null on error
-        } finally {
-            setIsGeneratingFeedback(false);
+            try {
+                const fullHistoryForAnalysis = [initialResult, ...history];
+                const generatedFeedback = await generatePersonalizedFeedback(fullHistoryForAnalysis);
+                
+                if (generatedFeedback) {
+                    const finalResult: QuizResult = { ...initialResult, feedback: generatedFeedback };
+                    setCurrentResult(finalResult);
+                    setFeedback(generatedFeedback);
+                    await updateQuizResult(finalResult);
+                }
+            } catch (feedbackError) {
+                console.error("Failed to generate personalized feedback:", feedbackError);
+                setFeedback(null);
+            } finally {
+                setIsGeneratingFeedback(false);
+            }
         }
-    }
-    
-    // Add the final result to history, including the generated feedback
-    await addQuizResult({
-        ...resultStub,
-        feedback: generatedFeedback,
-    });
-
-  }, [studyMode, addQuizResult, currentStudySet, quiz?.webSources, history]);
+    })();
+  }, [studyMode, addQuizResult, updateQuizResult, currentStudySet, quiz?.webSources, history, chatMessages]);
   
   const handleFinishExam = useCallback(async (submission: OpenEndedAnswer) => {
     if (!quiz) return;
@@ -275,11 +287,10 @@ const App: React.FC = () => {
       const maxScore = gradedLog.reduce((acc, log) => acc + (log.maxPoints || 0), 0);
       const accuracy = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
       
-      setFinalScore(totalScore);
       setAnswerLog(gradedLog);
 
       if (currentStudySet) {
-        await addQuizResult({
+        const newResult = await addQuizResult({
             studySetId: currentStudySet.id,
             date: new Date().toISOString(),
             score: totalScore,
@@ -287,7 +298,9 @@ const App: React.FC = () => {
             answerLog: gradedLog,
             mode: StudyMode.EXAM,
             feedback: null,
+            chatHistory: [], // No chat in exam mode
         });
+        setCurrentResult(newResult);
       }
 
       setAppState(AppState.RESULTS);
@@ -304,23 +317,76 @@ const App: React.FC = () => {
     }
   }, [submissionForRetry, handleFinishExam]);
 
-  const handleReview = useCallback((resultToReview?: QuizResult) => {
-    let logToReview: AnswerLog[];
-    if (resultToReview) {
-      logToReview = resultToReview.answerLog;
-      setQuiz({ questions: resultToReview.answerLog.map(l => l.question), webSources: resultToReview.webSources });
-      setFeedback(resultToReview.feedback || null);
-      setIsGeneratingFeedback(false);
-      // Find and set the study set to enable 'start focused quiz'
-      setCurrentStudySet(studySets.find(s => s.id === resultToReview.studySetId) || null);
-    } else {
-      // This case handles reviewing the *current* session's results immediately after finishing
-      logToReview = answerLog;
-      setQuiz({ questions: answerLog.map(l => l.question), webSources: quiz?.webSources });
+  const handleStartFocusedQuiz = useCallback(async (weaknessTopics: PersonalizedFeedback['weaknessTopics']) => {
+    if (!currentStudySet) return;
+    
+    const { parts } = await processFilesToParts(currentStudySet.content, [], () => {});
+    const topics = weaknessTopics.map(t => t.topic);
+    const numQuestions = weaknessTopics.reduce((sum, t) => sum + t.suggestedQuestionCount, 0);
+
+    const config: QuizConfig = {
+      numberOfQuestions: Math.max(5, Math.min(50, numQuestions)),
+      mode: StudyMode.REVIEW,
+      knowledgeSource: KnowledgeSource.NOTES_ONLY,
+      topics: topics,
+      customInstructions: `This is a focused review session. The user previously struggled with these topics: ${topics.join(', ')}. Generate questions that specifically test their understanding of these areas, focusing on concepts they likely misunderstood.`
+    };
+    
+    await handleStartStudy(parts, config, currentStudySet.id);
+  }, [currentStudySet, handleStartStudy]);
+
+  const handleReview = useCallback(async (resultToReview: QuizResult) => {
+    const reviewSet = studySets.find(s => s.id === resultToReview.studySetId) || null;
+    
+    setQuiz({ questions: resultToReview.answerLog.map(l => l.question), webSources: resultToReview.webSources });
+    setFeedback(resultToReview.feedback || null);
+    setIsGeneratingFeedback(false);
+    setCurrentStudySet(reviewSet);
+    setCurrentResult(resultToReview);
+    setAnswerLog(resultToReview.answerLog);
+    
+    // Load or initialize chat for review
+    const initialMessages: ChatMessage[] = resultToReview.chatHistory && resultToReview.chatHistory.length > 0
+        ? resultToReview.chatHistory
+        : [{ role: 'model', text: `You are reviewing your quiz on "${reviewSet?.name}". Feel free to ask me anything about your performance or the questions.` }];
+    
+    // Inject the default focused quiz suggestion if applicable and not already part of a continued chat
+    if (resultToReview.feedback?.weaknessTopics && resultToReview.feedback.weaknessTopics.length > 0) {
+        const weaknessTopics = resultToReview.feedback.weaknessTopics;
+        const suggestionMessage: ChatMessage = {
+            role: 'model',
+            text: "Based on your results, I've identified some areas we can work on. I can create a quiz to help you practice.",
+            action: {
+                text: `Create Focused Quiz (${weaknessTopics.length} topic${weaknessTopics.length > 1 ? 's' : ''})`,
+                onClick: () => handleStartFocusedQuiz(weaknessTopics)
+            }
+        };
+        initialMessages.push(suggestionMessage);
     }
-    setAnswerLog(logToReview);
+
+    setChatMessages(initialMessages);
+    
+    if (reviewSet) {
+        try {
+            const firstKey = (process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY)?.split(',')[0].trim();
+            if (firstKey) {
+                const ai = new GoogleGenAI({ apiKey: firstKey });
+                const systemInstruction = getReviewChatSystemInstruction(reviewSet, resultToReview, resultToReview.feedback || null);
+                const newChat = ai.chats.create({
+                    model: 'gemini-2.5-flash',
+                    config: { systemInstruction },
+                });
+                setChat(newChat);
+                setChatError(null);
+            }
+        } catch (e) {
+            console.error("Failed to initialize review chat", e);
+            setChatError("Could not start AI review chat session.");
+        }
+    }
+
     setAppState(AppState.REVIEWING);
-  }, [answerLog, quiz?.webSources, studySets]);
+  }, [studySets, handleStartFocusedQuiz]);
 
   const handleRestart = useCallback(() => {
     setAppState(AppState.SETUP);
@@ -328,6 +394,7 @@ const App: React.FC = () => {
     setError(null);
     setAnswerLog([]);
     setCurrentStudySet(null);
+    setCurrentResult(null);
     setFeedback(null);
     setPredictionResults(null);
     setQuizConfigForDisplay(null);
@@ -375,28 +442,26 @@ const App: React.FC = () => {
     }
   }, [currentStudySet]);
 
-  const handleStartFocusedQuiz = useCallback(async (weaknessTopics: PersonalizedFeedback['weaknessTopics']) => {
+  
+  const handleStartCustomQuiz = useCallback(async (topics: string[]) => {
     if (!currentStudySet) return;
     
     const { parts } = await processFilesToParts(currentStudySet.content, [], () => {});
-    const topics = weaknessTopics.map(t => t.topic);
-    const numQuestions = weaknessTopics.reduce((sum, t) => sum + t.suggestedQuestionCount, 0);
-
+    
     const config: QuizConfig = {
-      numberOfQuestions: Math.max(5, Math.min(50, numQuestions)),
+      numberOfQuestions: Math.min(25, Math.max(5, topics.length * 5)), // Heuristic: 5 questions per topic, up to 25
       mode: StudyMode.REVIEW,
       knowledgeSource: KnowledgeSource.NOTES_ONLY,
       topics: topics,
-      customInstructions: `This is a focused review session. The user previously struggled with these topics: ${topics.join(', ')}. Generate questions that specifically test their understanding of these areas, focusing on concepts they likely misunderstood.`
+      customInstructions: `This is a focused review session. The user requested a quiz on these specific topics: ${topics.join(', ')}. Generate questions that test their understanding of these areas.`
     };
     
     await handleStartStudy(parts, config, currentStudySet.id);
   }, [currentStudySet, handleStartStudy]);
-  
+
   const handleRetakeQuiz = useCallback(() => {
       setAppState(AppState.STUDYING);
       setAnswerLog([]);
-      setFinalScore(0);
       setFeedback(null);
   }, []);
   
@@ -404,28 +469,58 @@ const App: React.FC = () => {
     setAppState(AppState.STATS);
   }, []);
 
-  const handleSendMessage = useCallback(async (userVisibleMessage: string, aiPrompt: string, currentQuestion: Question) => {
+  const handleSendMessage = useCallback(async (userMessage: string, contextQuestion?: Question, contextLog?: AnswerLog) => {
     if (!chat || isAITyping) return;
-
-    const userMessage: ChatMessage = { role: 'user', text: userVisibleMessage };
-    setChatMessages(prev => [...prev, userMessage]);
+    
+    const newUserMessage: ChatMessage = { role: 'user', text: userMessage };
+    setChatMessages(prev => [...prev, newUserMessage]);
     setIsAITyping(true);
     setChatError(null);
 
-    // Add a placeholder for the model's response and start streaming
     setChatMessages(prev => [...prev, { role: 'model', text: '' }]);
 
     try {
-      const contextualMessage = `The user is on the following question:\n"""\n${currentQuestion.questionText}\n"""\n\n${aiPrompt}`;
+      let messageForAI = userMessage;
+      if (contextQuestion) {
+        // This is for the STUDYING screen, add question context
+        let contextString = `The user is on the following question:\n"""\n${contextQuestion.questionText}\n"""\n`;
+
+        if (contextLog && contextLog.userAnswer !== null) {
+            let userAnswerText = 'The user skipped this question.';
+            if (contextLog.userAnswer !== 'SKIPPED') {
+                 if (contextQuestion.questionType === QuestionType.MULTIPLE_CHOICE) {
+                    const selectedOption = (contextQuestion as MultipleChoiceQuestion).options[contextLog.userAnswer as number];
+                    userAnswerText = `The user answered: "${selectedOption}"`;
+                } else if (contextQuestion.questionType === QuestionType.TRUE_FALSE) {
+                    userAnswerText = `The user answered: ${contextLog.userAnswer ? 'True' : 'False'}`;
+                } else if (contextQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
+                    userAnswerText = `The user answered: "${(contextLog.userAnswer as string[]).join('", "')}"`;
+                } else if (typeof contextLog.userAnswer === 'string' || typeof contextLog.userAnswer === 'number' || typeof contextLog.userAnswer === 'boolean') {
+                    userAnswerText = `The user answered: "${contextLog.userAnswer}"`
+                }
+            }
+            
+            let correctness: string;
+            if (contextLog.pointsAwarded === contextLog.maxPoints) {
+                correctness = 'correctly';
+            } else if (contextLog.pointsAwarded > 0) {
+                correctness = 'partially correctly';
+            } else {
+                correctness = 'incorrectly';
+            }
+            contextString += `\nThey answered it ${correctness}. ${userAnswerText}\n`;
+        }
+
+        messageForAI = `${contextString}\nUser's message: ${userMessage}`;
+      }
       
-      const stream = await chat.sendMessageStream({ message: contextualMessage });
+      const stream = await chat.sendMessageStream({ message: messageForAI });
 
       for await (const chunk of stream) {
         const chunkText = chunk.text;
         if (chunkText) {
           setChatMessages(prev => {
             const lastMessage = prev[prev.length - 1];
-            // Ensure we are updating the model's message
             if (lastMessage && lastMessage.role === 'model') {
               const updatedMessages = [...prev];
               updatedMessages[prev.length - 1] = {
@@ -434,7 +529,7 @@ const App: React.FC = () => {
               };
               return updatedMessages;
             }
-            return prev; // Should not happen with the placeholder logic
+            return prev;
           });
         }
       }
@@ -442,7 +537,6 @@ const App: React.FC = () => {
       console.error("Chat error:", err);
       const errorText = err instanceof Error ? err.message : "An error occurred in the chat.";
       setChatError(errorText);
-      // Replace the placeholder with an error message or add a new one
       setChatMessages(prev => {
         const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'model' && lastMessage.text === '') {
@@ -454,12 +548,35 @@ const App: React.FC = () => {
       });
     } finally {
       setIsAITyping(false);
+      // Check for action command in the last message
+      setChatMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage && lastMessage.role === 'model') {
+            const match = lastMessage.text.match(/\[ACTION:CREATE_QUIZ:(.*?)\]/);
+            if (match && match[1]) {
+                const topics = match[1].split(',').map(t => t.trim()).filter(Boolean);
+                if (topics.length > 0) {
+                    const cleanedText = lastMessage.text.replace(/\[ACTION:CREATE_QUIZ:.*?\]/, '').trim();
+                    const newMessages = [...prev];
+                    newMessages[prev.length - 1] = {
+                        ...lastMessage,
+                        text: cleanedText,
+                        action: {
+                            text: `Create Focused Quiz (${topics.length} topic${topics.length > 1 ? 's' : ''})`,
+                            onClick: () => handleStartCustomQuiz(topics),
+                        }
+                    };
+                    return newMessages;
+                }
+            }
+        }
+        return prev;
+      });
     }
-  }, [chat, isAITyping]);
+  }, [chat, isAITyping, handleStartCustomQuiz]);
 
 
   if (!migrationChecked) {
-    // Show a generic spinner while we check for migration status
     return <div className="flex justify-center items-center min-h-screen"><LoadingSpinner /></div>;
   }
   
@@ -494,27 +611,40 @@ const App: React.FC = () => {
         return <StudyScreen 
                     quiz={quiz} 
                     onFinish={handleFinishStudy} 
-                    onQuit={handleRestart} 
                     mode={studyMode} 
                     updateSRSItem={updateSRSItem} 
                     quizConfig={quizConfigForDisplay}
-                    // Chat Props
                     chatMessages={chatMessages}
                     isChatOpen={isChatOpen}
                     isAITyping={isAITyping}
                     chatError={chatError}
                     isChatEnabled={!!chat}
-                    onSendMessage={handleSendMessage}
+                    onSendMessage={(msg, q, log) => handleSendMessage(msg, q, log)}
                     onToggleChat={() => setIsChatOpen(!isChatOpen)}
                     onCloseChat={() => setIsChatOpen(false)}
                 />;
       
       case AppState.RESULTS:
-        return <ResultsScreen score={finalScore} answerLog={answerLog} onRestart={handleRestart} onReview={() => handleReview()} webSources={quiz?.webSources} feedback={feedback} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={handleStartFocusedQuiz}/>;
+        if (!currentResult) return null; // This now correctly handles the period before feedback is ready
+        return <ResultsScreen result={currentResult} onRestart={handleRestart} onReview={handleReview} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={handleStartFocusedQuiz}/>;
       
       case AppState.REVIEWING:
-        if (answerLog.length === 0) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
-        return <ReviewScreen answerLog={answerLog} webSources={quiz?.webSources} onRetakeSameQuiz={handleRetakeQuiz} onStartNewQuiz={handleRestart} feedback={feedback} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={handleStartFocusedQuiz} />;
+        if (answerLog.length === 0 || !currentResult) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        return <ReviewScreen 
+                  result={currentResult} 
+                  onRetakeSameQuiz={handleRetakeQuiz} 
+                  onStartNewQuiz={handleRestart} 
+                  isGeneratingFeedback={isGeneratingFeedback} 
+                  onStartFocusedQuiz={handleStartFocusedQuiz} 
+                  chatMessages={chatMessages}
+                  isChatOpen={isChatOpen}
+                  isAITyping={isAITyping}
+                  chatError={chatError}
+                  isChatEnabled={!!chat}
+                  onSendMessage={(msg) => handleSendMessage(msg)}
+                  onToggleChat={() => setIsChatOpen(!isChatOpen)}
+                  onCloseChat={() => setIsChatOpen(false)}
+               />;
       
       case AppState.EXAM_IN_PROGRESS:
         if (!quiz) return null;

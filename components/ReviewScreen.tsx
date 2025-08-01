@@ -1,11 +1,11 @@
 
 import React, { useState } from 'react';
-import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer, WebSource, PersonalizedFeedback } from '../types';
+import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer, WebSource, PersonalizedFeedback, QuizResult, ChatMessage } from '../types';
 import Markdown from './common/Markdown';
 import { extractAnswerForQuestion } from '../utils/textUtils';
 import LoadingSpinner from './common/LoadingSpinner';
-// import { generateVisualAid } from '../services/geminiService'; // This is no longer called directly.
 import ImageModal from './common/ImageModal';
+import ChatPanel from './common/ChatPanel';
 
 
 interface ReviewCardProps {
@@ -21,6 +21,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
   const { question, userAnswer, isCorrect, pointsAwarded, maxPoints, aiFeedback, examFeedback } = log;
   
   const getStatus = () => {
+    if (userAnswer === 'SKIPPED') return 'skipped';
     if (pointsAwarded === maxPoints) return 'correct';
     if (pointsAwarded > 0) return 'partial';
     return 'incorrect';
@@ -31,6 +32,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
       switch (status) {
           case 'correct':
               return <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-correct" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+          case 'skipped':
           case 'partial':
               return <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9 13a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm-1-4a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" /></svg>;
           case 'incorrect':
@@ -42,12 +44,14 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
   const getStatusColor = () => {
       switch(status) {
         case 'correct': return 'text-correct';
+        case 'skipped':
         case 'partial': return 'text-yellow-400';
         default: return 'text-incorrect';
       }
   }
 
   const renderUserAnswer = () => {
+    if (userAnswer === 'SKIPPED') return <span className="font-bold text-yellow-400 italic">Skipped</span>;
     if (userAnswer === null) return <span className="text-incorrect font-bold">Not answered</span>;
 
     const answerStyle = `font-bold ${getStatusColor()}`;
@@ -147,7 +151,6 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
   );
 };
 
-// This component is copied from ResultsScreen to be used here without creating a new file.
 interface PersonalizedFeedbackReportProps {
     feedback: PersonalizedFeedback | null;
     isGeneratingFeedback: boolean;
@@ -271,16 +274,27 @@ const PersonalizedFeedbackReport: React.FC<PersonalizedFeedbackReportProps> = ({
 
 
 interface ReviewScreenProps {
-  answerLog: AnswerLog[];
-  webSources?: WebSource[];
+  result: QuizResult;
   onRetakeSameQuiz: () => void;
   onStartNewQuiz: () => void;
-  feedback: PersonalizedFeedback | null;
   isGeneratingFeedback: boolean;
   onStartFocusedQuiz: (weaknessTopics: PersonalizedFeedback['weaknessTopics']) => void;
+  // Chat props
+  chatMessages: ChatMessage[];
+  isChatOpen: boolean;
+  isAITyping: boolean;
+  chatError: string | null;
+  isChatEnabled: boolean;
+  onSendMessage: (message: string) => void;
+  onToggleChat: () => void;
+  onCloseChat: () => void;
 }
 
-const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, webSources, onRetakeSameQuiz, onStartNewQuiz, feedback, isGeneratingFeedback, onStartFocusedQuiz }) => {
+const ReviewScreen: React.FC<ReviewScreenProps> = ({ 
+    result, onRetakeSameQuiz, onStartNewQuiz, isGeneratingFeedback, onStartFocusedQuiz,
+    chatMessages, isChatOpen, isAITyping, chatError, isChatEnabled, onSendMessage, onToggleChat, onCloseChat
+}) => {
+  const { answerLog, webSources, feedback } = result;
   const isExamReview = answerLog.some(log => log.question.questionType === QuestionType.OPEN_ENDED);
   
   let parsedAnswers: (string | null)[] | null = null;
@@ -315,7 +329,6 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, webSources, onRe
     setVisError(null);
   };
 
-
   if (isExamReview && answerLog.length > 0) {
       const firstOpenEndedLog = answerLog.find(log => log.question.questionType === QuestionType.OPEN_ENDED);
       if (firstOpenEndedLog) {
@@ -327,7 +340,7 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, webSources, onRe
               if (log.question.questionType === QuestionType.OPEN_ENDED && fullAnswerText) {
                   return extractAnswerForQuestion(fullAnswerText, index + 1, answerLog.length);
               }
-              return null; // Not an open-ended question we need to parse
+              return null;
           });
           
           if (!tempParsed.every(p => p === null)) {
@@ -405,6 +418,17 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({ answerLog, webSources, onRe
         imagePrompt={visModalData.imagePrompt}
         conceptText={visModalData.conceptText}
         mode={visModalData.mode}
+      />
+      <ChatPanel 
+        isOpen={isChatOpen}
+        onOpen={onToggleChat}
+        onClose={onCloseChat}
+        onSendMessage={onSendMessage}
+        messages={chatMessages}
+        isTyping={isAITyping}
+        error={chatError}
+        isEnabled={isChatEnabled}
+        disabledTooltipText="Chat is unavailable for this review session"
       />
     </div>
   );

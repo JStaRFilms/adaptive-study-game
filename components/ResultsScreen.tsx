@@ -1,15 +1,12 @@
 
 import React from 'react';
-import { WebSource, AnswerLog, PersonalizedFeedback } from '../types';
+import { WebSource, AnswerLog, PersonalizedFeedback, QuizResult } from '../types';
 import LoadingSpinner from './common/LoadingSpinner';
 
 interface ResultsScreenProps {
-  score: number;
-  answerLog: AnswerLog[];
+  result: QuizResult;
   onRestart: () => void;
-  onReview: () => void;
-  webSources?: WebSource[];
-  feedback: PersonalizedFeedback | null;
+  onReview: (result: QuizResult) => void;
   isGeneratingFeedback: boolean;
   onStartFocusedQuiz: (weaknessTopics: PersonalizedFeedback['weaknessTopics']) => void;
 }
@@ -137,11 +134,9 @@ const PersonalizedFeedbackReport: React.FC<PersonalizedFeedbackReportProps> = ({
 };
 
 
-const ResultsScreen: React.FC<ResultsScreenProps> = ({ score, answerLog, onRestart, onReview, webSources, feedback, isGeneratingFeedback, onStartFocusedQuiz }) => {
-  const totalPointsAwarded = answerLog.reduce((sum, log) => sum + log.pointsAwarded, 0);
-  const totalMaxPoints = answerLog.reduce((sum, log) => sum + log.maxPoints, 0);
-  const accuracy = totalMaxPoints > 0 ? Math.round((totalPointsAwarded / totalMaxPoints) * 100) : 0;
-  
+const ResultsScreen: React.FC<ResultsScreenProps> = ({ result, onRestart, onReview, isGeneratingFeedback, onStartFocusedQuiz }) => {
+  const { score, accuracy, webSources, feedback } = result;
+
   let feedbackMessage = "";
   let feedbackEmoji = "";
   if (accuracy >= 90) {
@@ -181,7 +176,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ score, answerLog, onResta
         
         <div className="flex flex-col gap-4">
           <button
-            onClick={onReview}
+            onClick={() => onReview(result)}
             className="w-full px-8 py-4 bg-brand-secondary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-primary transition-all duration-300 transform hover:scale-105"
           >
             Review Answers

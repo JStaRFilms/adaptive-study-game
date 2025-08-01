@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { QuizResult } from '../types';
-import { getAll, add } from '../utils/db';
+import { getAll, add, put } from '../utils/db';
 
 const STORE_NAME = 'quizHistory';
 
 export const useQuizHistory = (): [
   QuizResult[],
-  (newResult: Omit<QuizResult, 'id'>) => Promise<QuizResult>
+  (newResult: Omit<QuizResult, 'id'>) => Promise<QuizResult>,
+  (result: QuizResult) => Promise<void>
 ] => {
   const [history, setHistory] = useState<QuizResult[]>([]);
 
@@ -34,6 +35,11 @@ export const useQuizHistory = (): [
     await refreshHistory();
     return resultWithId;
   }, [refreshHistory]);
+  
+  const updateQuizResult = useCallback(async (result: QuizResult): Promise<void> => {
+    await put(STORE_NAME, result);
+    await refreshHistory();
+  }, [refreshHistory]);
 
-  return [history, addResult];
+  return [history, addResult, updateQuizResult];
 };

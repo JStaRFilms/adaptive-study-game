@@ -83,16 +83,16 @@ export const generateTopics = async (userContentParts: PromptPart[]): Promise<st
 
         let jsonText = response.text;
         
+        if (hasYoutubeUrl) {
+            const match = jsonText.match(/```json\n([\s\S]*)\n```/);
+            if (match) {
+                jsonText = match[1];
+            }
+        }
+        
         if (!jsonText) {
             console.error("Error generating topics: API returned no text.");
             return ["General Knowledge"];
-        }
-        
-        if (hasYoutubeUrl) {
-            const match = jsonText.match(/```json\n([\s\S]*?)\n```/);
-            if (match?.[1]) {
-                jsonText = match[1];
-            }
         }
         const result = JSON.parse(jsonText.trim());
 

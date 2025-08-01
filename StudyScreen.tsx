@@ -1,12 +1,13 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, QuizConfig, ChatMessage, UserAnswer } from '@/types';
-import ProgressBar from '@/components/common/ProgressBar';
-import TimerBar from '@/components/common/TimerBar';
-import Markdown from '@/components/common/Markdown';
-import Modal from '@/components/common/Modal';
-import Tooltip from '@/components/common/Tooltip';
-import ChatPanel from '@/components/common/ChatPanel';
-import { validateFillInTheBlankAnswer } from '@/services/geminiService';
+import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage } from './types';
+import ProgressBar from './components/common/ProgressBar';
+import TimerBar from './components/common/TimerBar';
+import Markdown from './components/common/Markdown';
+import Modal from './components/common/Modal';
+import Tooltip from './components/common/Tooltip';
+import ChatPanel from './components/common/ChatPanel';
+import { validateFillInTheBlankAnswer } from './services/geminiService';
 
 interface StudyScreenProps {
   quiz: Quiz;
@@ -458,16 +459,15 @@ const StudyScreen = ({
         </div>
       </div>
 
-      <ChatPanel 
+      <ChatPanel
         isOpen={isChatOpen}
         onOpen={onToggleChat}
         onClose={onCloseChat}
-        onSendMessage={handleSendMessageWrapper}
+        onSendMessage={(message) => onSendMessage(message, currentQuestion)}
         messages={chatMessages}
         isTyping={isAITyping}
         error={chatError}
         isEnabled={isChatEnabled}
-        questionIdentifier={currentQuestion.questionText}
       />
 
       <Modal isOpen={isQuitModalOpen} onClose={() => setIsQuitModalOpen(false)} title="End Study Session?">

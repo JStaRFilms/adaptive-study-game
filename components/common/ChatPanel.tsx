@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage } from '../../types';
 import Markdown from './Markdown';
 import Tooltip from './Tooltip';
+import ChatActionButton from './ChatActionButton';
 
 const TypingIndicator = () => (
     <div className="flex items-center space-x-1 p-2">
@@ -52,10 +53,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }, []);
 
     // When the panel opens, ensure we scroll to the bottom.
-    // This is especially important for desktop where the panel might have been
-    // closed while scrolled up.
     useEffect(() => {
         if(isOpen) {
+            setUserHasScrolledUp(false);
             setTimeout(() => scrollToBottom('auto'), 100);
         }
     }, [isOpen])
@@ -90,7 +90,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 {messages.map((msg, index) => (
                     <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`p-3 rounded-2xl max-w-sm lg:max-w-md ${msg.role === 'user' ? 'bg-brand-primary text-white rounded-br-none' : 'bg-surface-dark text-text-primary rounded-bl-none'}`}>
-                            <Markdown content={msg.text} className="prose prose-invert prose-p:my-0 prose-ul:my-0 prose-ol:my-0" />
+                            {msg.text && <Markdown content={msg.text} className="prose prose-invert prose-p:my-0 prose-ul:my-0 prose-ol:my-0" />}
+                            {msg.action && <ChatActionButton text={msg.action.text} onClick={msg.action.onClick} />}
                         </div>
                     </div>
                 ))}
@@ -98,13 +99,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div ref={messagesEndRef} />
             </div>
             {error && <div className="p-2 text-center text-sm text-incorrect bg-red-900/50 flex-shrink-0">{error}</div>}
+            
             <form onSubmit={handleSubmit} className="p-4 border-t border-gray-700 flex-shrink-0">
                 <div className="flex items-center gap-2 bg-background-dark rounded-lg p-1">
                     <input
                         type="text"
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="Ask about this question..."
+                        placeholder="Ask about this session..."
                         className="w-full bg-transparent p-2 text-text-primary focus:outline-none"
                         aria-label="Chat message input"
                     />
@@ -138,10 +140,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     </button>
                 </Tooltip>
                 
-                {/* Overlay for Desktop */}
                 {isOpen && <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose}></div>}
                 
-                {/* Panel Container for Desktop */}
                 <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-transparent rounded-l-2xl overflow-hidden shadow-2xl z-50 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                     {isOpen && ChatInterface}
                 </div>

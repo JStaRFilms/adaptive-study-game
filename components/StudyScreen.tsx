@@ -11,8 +11,7 @@ import { validateFillInTheBlankAnswer } from '../services/geminiService';
 
 interface StudyScreenProps {
   quiz: Quiz;
-  onFinish: (finalScore: number, log: AnswerLog[]) => void;
-  onQuit: () => void;
+  onFinish: (log: AnswerLog[]) => void;
   mode: StudyMode;
   updateSRSItem: (question: Question, isCorrect: boolean) => Promise<void>;
   quizConfig: QuizConfig | null;
@@ -22,7 +21,7 @@ interface StudyScreenProps {
   isAITyping: boolean;
   chatError: string | null;
   isChatEnabled: boolean;
-  onSendMessage: (userVisibleMessage: string, aiPrompt: string, currentQuestion: Question) => Promise<void>;
+  onSendMessage: (userVisibleMessage: string, currentQuestion: Question, currentAnswerLog?: AnswerLog) => Promise<void>;
   onToggleChat: () => void;
   onCloseChat: () => void;
 }
@@ -37,7 +36,7 @@ const BASE_POINTS = 10;
 const STREAK_BONUS_MULTIPLIER = 2;
 
 const StudyScreen = ({ 
-    quiz, onFinish, onQuit, mode, updateSRSItem, quizConfig,
+    quiz, onFinish, mode, updateSRSItem, quizConfig,
     chatMessages, isChatOpen, isAITyping, chatError, isChatEnabled,
     onSendMessage, onToggleChat, onCloseChat
 }: StudyScreenProps) => {
@@ -67,9 +66,9 @@ const StudyScreen = ({
     if (currentQuestionIndex + 1 < totalQuestions) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
-      onFinish(score, answerLog);
+      onFinish(answerLog);
     }
-  }, [currentQuestionIndex, totalQuestions, onFinish, score, answerLog]);
+  }, [currentQuestionIndex, totalQuestions, onFinish, answerLog]);
 
   const goToPreviousQuestion = useCallback(() => {
     if (currentQuestionIndex > 0) {
@@ -136,7 +135,7 @@ const StudyScreen = ({
             setCorrectionFeedback(aiFeedback || null);
             setIsTimedOut(false);
 
-            if (logEntry.question.questionType === QuestionType.MULTIPLE_CHOICE) {
+            if (logEntry.question.questionType === QuestionType.MULTIPLE_CHOICE || logEntry.userAnswer === 'SKIPPED') {
                 setSelectedOptionIndex(logEntry.userAnswer as number | null);
                 setFillBlankAnswers([]);
             } else if (logEntry.question.questionType === QuestionType.FILL_IN_THE_BLANK) {
@@ -242,34 +241,34 @@ const StudyScreen = ({
     setIsVerifyingAnswer(false);
   };
   
+    const handleSkip = useCallback(async () => {
+        if (answerStatus !== 'unanswered' || mode === StudyMode.SRS) return;
+
+        let maxPts = BASE_POINTS;
+        if (currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
+            maxPts = (currentQuestion as FillInTheBlankQuestion).correctAnswers.length * BASE_POINTS;
+        }
+
+        await processAnswer(
+            { awarded: 0, max: maxPts, comment: 'Question was skipped.' },
+            'SKIPPED'
+        );
+    }, [answerStatus, currentQuestion, processAnswer, mode]);
+
     const handleOpenChat = () => {
-        // First, toggle the chat panel visibility
         onToggleChat();
 
-        // Check if we need to auto-send an explanation request
         const isIncorrectOrPartial = answerStatus === 'incorrect' || answerStatus === 'partial';
         const hasNotRequested = !explanationRequestedMap[currentQuestionIndex];
 
         if (isIncorrectOrPartial && hasNotRequested && !isChatOpen) {
             const currentLog = answerLog.find(l => l.question.questionText === currentQuestion.questionText);
             if (currentLog) {
-                let userAnswerText = '';
-                if (currentLog.userAnswer === null) {
-                    userAnswerText = "no answer was provided";
-                } else if (typeof currentLog.userAnswer === 'boolean') {
-                    userAnswerText = currentLog.userAnswer ? '"True"' : '"False"';
-                } else if (typeof currentLog.userAnswer === 'number' && currentLog.question.questionType === QuestionType.MULTIPLE_CHOICE) {
-                    userAnswerText = `option ${String.fromCharCode(65 + currentLog.userAnswer)}: "${(currentLog.question as MultipleChoiceQuestion).options[currentLog.userAnswer]}"`;
-                } else if (Array.isArray(currentLog.userAnswer)) {
-                    userAnswerText = (currentLog.userAnswer as string[]).map(a => `"${a}"`).join(', ');
+                let userMessage = "Explain why I got this wrong.";
+                if (currentLog.userAnswer === 'SKIPPED') {
+                    userMessage = "I skipped this, please explain.";
                 }
-
-                const aiPrompt = `I answered ${userAnswerText} and it was marked ${answerStatus}. Please explain why my answer was wrong and what the correct answer is.`;
-                const userVisibleMessage = "Explain why I got this wrong.";
-
-                onSendMessage(userVisibleMessage, aiPrompt, currentQuestion);
-
-                // Mark that we've requested it for this question index
+                onSendMessage(userMessage, currentQuestion, currentLog);
                 setExplanationRequestedMap(prev => ({ ...prev, [currentQuestionIndex]: true }));
             }
         }
@@ -277,26 +276,8 @@ const StudyScreen = ({
   
   const handleSendMessageWrapper = (message: string) => {
       if (!isChatAllowedNow) return;
-      
       const currentLog = answerLog.find(l => l.question.questionText === currentQuestion.questionText);
-      let aiPrompt = message;
-
-      if (currentLog) {
-        let userAnswerText = '';
-        if (currentLog.userAnswer === null) {
-            userAnswerText = "no answer was provided";
-        } else if (typeof currentLog.userAnswer === 'boolean') {
-            userAnswerText = currentLog.userAnswer.toString();
-        } else if (typeof currentLog.userAnswer === 'number' && currentLog.question.questionType === QuestionType.MULTIPLE_CHOICE) {
-            userAnswerText = `"${(currentLog.question as MultipleChoiceQuestion).options[currentLog.userAnswer]}"`;
-        } else if (Array.isArray(currentLog.userAnswer)) {
-            userAnswerText = (currentLog.userAnswer as string[]).map(a => `"${a}"`).join(', ');
-        }
-        
-        aiPrompt = `My previous answer to this question was ${userAnswerText}, which was marked ${currentLog.isCorrect ? 'correct' : 'incorrect'}. My new question is: ${message}`;
-      }
-    
-      onSendMessage(message, aiPrompt, currentQuestion);
+      onSendMessage(message, currentQuestion, currentLog);
   };
 
   const renderAnswerFeedback = () => {
@@ -412,6 +393,17 @@ const StudyScreen = ({
 
   const renderFeedbackMessage = () => {
     if (answerStatus === 'unanswered') return null;
+
+    const relevantLog = answerLog.find(l => l.question.questionText === currentQuestion.questionText);
+
+    if (relevantLog?.userAnswer === 'SKIPPED') {
+        return (
+            <div className="text-center">
+                <p className="text-2xl font-bold text-yellow-400">Question Skipped</p>
+            </div>
+        );
+    }
+
     if (answerStatus === 'correct') {
         return (
             <div className="text-center">
@@ -447,9 +439,16 @@ const StudyScreen = ({
               <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-x-4 gap-y-2 text-text-secondary font-semibold">
                   {/* Left Side: End Session */}
                   <div className="flex-shrink-0">
-                      <button onClick={() => setIsQuitModalOpen(true)} className="font-semibold text-gray-400 hover:text-white transition-colors text-sm">
-                          End Session
-                      </button>
+                      <div className="flex items-center gap-4">
+                          <button onClick={() => setIsQuitModalOpen(true)} className="font-semibold text-gray-400 hover:text-white transition-colors text-sm">
+                              End Session
+                          </button>
+                          {answerStatus === 'unanswered' && mode !== StudyMode.SRS && (
+                              <button onClick={handleSkip} className="text-sm font-semibold text-yellow-400 hover:text-yellow-300 transition-colors">
+                                  Skip Question
+                              </button>
+                          )}
+                      </div>
                   </div>
 
                   {/* Middle: Score and Streak (full width on mobile, centered) */}
@@ -530,10 +529,10 @@ const StudyScreen = ({
 
       <Modal isOpen={isQuitModalOpen} onClose={() => setIsQuitModalOpen(false)} title="End Study Session?">
         <div className="text-text-secondary">
-          <p>Are you sure you want to end this session? Your progress will not be saved, and you will be returned to the main menu.</p>
+          <p>Are you sure you want to end this session? Your progress will be saved, but the current quiz will end.</p>
           <div className="mt-6 flex justify-end gap-4">
             <button onClick={() => setIsQuitModalOpen(false)} className="px-4 py-2 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-colors">Continue Studying</button>
-            <button onClick={onQuit} className="px-4 py-2 bg-incorrect text-white font-bold rounded-lg hover:bg-red-600 transition-colors">End Session</button>
+            <button onClick={() => onFinish(answerLog)} className="px-4 py-2 bg-incorrect text-white font-bold rounded-lg hover:bg-red-600 transition-colors">End Session</button>
           </div>
         </div>
       </Modal>

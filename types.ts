@@ -112,7 +112,7 @@ export interface OpenEndedAnswer {
   images: { mimeType: string; data: string }[];
 }
 
-export type UserAnswer = string | string[] | number | boolean | OpenEndedAnswer | null;
+export type UserAnswer = string | string[] | number | boolean | OpenEndedAnswer | null | 'SKIPPED';
 
 export interface AnswerLog {
   question: Question;
@@ -134,6 +134,7 @@ export interface QuizResult {
     webSources?: WebSource[];
     mode: StudyMode;
     feedback?: PersonalizedFeedback | null;
+    chatHistory?: ChatMessage[];
 }
 
 export interface PredictedQuestion {
@@ -160,6 +161,10 @@ export type PromptPart = { text: string } | { inlineData: { mimeType: string; da
 export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
+  action?: {
+    text: string;
+    onClick: () => void;
+  };
 }
 
 export interface PersonalizedFeedback {
