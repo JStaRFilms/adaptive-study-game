@@ -325,11 +325,17 @@ const App: React.FC = () => {
     }
   }, [submissionForRetry, handleFinishExam]);
 
-  const handleStartFocusedQuiz = useCallback(async (weaknessTopics: PersonalizedFeedback['weaknessTopics']) => {
+  const handleStartFocusedQuiz = useCallback(async (
+    weaknessTopics: PersonalizedFeedback['weaknessTopics'], 
+    studySetForQuiz: StudySet | null
+  ) => {
     setIsChatOpen(false);
-    if (!currentStudySet) return;
+    if (!studySetForQuiz) {
+        console.error("handleStartFocusedQuiz called without a study set.");
+        return;
+    };
     
-    const { parts } = await processFilesToParts(currentStudySet.content, [], () => {});
+    const { parts } = await processFilesToParts(studySetForQuiz.content, [], () => {});
     const topics = weaknessTopics.map(t => t.topic);
     const numQuestions = weaknessTopics.reduce((sum, t) => sum + t.suggestedQuestionCount, 0);
 
@@ -341,8 +347,8 @@ const App: React.FC = () => {
       customInstructions: `This is a focused review session. The user previously struggled with these topics: ${topics.join(', ')}. Generate questions that specifically test their understanding of these areas.`
     };
     
-    await handleStartStudy(parts, config, currentStudySet.id);
-  }, [currentStudySet, handleStartStudy]);
+    await handleStartStudy(parts, config, studySetForQuiz.id);
+  }, [handleStartStudy]);
 
   const handleReview = useCallback(async (resultToReview: QuizResult) => {
     const reviewSet = studySets.find(s => s.id === resultToReview.studySetId) || null;
@@ -367,13 +373,13 @@ const App: React.FC = () => {
     const weaknessTopics = resultToReview.feedback?.weaknessTopics;
 
     // Re-hydrate existing suggestion buttons from saved history
-    if (weaknessTopics && weaknessTopics.length > 0) {
+    if (weaknessTopics && weaknessTopics.length > 0 && reviewSet) {
         initialMessages.forEach(msg => {
             const suggestionText = "Based on your results, I've identified some areas we can work on";
             if (msg.role === 'model' && msg.text.includes(suggestionText)) {
                 msg.action = {
                     text: `Create Focused Quiz (${weaknessTopics.length} topic${weaknessTopics.length > 1 ? 's' : ''})`,
-                    onClick: () => handleStartFocusedQuiz(weaknessTopics)
+                    onClick: () => handleStartFocusedQuiz(weaknessTopics, reviewSet)
                 };
                 hasWeaknessSuggestion = true;
             }
@@ -381,13 +387,13 @@ const App: React.FC = () => {
     }
     
     // Add a new suggestion if no existing one was found and re-hydrated
-    if (weaknessTopics && weaknessTopics.length > 0 && !hasWeaknessSuggestion) {
+    if (weaknessTopics && weaknessTopics.length > 0 && !hasWeaknessSuggestion && reviewSet) {
         const suggestionMessage: ChatMessage = {
             role: 'model',
             text: "Based on your results, I've identified some areas we can work on. I can create a quiz to help you practice.",
             action: {
                 text: `Create Focused Quiz (${weaknessTopics.length} topic${weaknessTopics.length > 1 ? 's' : ''})`,
-                onClick: () => handleStartFocusedQuiz(weaknessTopics)
+                onClick: () => handleStartFocusedQuiz(weaknessTopics, reviewSet)
             }
         };
         initialMessages.push(suggestionMessage);
@@ -482,11 +488,18 @@ const App: React.FC = () => {
   }, [currentStudySet]);
 
   
-  const handleStartCustomQuiz = useCallback(async (topics: string[], numQuestions?: number) => {
+  const handleStartCustomQuiz = useCallback(async (
+    topics: string[], 
+    studySetForQuiz: StudySet | null, 
+    numQuestions?: number
+) => {
     setIsChatOpen(false);
-    if (!currentStudySet) return;
+    if (!studySetForQuiz) {
+      console.error("handleStartCustomQuiz called without a study set.");
+      return;
+    }
     
-    const { parts } = await processFilesToParts(currentStudySet.content, [], () => {});
+    const { parts } = await processFilesToParts(studySetForQuiz.content, [], () => {});
     
     const config: QuizConfig = {
       numberOfQuestions: numQuestions 
@@ -498,8 +511,8 @@ const App: React.FC = () => {
       customInstructions: `This is a focused review session. The user requested a quiz on these specific topics: ${topics.join(', ')}. Generate questions that test their understanding of these areas.`
     };
     
-    await handleStartStudy(parts, config, currentStudySet.id);
-  }, [currentStudySet, handleStartStudy]);
+    await handleStartStudy(parts, config, studySetForQuiz.id);
+  }, [handleStartStudy]);
 
   const handleRetakeQuiz = useCallback(() => {
       setAppState(AppState.STUDYING);
@@ -644,7 +657,7 @@ const App: React.FC = () => {
                         text: cleanedText,
                         action: {
                             text: buttonText,
-                            onClick: () => handleStartCustomQuiz(topics, numQuestions),
+                            onClick: () => handleStartCustomQuiz(topics, currentStudySet, numQuestions),
                         }
                     };
                     return newMessages;
@@ -654,7 +667,7 @@ const App: React.FC = () => {
         return prev;
       });
     }
-  }, [chat, isAITyping, handleStartCustomQuiz]);
+  }, [chat, isAITyping, handleStartCustomQuiz, currentStudySet]);
 
 
   if (!migrationChecked) {
@@ -707,7 +720,7 @@ const App: React.FC = () => {
       
       case AppState.RESULTS:
         if (!currentResult) return null; // This now correctly handles the period before feedback is ready
-        return <ResultsScreen result={currentResult} onRestart={handleRestart} onReview={handleReview} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={handleStartFocusedQuiz}/>;
+        return <ResultsScreen result={currentResult} onRestart={handleRestart} onReview={handleReview} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={(topics) => handleStartFocusedQuiz(topics, currentStudySet)} />;
       
       case AppState.REVIEWING:
         if (answerLog.length === 0 || !currentResult) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
@@ -716,7 +729,7 @@ const App: React.FC = () => {
                   onRetakeSameQuiz={handleRetakeQuiz} 
                   onStartNewQuiz={handleRestart} 
                   isGeneratingFeedback={isGeneratingFeedback} 
-                  onStartFocusedQuiz={handleStartFocusedQuiz} 
+                  onStartFocusedQuiz={(topics) => handleStartFocusedQuiz(topics, currentStudySet)}
                   chatMessages={chatMessages}
                   isChatOpen={isChatOpen}
                   isAITyping={isAITyping}
