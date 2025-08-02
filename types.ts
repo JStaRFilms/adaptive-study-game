@@ -54,6 +54,7 @@ export interface MultipleChoiceQuestion {
   explanation: string;
   topic?: string;
   studySetId?: string;
+  conceptId: string;
 }
 
 export interface TrueFalseQuestion {
@@ -63,6 +64,7 @@ export interface TrueFalseQuestion {
   explanation: string;
   topic?: string;
   studySetId?: string;
+  conceptId: string;
 }
 
 export interface FillInTheBlankQuestion {
@@ -73,6 +75,7 @@ export interface FillInTheBlankQuestion {
   acceptableAnswers?: string[][]; // For each correct answer, an array of acceptable alternatives.
   topic?: string;
   studySetId?: string;
+  conceptId: string;
 }
 
 export interface OpenEndedQuestion {
@@ -81,6 +84,7 @@ export interface OpenEndedQuestion {
   explanation: string; // This will serve as the grading rubric for the AI
   topic?: string;
   studySetId?: string;
+  conceptId: string;
 }
 
 export interface MatchingQuestion {
@@ -93,6 +97,7 @@ export interface MatchingQuestion {
   explanation: string;
   topic?: string;
   studySetId?: string;
+  conceptId: string;
 }
 
 export interface SequenceQuestion {
@@ -102,6 +107,7 @@ export interface SequenceQuestion {
   explanation: string;
   topic?: string;
   studySetId?: string;
+  conceptId: string;
 }
 
 export type Question = MultipleChoiceQuestion | TrueFalseQuestion | FillInTheBlankQuestion | OpenEndedQuestion | MatchingQuestion | SequenceQuestion;

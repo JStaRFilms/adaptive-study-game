@@ -118,12 +118,13 @@ export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Pro
         .filter((web: any) => web?.uri);
 
     for (const q of rawQuestions) {
-      if (!q.questionType || !q.questionText || !q.explanation) {
+      if (!q.questionType || !q.questionText || !q.explanation || !q.conceptId) {
         console.warn("Skipping invalid question from AI (missing required fields):", q);
         continue;
       }
       
       const topic = q.topic || "General";
+      const conceptId = q.conceptId;
 
       switch(q.questionType) {
         case QuestionType.MULTIPLE_CHOICE:
@@ -134,7 +135,8 @@ export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Pro
               options: q.options,
               correctAnswerIndex: q.correctAnswerIndex,
               explanation: q.explanation,
-              topic: topic
+              topic: topic,
+              conceptId: conceptId,
             });
           } else { console.warn("Skipping invalid MULTIPLE_CHOICE question:", q); }
           break;
@@ -146,7 +148,8 @@ export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Pro
               questionText: q.questionText,
               correctAnswer: q.correctAnswerBoolean,
               explanation: q.explanation,
-              topic: topic
+              topic: topic,
+              conceptId: conceptId,
             });
           } else { console.warn("Skipping invalid TRUE_FALSE question:", q); }
           break;
@@ -159,7 +162,8 @@ export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Pro
               correctAnswers: q.correctAnswers,
               acceptableAnswers: q.acceptableAnswers,
               explanation: q.explanation,
-              topic: topic
+              topic: topic,
+              conceptId: conceptId,
             });
           } else { console.warn("Skipping invalid FILL_IN_THE_BLANK question:", q); }
           break;
@@ -169,7 +173,8 @@ export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Pro
             questionType: QuestionType.OPEN_ENDED,
             questionText: q.questionText,
             explanation: q.explanation,
-            topic: topic
+            topic: topic,
+            conceptId: conceptId,
           });
           break;
 
@@ -184,6 +189,7 @@ export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Pro
                     answerTitle: q.answerTitle,
                     explanation: q.explanation,
                     topic: topic,
+                    conceptId: conceptId,
                 });
             } else { console.warn("Skipping invalid MATCHING question:", q); }
             break;
@@ -196,6 +202,7 @@ export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Pro
                     items: q.items,
                     explanation: q.explanation,
                     topic: topic,
+                    conceptId: conceptId,
                 });
             } else { console.warn("Skipping invalid SEQUENCE question:", q); }
             break;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion } from '../types';
+import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion, QuizResult } from '../types';
 import ProgressBar from './common/ProgressBar';
 import TimerBar from './common/TimerBar';
 import Markdown from './common/Markdown';
@@ -14,6 +14,7 @@ interface StudyScreenProps {
   mode: StudyMode;
   updateSRSItem: (question: Question, isCorrect: boolean) => Promise<void>;
   quizConfig: QuizConfig | null;
+  history: QuizResult[];
   // Chat props
   chatMessages: ChatMessage[];
   isChatOpen: boolean;
@@ -35,8 +36,11 @@ const SEQUENCE_TIME_LIMIT_BASE = 15;
 const SEQUENCE_TIME_LIMIT_PER_ITEM = 8;
 const SPEED_BONUS_THRESHOLD = 15; // Answer with >= 15s left for bonus
 const SPEED_BONUS_POINTS = 5;
+const IMPROVEMENT_BONUS_POINTS = 5;
 const BASE_POINTS = 10;
 const STREAK_BONUS_MULTIPLIER = 2;
+
+const normalizeText = (text: string) => text.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, ' ').trim();
 
 const ConfidenceSelector: React.FC<{ onSelect: (confidence: number) => void }> = ({ onSelect }) => (
     <div className="w-full text-center animate-fade-in space-y-4">
@@ -56,7 +60,7 @@ const ConfidenceSelector: React.FC<{ onSelect: (confidence: number) => void }> =
 );
 
 const StudyScreen = ({ 
-    quiz, onFinish, mode, updateSRSItem, quizConfig,
+    quiz, onFinish, mode, updateSRSItem, quizConfig, history,
     chatMessages, isChatOpen, isAITyping, chatError, isChatEnabled,
     onSendMessage, onToggleChat, onCloseChat
 }: StudyScreenProps) => {
@@ -66,6 +70,7 @@ const StudyScreen = ({
   const [streak, setStreak] = useState(0);
   const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_LIMIT);
   const [bonusPointsAwarded, setBonusPointsAwarded] = useState(0);
+  const [improvementBonus, setImprovementBonus] = useState(0);
   const [answerExplanation, setAnswerExplanation] = useState<string | null>(null);
   const [answerLog, setAnswerLog] = useState<AnswerLog[]>([]);
   const [correctionFeedback, setCorrectionFeedback] = useState<string | null>(null);
@@ -150,23 +155,52 @@ const StudyScreen = ({
 
         const { awarded, max, comment } = pointsDetails;
         const isFullyCorrect = awarded === max;
+        const isPartiallyCorrect = awarded > 0 && awarded < max;
 
         setAnswerExplanation(currentQuestion.explanation);
         setCorrectionFeedback(comment || null);
         
-        const isPartiallyCorrect = awarded > 0 && awarded < max;
-
-        if (isFullyCorrect || isPartiallyCorrect) {
-            const streakBonus = isFullyCorrect ? (streak * STREAK_BONUS_MULTIPLIER) : 0;
+        if (isFullyCorrect) {
+            const streakBonus = streak * STREAK_BONUS_MULTIPLIER;
+            
             let currentSpeedBonus = 0;
-            if (!isUntimedMode && timeLeft >= SPEED_BONUS_THRESHOLD && isFullyCorrect) {
+            if (!isUntimedMode && timeLeft >= SPEED_BONUS_THRESHOLD) {
                 currentSpeedBonus = SPEED_BONUS_POINTS;
                 setBonusPointsAwarded(currentSpeedBonus);
             }
-            setScore(s => s + awarded + streakBonus + currentSpeedBonus);
-            setStreak(s => isFullyCorrect ? s + 1 : 0);
-            setAnswerStatus(isFullyCorrect ? 'correct' : 'partial');
-        } else {
+    
+            let currentImprovementBonus = 0;
+            // Check if this question concept was ever answered incorrectly in past quizzes
+            if (currentQuestion.studySetId) {
+                const hasBeenAnsweredIncorrectlyBefore = history.some(quizResult =>
+                    quizResult.studySetId === currentQuestion.studySetId &&
+                    quizResult.answerLog.some(log => {
+                        if (!log.isCorrect) {
+                            // Primary method: conceptId matching
+                            if (currentQuestion.conceptId && log.question.conceptId) {
+                                return currentQuestion.conceptId === log.question.conceptId;
+                            }
+                            // Fallback method: normalized text matching for older data
+                            return normalizeText(log.question.questionText) === normalizeText(currentQuestion.questionText);
+                        }
+                        return false;
+                    })
+                );
+
+                if (hasBeenAnsweredIncorrectlyBefore) {
+                    currentImprovementBonus = IMPROVEMENT_BONUS_POINTS;
+                    setImprovementBonus(currentImprovementBonus);
+                }
+            }
+    
+            setScore(s => s + awarded + streakBonus + currentSpeedBonus + currentImprovementBonus);
+            setStreak(s => s + 1);
+            setAnswerStatus('correct');
+        } else if (isPartiallyCorrect) {
+            setScore(s => s + awarded);
+            setStreak(0);
+            setAnswerStatus('partial');
+        } else { // Incorrect
             setStreak(0);
             setAnswerStatus('incorrect');
         }
@@ -184,12 +218,11 @@ const StudyScreen = ({
             if (mode === StudyMode.PRACTICE || mode === StudyMode.SRS) {
                 await updateSRSItem(currentQuestion, isFullyCorrect);
             }
-            setAnswerLog(prevLog => [...prevLog, { ...newLogEntry, confidence: 0 }]); // 0 for N/A
+            setAnswerLog(prevLog => [...prevLog, { ...newLogEntry, confidence: 0 }]);
         } else {
             setPendingLog(newLogEntry);
         }
-
-    }, [answerStatus, streak, timeLeft, isUntimedMode, currentQuestion, mode, updateSRSItem]);
+    }, [answerStatus, streak, timeLeft, isUntimedMode, currentQuestion, mode, updateSRSItem, history]);
 
     useEffect(() => {
         const logEntry = answerLog.find(log => log.question.questionText === quiz.questions[currentQuestionIndex].questionText);
@@ -204,6 +237,7 @@ const StudyScreen = ({
             setAnswerExplanation(logEntry.question.explanation);
             setTimeLeft(0);
             setBonusPointsAwarded(0); // Don't show bonus again on review
+            setImprovementBonus(0);
             setCorrectionFeedback(aiFeedback || null);
             setIsTimedOut(false);
 
@@ -232,6 +266,7 @@ const StudyScreen = ({
         } else { // NEW question
             setTimeLeft(timeLimitForCurrentQuestion);
             setBonusPointsAwarded(0);
+            setImprovementBonus(0);
             setAnswerStatus('unanswered');
             setIsTimedOut(false);
             setAnswerExplanation(null);
@@ -794,9 +829,18 @@ const StudyScreen = ({
 
     if (answerStatus === 'correct') {
         return (
-            <div className="text-center">
+            <div className="text-center space-y-3">
                 <p className="text-2xl font-bold text-correct animate-pulse">Correct! 🎉</p>
-                {correctionFeedback && <p className="text-base text-yellow-300 mt-2">{correctionFeedback}</p>}
+                {improvementBonus > 0 && (
+                    <div className="bg-green-800/60 border border-green-600 p-3 rounded-lg animate-fade-in shadow-lg">
+                        <p className="font-bold text-lg text-green-200 flex items-center justify-center gap-2">
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                            <span>Redemption Bonus! +{improvementBonus}pts</span>
+                        </p>
+                        <p className="text-sm text-green-300 mt-1">You nailed a question you previously missed. Great progress!</p>
+                    </div>
+                )}
+                {correctionFeedback && <p className="text-base text-yellow-300">{correctionFeedback}</p>}
                 {!isUntimedMode && bonusPointsAwarded > 0 && <p className="text-lg font-bold text-yellow-400">+{bonusPointsAwarded} Speed Bonus!</p>}
             </div>
         );

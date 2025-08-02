@@ -12,6 +12,7 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
 - For EVERY question, the 'questionType' must be 'OPEN_ENDED'.
 - For EVERY question, provide a detailed 'explanation' that acts as a grading rubric. This rubric must list key points and concepts needed for a complete answer. This is required for all question types.
 - For EVERY question, you MUST include a 'topic' string property. If specific topics were requested, it must be one of them. Otherwise, it should be the most relevant topic from the material.
+- For EVERY question, create a unique and stable 'conceptId' as a snake_cased string representing the core concept. This is crucial for tracking user progress on the same concept across different quizzes.
 - Use markdown for formatting, like **bold** for emphasis.`;
     } else {
         baseInstruction = `You are an expert educator. Your task is to create a high-quality, mixed-type quiz based on the user's materials.
@@ -21,9 +22,10 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
 - Adhere strictly to the provided JSON schema.
 - For EVERY question, provide a brief 'explanation' for the correct answer.
 - For EVERY question, you MUST include a 'topic' string property. If specific topics were requested, it must be one of them. Otherwise, it should be the most relevant topic from the material.
+- For EVERY question, create a unique and stable 'conceptId' as a snake_cased string representing the core concept. This is crucial for tracking user progress on the same concept across different quizzes.
 - For MULTIPLE_CHOICE questions: Provide exactly 4 options and the 0-based index of the correct one.
 - For TRUE_FALSE questions: Provide a statement and its boolean truth value.
-- For FILL_IN_THE_BLANK questions: The 'questionText' can contain multiple '___' placeholders. The 'correctAnswers' property MUST be an array of strings with one answer for each '___', in order. The 'acceptableAnswers' property, if provided, MUST be an array of string arrays, corresponding to each correct answer. Provide a generous list of acceptable answers including common synonyms, misspellings, and plural/singular variations to avoid penalizing minor errors.
+- For FILL_IN_THE_BLANK questions: The 'questionText' can contain multiple '___' placeholders. The 'correctAnswers' property MUST be an array of strings with one answer for each '___', in order. The 'acceptableAnswers' property, if provided, MUST be an array of string arrays, corresponding to each correct answer. Provide a generous list of acceptable answers including common synonyms, misspelllings, and plural/singular variations to avoid penalizing minor errors.
 - For MATCHING questions: Provide two string arrays, 'prompts' and 'answers', of equal length where prompts[i] matches answers[i]. The 'prompt' is the draggable item, and the 'answer' is the drop zone. Also provide a general 'questionText' instruction for the user. Optionally, provide 'promptTitle' (e.g., 'Concepts') and 'answerTitle' (e.g., 'Definitions') for the column headers.
 - For SEQUENCE questions: Provide a 'questionText' instruction. The 'items' property must be an array of strings with the steps in the correct chronological order.
 - CRITICAL: For FILL_IN_THE_BLANK questions, the answers MUST be common, easily typeable words or numbers. AVOID answers that require special symbols, mathematical notations (e.g., Σ, ε, ∗), or anything not found on a standard keyboard. Use MULTIPLE_CHOICE for concepts that involve such symbols.
@@ -48,11 +50,13 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
                     ? `- 'questionType': Must be 'OPEN_ENDED'.
 - 'questionText': (string) The open-ended question.
 - 'explanation': (string) A detailed grading rubric.
-- 'topic': (string) The main topic of the question.`
+- 'topic': (string) The main topic of the question.
+- 'conceptId': (string) A stable, snake_case identifier for the core concept.`
                     : `- 'questionType': (string) One of 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'MATCHING', 'SEQUENCE'.
 - 'questionText': (string) The question. For FILL_IN_THE_BLANK, it must contain '___'.
 - 'explanation': (string) A brief explanation of the correct answer.
 - 'topic': (string) The main topic of the question.
+- 'conceptId': (string) A stable, snake_case identifier for the core concept.
 - For MULTIPLE_CHOICE: 'options' (array of 4 strings) and 'correctAnswerIndex' (integer).
 - For TRUE_FALSE: 'correctAnswerBoolean' (boolean).
 - For FILL_IN_THE_BLANK: 'correctAnswers' (array of strings) and optional 'acceptableAnswers' (array of array of strings).

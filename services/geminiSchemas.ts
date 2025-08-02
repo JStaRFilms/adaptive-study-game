@@ -23,6 +23,10 @@ export const questionSchema = {
             type: Type.STRING,
             description: "The main topic or category this question belongs to. If a list of topics was provided in the prompt, this MUST be one of those topics.",
         },
+        conceptId: {
+            type: Type.STRING,
+            description: "A unique and stable identifier for the core concept being tested, in snake_case (e.g., 'mitochondria_cellular_respiration', 'french_revolution_causes'). This ID MUST be consistent for questions testing the same fundamental concept, even if they are phrased differently. This is critical for progress tracking."
+        },
         options: {
             type: Type.ARRAY,
             description: "For MULTIPLE_CHOICE questions, an array of exactly 4 string options. For other question types, this should be null.",
@@ -85,7 +89,7 @@ export const questionSchema = {
             nullable: true,
         },
     },
-    required: ["questionType", "questionText", "explanation", "topic"]
+    required: ["questionType", "questionText", "explanation", "topic", "conceptId"]
 };
 
 export const getQuizSchema = (numberOfQuestions: number) => ({
