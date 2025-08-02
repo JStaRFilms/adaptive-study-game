@@ -8,12 +8,12 @@ export const questionSchema = {
     properties: {
         questionType: {
             type: Type.STRING,
-            description: "The type of the question. Must be one of 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'OPEN_ENDED', or 'MATCHING'.",
-            enum: ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'OPEN_ENDED', 'MATCHING'],
+            description: "The type of the question. Must be one of 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'OPEN_ENDED', 'MATCHING', or 'SEQUENCE'.",
+            enum: ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'OPEN_ENDED', 'MATCHING', 'SEQUENCE'],
         },
         questionText: {
             type: Type.STRING,
-            description: "The text of the question. For FILL_IN_THE_BLANK questions, this text must include '___' to indicate where the answer goes. For MATCHING, this is the main instruction."
+            description: "The text of the question. For FILL_IN_THE_BLANK questions, this text must include '___' to indicate where the answer goes. For MATCHING or SEQUENCE, this is the main instruction."
         },
         explanation: {
             type: Type.STRING,
@@ -65,6 +65,12 @@ export const questionSchema = {
         answers: {
             type: Type.ARRAY,
             description: "For MATCHING questions, an array of strings for the dropzone items, corresponding to the prompts. For other question types, this should be null.",
+            items: { type: Type.STRING },
+            nullable: true,
+        },
+        items: {
+            type: Type.ARRAY,
+            description: "For SEQUENCE questions, an array of strings to be ordered. The array must be in the correct chronological order. For other question types, this should be null.",
             items: { type: Type.STRING },
             nullable: true,
         },
@@ -203,7 +209,7 @@ export const personalizedFeedbackSchema = {
                 type: Type.OBJECT,
                 properties: {
                     topic: { type: Type.STRING, description: "The name of the topic." },
-                    comment: { type: Type.STRING, description: "A brief comment explaining why this topic is a weakness (e.g., 'You missed several questions about this across multiple sessions')."},
+                    comment: { type: Type.STRING, description: "A brief comment explaining why this is a weakness (e.g., 'You missed several questions about this across multiple sessions')."},
                     suggestedQuestionCount: { type: Type.INTEGER, description: "A suggested number of questions (e.g., 5 or 10) for a focused practice quiz on this topic." },
                     youtubeSearchQuery: { type: Type.STRING, description: "A concise, effective search query for finding educational YouTube videos about this topic (e.g., 'introduction to cellular respiration' or 'photosynthesis explained for beginners')." }
                 },

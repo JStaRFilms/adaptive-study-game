@@ -1,7 +1,7 @@
 
 
 import React, { useState } from 'react';
-import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer, WebSource, PersonalizedFeedback, QuizResult, ChatMessage, MatchingQuestion } from '../types';
+import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer, WebSource, PersonalizedFeedback, QuizResult, ChatMessage, MatchingQuestion, SequenceQuestion } from '../types';
 import Markdown from './common/Markdown';
 import { extractAnswerForQuestion } from '../utils/textUtils';
 import LoadingSpinner from './common/LoadingSpinner';
@@ -87,6 +87,21 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
                     })}
                 </div>
             );
+        case QuestionType.SEQUENCE:
+            const sequenceQ = question as SequenceQuestion;
+            const userOrderIndices = userAnswer as number[];
+            return (
+                <ol className="list-decimal list-inside space-y-2">
+                    {userOrderIndices.map((originalIndex, displayIndex) => {
+                        const isItemCorrect = originalIndex === displayIndex;
+                        return (
+                             <li key={originalIndex} className={`p-2 rounded-md ${isItemCorrect ? 'bg-correct/10' : 'bg-incorrect/10'}`}>
+                                {sequenceQ.items[originalIndex]}
+                            </li>
+                        )
+                    })}
+                </ol>
+            );
         case QuestionType.OPEN_ENDED:
             if (parsedAnswerText) {
                 return <div className="bg-gray-900 p-3 rounded-md whitespace-pre-wrap">{parsedAnswerText}</div>;
@@ -126,6 +141,19 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
                              <span className="flex-1 text-right">{promptText}</span>
                         </div>
                     ))}
+                </div>
+            );
+            break;
+        case QuestionType.SEQUENCE:
+            const sequenceQ = question as SequenceQuestion;
+            correctAnswerContent = (
+                <div>
+                    <p className="font-bold text-correct mb-2">Correct Order:</p>
+                    <ol className="list-decimal list-inside space-y-2">
+                        {sequenceQ.items.map((item, index) => (
+                            <li key={index} className="p-2 rounded-md bg-correct/10">{item}</li>
+                        ))}
+                    </ol>
                 </div>
             );
             break;

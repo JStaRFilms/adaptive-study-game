@@ -1,10 +1,8 @@
-
-
-import { GoogleGenAI, GenerateContentResponse, GenerateImagesResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Type, Content } from "@google/genai";
 import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide } from '../types';
 import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, personalizedFeedbackSchema, fibValidationSchema, studyGuideSchema } from './geminiSchemas';
 import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFeedbackSystemInstruction, getFibValidationSystemInstruction, getStudyGuideInstruction } from './geminiPrompts';
-import { ModelIdentifier } from './aiConstants';
+import { ModelIdentifier, modelFor } from './aiConstants';
 import { apiKeyManager } from './apiKeyManager';
 
 if (!process.env.API_KEY_POOL && !process.env.API_KEY && !process.env.GEMINI_API_KEY) {
@@ -13,12 +11,6 @@ if (!process.env.API_KEY_POOL && !process.env.API_KEY && !process.env.GEMINI_API
 
 const MAX_RETRIES = 5;
 
-/**
- * A robust wrapper for making API calls that includes retry logic and failover using the ApiKeyManager.
- * @param apiFunction The function to execute, which receives an AI client and model name.
- * @param modelIdentifier A key from `modelFor` to determine which model and limits to use.
- * @returns The result of the API call.
- */
 async function apiCallWithRetry<T>(
   apiFunction: (client: GoogleGenAI, model: string) => Promise<T>,
   modelIdentifier: ModelIdentifier
@@ -29,471 +21,339 @@ async function apiCallWithRetry<T>(
     const { client, key, model } = await apiKeyManager.getClient(modelIdentifier);
 
     if (!client || !key || !model) {
-      lastError = new Error("All AI capacity is currently in use. Please try again in a few minutes.");
-      // Wait before checking for an available key again.
-      if (attempt < MAX_RETRIES - 1) {
-          await new Promise(res => setTimeout(res, 2000 * (attempt + 1)));
-      }
-      continue; // Go to the next iteration to try getting a client again.
+      lastError = new Error("No available API keys in the pool. All keys may be rate-limited or have exhausted their quotas.");
+      continue;
     }
-    
+
     try {
       const result = await apiFunction(client, model);
       apiKeyManager.logSuccess(key);
       return result;
-    } catch (error) {
-      lastError = error as Error;
-      console.warn(`API call attempt ${attempt + 1} for key ${key.substring(0,4)}... failed with error: ${lastError.message}`);
-      apiKeyManager.logFailure(key, lastError);
-      
+    } catch (error: any) {
+      lastError = error;
+      console.error(`Attempt ${attempt + 1}/${MAX_RETRIES} failed for model ${model} with key ${key.substring(0,4)}...`, error);
+      apiKeyManager.logFailure(key, error);
       if (attempt < MAX_RETRIES - 1) {
-          await new Promise(res => setTimeout(res, 750 * (attempt + 1))); // Exponential backoff
+          await new Promise(res => setTimeout(res, 1000 * (attempt + 1)));
       }
     }
   }
-  
-  throw new Error(`API call failed after ${MAX_RETRIES} attempts. Last error: ${lastError?.message || 'Unknown error'}`);
+
+  throw lastError || new Error("API call failed after multiple retries, but no specific error was recorded.");
 }
 
-
-export const generateTopics = async (userContentParts: PromptPart[]): Promise<string[]> => {
-    const instruction = getTopicsInstruction();
-    const contents = { parts: [{ text: instruction }, ...userContentParts] };
-    const hasYoutubeUrl = userContentParts.some(part => 'text' in part && part.text.includes('[Content from YouTube video:'));
-
-    const apiConfig: any = {
-        temperature: 0.2,
-    };
-
-    if (hasYoutubeUrl) {
-        apiConfig.tools = [{googleSearch: {}}];
-    } else {
-        apiConfig.responseMimeType = "application/json";
-        apiConfig.responseSchema = topicsSchema;
+const parseJsonResponse = (text: string) => {
+    let jsonStr = text.trim();
+    if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.substring(7);
+    }
+    if (jsonStr.endsWith('```')) {
+        jsonStr = jsonStr.substring(0, jsonStr.length - 3);
     }
     
-    try {
-        const response = await apiCallWithRetry<GenerateContentResponse>(
-            (client, model) => client.models.generateContent({
-                model,
-                contents: contents,
-                config: apiConfig,
-            }),
-            'topicAnalysis'
-        );
-
-        let jsonText = response.text;
-        
-        if (hasYoutubeUrl) {
-            const match = jsonText.match(/```json\n([\s\S]*)\n```/);
-            if (match) {
-                jsonText = match[1];
-            }
-        }
-        
-        if (!jsonText) {
-            console.error("Error generating topics: API returned no text.");
-            return ["General Knowledge"];
-        }
-        const result = JSON.parse(jsonText.trim());
-
-        if (result.topics && Array.isArray(result.topics) && result.topics.length > 0) {
-            return result.topics as string[];
-        }
-        
-        return ["General Knowledge"];
-
-    } catch (error) {
-        console.error("Error generating topics:", error);
-        return ["General Knowledge"];
+    let jsonStartIndex = jsonStr.indexOf('{');
+    let jsonEndIndex = jsonStr.lastIndexOf('}');
+    
+    // Handle array of objects as a valid response
+    if (jsonStr.trim().startsWith('[')) {
+      jsonStartIndex = jsonStr.indexOf('[');
+      jsonEndIndex = jsonStr.lastIndexOf(']');
     }
+
+    if (jsonStartIndex === -1 || jsonEndIndex === -1) {
+        throw new Error("No valid JSON object or array found in AI response.");
+    }
+    jsonStr = jsonStr.substring(jsonStartIndex, jsonEndIndex + 1);
+    return JSON.parse(jsonStr);
 };
 
-export const generateQuiz = async (userContentParts: PromptPart[], config: QuizConfig): Promise<Quiz | null> => {
-  const { numberOfQuestions, topics, mode, customInstructions } = config;
-  let { knowledgeSource } = config;
 
-  const hasYoutubeUrl = userContentParts.some(part => 'text' in part && part.text.includes('[Content from YouTube video:'));
-  if (hasYoutubeUrl && knowledgeSource !== KnowledgeSource.WEB_SEARCH) {
-    console.log("YouTube URL detected, promoting knowledge source to WEB_SEARCH for this call.");
-    knowledgeSource = KnowledgeSource.WEB_SEARCH;
-  }
-  
-  const quizSchema = getQuizSchema(numberOfQuestions);
-  const systemInstruction = getQuizSystemInstruction(numberOfQuestions, knowledgeSource, mode, topics, customInstructions);
-  
-  const apiConfig: any = {
-      systemInstruction,
-      temperature: 0.7,
+export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Promise<Quiz | null> => {
+  const modelIdentifier = 'quizGeneration';
+
+  const apiFunction = async (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => {
+    const systemInstruction = getQuizSystemInstruction(
+      config.numberOfQuestions,
+      config.knowledgeSource,
+      config.mode,
+      config.topics,
+      config.customInstructions
+    );
+    
+    const contents: Content = { parts: parts };
+
+    const genConfig: any = {
+      model: model,
+      contents: contents,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: getQuizSchema(config.numberOfQuestions)
+      }
+    };
+    
+    if (config.knowledgeSource === KnowledgeSource.WEB_SEARCH) {
+        delete genConfig.config.responseMimeType;
+        delete genConfig.config.responseSchema;
+        genConfig.config.tools = [{googleSearch: {}}];
+    }
+    
+    return client.models.generateContent(genConfig);
   };
-
-  if (knowledgeSource === KnowledgeSource.WEB_SEARCH) {
-    apiConfig.tools = [{googleSearch: {}}];
-  } else {
-    apiConfig.responseMimeType = "application/json";
-    apiConfig.responseSchema = quizSchema;
-  }
+  
+  const response = await apiCallWithRetry(apiFunction, modelIdentifier);
   
   try {
-      const response = await apiCallWithRetry<GenerateContentResponse>(
-          (client, model) => client.models.generateContent({
-              model,
-              contents: { parts: userContentParts },
-              config: apiConfig,
-          }),
-          'quizGeneration'
-      );
+    const jsonResponse = parseJsonResponse(response.text);
 
-      const text = response.text;
-      if (!text) {
-        throw new Error("API returned an empty response. The content might be too short or unsupported.");
+    if (!jsonResponse || !Array.isArray(jsonResponse.questions)) {
+      console.warn("Invalid JSON structure from AI:", jsonResponse);
+      return null;
+    }
+
+    const rawQuestions = jsonResponse.questions;
+    const validQuestions: Question[] = [];
+    const webSources: WebSource[] | undefined = response.candidates?.[0]?.groundingMetadata?.groundingChunks
+        ?.map((chunk: any) => chunk.web)
+        .filter((web: any) => web?.uri);
+
+    for (const q of rawQuestions) {
+      if (!q.questionType || !q.questionText || !q.explanation) {
+        console.warn("Skipping invalid question from AI (missing required fields):", q);
+        continue;
       }
       
-      let jsonText = text.trim();
-      if (knowledgeSource === KnowledgeSource.WEB_SEARCH) {
-          const match = jsonText.match(/```json\n([\s\S]*)\n```/);
-          if (match) {
-              jsonText = match[1];
-          }
+      const topic = q.topic || "General";
+
+      switch(q.questionType) {
+        case QuestionType.MULTIPLE_CHOICE:
+          if (Array.isArray(q.options) && q.options.length === 4 && typeof q.correctAnswerIndex === 'number' && q.options.every((opt: any) => typeof opt === 'string')) {
+            validQuestions.push({
+              questionType: QuestionType.MULTIPLE_CHOICE,
+              questionText: q.questionText,
+              options: q.options,
+              correctAnswerIndex: q.correctAnswerIndex,
+              explanation: q.explanation,
+              topic: topic
+            });
+          } else { console.warn("Skipping invalid MULTIPLE_CHOICE question:", q); }
+          break;
+
+        case QuestionType.TRUE_FALSE:
+          if (typeof q.correctAnswerBoolean === 'boolean') {
+            validQuestions.push({
+              questionType: QuestionType.TRUE_FALSE,
+              questionText: q.questionText,
+              correctAnswer: q.correctAnswerBoolean,
+              explanation: q.explanation,
+              topic: topic
+            });
+          } else { console.warn("Skipping invalid TRUE_FALSE question:", q); }
+          break;
+
+        case QuestionType.FILL_IN_THE_BLANK:
+          if (Array.isArray(q.correctAnswers) && q.correctAnswers.length > 0 && q.correctAnswers.every((ans: any) => typeof ans === 'string')) {
+            validQuestions.push({
+              questionType: QuestionType.FILL_IN_THE_BLANK,
+              questionText: q.questionText,
+              correctAnswers: q.correctAnswers,
+              acceptableAnswers: q.acceptableAnswers,
+              explanation: q.explanation,
+              topic: topic
+            });
+          } else { console.warn("Skipping invalid FILL_IN_THE_BLANK question:", q); }
+          break;
+
+        case QuestionType.OPEN_ENDED:
+          validQuestions.push({
+            questionType: QuestionType.OPEN_ENDED,
+            questionText: q.questionText,
+            explanation: q.explanation,
+            topic: topic
+          });
+          break;
+
+        case QuestionType.MATCHING:
+            if (Array.isArray(q.prompts) && Array.isArray(q.answers) && q.prompts.length === q.answers.length && q.prompts.length > 1) {
+                validQuestions.push({
+                    questionType: QuestionType.MATCHING,
+                    questionText: q.questionText,
+                    prompts: q.prompts,
+                    answers: q.answers,
+                    promptTitle: q.promptTitle,
+                    answerTitle: q.answerTitle,
+                    explanation: q.explanation,
+                    topic: topic,
+                });
+            } else { console.warn("Skipping invalid MATCHING question:", q); }
+            break;
+            
+        case QuestionType.SEQUENCE:
+            if (Array.isArray(q.items) && q.items.length > 1 && q.items.every((item: any) => typeof item === 'string')) {
+                validQuestions.push({
+                    questionType: QuestionType.SEQUENCE,
+                    questionText: q.questionText,
+                    items: q.items,
+                    explanation: q.explanation,
+                    topic: topic,
+                });
+            } else { console.warn("Skipping invalid SEQUENCE question:", q); }
+            break;
+
+        default:
+          console.warn(`Skipping invalid question from AI (unknown type: ${q.questionType}):`, q);
+          break;
       }
+    }
 
-      if (!jsonText) {
-          throw new Error("API returned an empty response. The content might be too short or unsupported.");
-      }
-      
-      const rawQuizData = JSON.parse(jsonText);
+    if (validQuestions.length === 0 && rawQuestions.length > 0) {
+        throw new Error("The AI responded, but none of the generated questions were valid.");
+    }
 
-      if (!rawQuizData.questions || rawQuizData.questions.length === 0) {
-        throw new Error("The AI successfully responded but couldn't generate any questions from the provided text.");
-      }
-
-      const webSources: WebSource[] = response.candidates?.[0]?.groundingMetadata?.groundingChunks
-          ?.map((chunk: any) => chunk.web)
-          .filter((web): web is WebSource => web && web.uri) || [];
-      
-      const validatedQuestions: Question[] = rawQuizData.questions.map((q: any): Question | null => {
-          // ... (validation logic remains the same)
-            const questionType = q.questionType || q.type;
-            const questionText = q.questionText || q.question;
-            const topic = q.topic;
-
-            if (!questionType || !questionText || !q.explanation || !topic) {
-                console.warn(`Skipping invalid question from AI (missing type, text, explanation, or topic):`, q);
-                return null;
-            }
-            switch (questionType) {
-                case QuestionType.MULTIPLE_CHOICE:
-                    if (!q.options || !Array.isArray(q.options) || q.options.length < 2 || typeof q.correctAnswerIndex !== 'number' || q.correctAnswerIndex >= q.options.length ) return null;
-                    return { questionType, questionText, options: q.options, correctAnswerIndex: q.correctAnswerIndex, explanation: q.explanation, topic };
-                case QuestionType.TRUE_FALSE:
-                    const correctAnswerBoolean = q.correctAnswerBoolean ?? q.correctAnswer ?? q.answer;
-                    if (typeof correctAnswerBoolean !== 'boolean') return null;
-                    return { questionType, questionText, correctAnswer: correctAnswerBoolean, explanation: q.explanation, topic };
-                case QuestionType.FILL_IN_THE_BLANK:
-                    const numBlanks = (questionText.match(/___/g) || []).length;
-                    if (numBlanks === 0) return null;
-
-                    let correctAnswersArray = q.correctAnswers;
-                    if (!correctAnswersArray && q.correctAnswerString) {
-                        correctAnswersArray = [q.correctAnswerString];
-                    }
-                     if (!correctAnswersArray && Array.isArray(q.correctAnswer)) {
-                        correctAnswersArray = q.correctAnswer;
-                    }
-
-                    if (!Array.isArray(correctAnswersArray) || correctAnswersArray.some(i => typeof i !== 'string') || numBlanks !== correctAnswersArray.length) {
-                         console.warn(`Skipping invalid FIB question (answer/blank mismatch):`, q);
-                         return null;
-                    }
-                    
-                    let acceptableAnswersArrays = q.acceptableAnswers || [];
-                    if (numBlanks === 1 && acceptableAnswersArrays.length > 0 && typeof acceptableAnswersArrays[0] === 'string') {
-                        acceptableAnswersArrays = [acceptableAnswersArrays];
-                    }
-                    
-                    if (acceptableAnswersArrays.length > 0 && (acceptableAnswersArrays.length !== correctAnswersArray.length || acceptableAnswersArrays.some((sub: any) => !Array.isArray(sub)))) {
-                        console.warn(`Skipping invalid FIB question (acceptable answers format wrong):`, q);
-                        return null;
-                    }
-
-                    return { 
-                        questionType, 
-                        questionText, 
-                        correctAnswers: correctAnswersArray, 
-                        explanation: q.explanation, 
-                        acceptableAnswers: acceptableAnswersArrays, 
-                        topic 
-                    };
-                case QuestionType.OPEN_ENDED:
-                     return { questionType, questionText, explanation: q.explanation, topic };
-                case QuestionType.MATCHING:
-                    if (!q.prompts || !Array.isArray(q.prompts) || !q.answers || !Array.isArray(q.answers) || q.prompts.length !== q.answers.length || q.prompts.length === 0) return null;
-                    return { questionType, questionText, prompts: q.prompts, answers: q.answers, promptTitle: q.promptTitle, answerTitle: q.answerTitle, explanation: q.explanation, topic };
-                default:
-                    console.warn(`Skipping invalid question from AI (unknown type: ${questionType}):`, q);
-                    return null;
-            }
-      }).filter((q: any): q is Question => q !== null);
-
-      if (validatedQuestions.length > 0) {
-          return { questions: validatedQuestions, webSources };
-      }
-      
-      throw new Error("The AI responded, but none of the generated questions were valid.");
+    return { questions: validQuestions, webSources };
   } catch (error) {
-      console.error("Generate quiz failed:", error);
-      if (error instanceof Error && (error.message.includes('json') || error.message.includes('JSON'))) {
-          throw new Error("The AI returned an invalid format. Please try modifying your notes slightly and resubmitting.");
-      }
-      throw error;
+    console.error("Generate quiz failed:", error);
+    if (error instanceof Error) throw error;
+    throw new Error("Failed to parse the quiz from the AI's response.");
   }
+};
+
+export const generateTopics = async (parts: PromptPart[]): Promise<string[]> => {
+    const modelIdentifier = 'topicAnalysis';
+    const apiFunction = (client: GoogleGenAI, model: string) => client.models.generateContent({
+        model,
+        contents: { parts },
+        config: {
+            systemInstruction: getTopicsInstruction(),
+            responseMimeType: "application/json",
+            responseSchema: topicsSchema
+        }
+    });
+    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+    const jsonResponse = parseJsonResponse(response.text);
+    return jsonResponse.topics || [];
 };
 
 export const gradeExam = async (questions: Question[], submission: OpenEndedAnswer): Promise<AnswerLog[]> => {
-    const systemInstruction = getGradingSystemInstruction(questions);
-    
-    const userContentParts: PromptPart[] = [];
-    if (submission.text.trim()) {
-        userContentParts.push({ text: `## START OF TYPED ANSWERS ##\n\n${submission.text}\n\n## END OF TYPED ANSWERS ##` });
+    const modelIdentifier = 'examGrading';
+    const userPromptParts: PromptPart[] = [{ text: submission.text }];
+    if (submission.images) {
+        submission.images.forEach(img => userPromptParts.push({ inlineData: { mimeType: img.mimeType, data: img.data }}));
     }
-    submission.images.forEach((img, index) => {
-        userContentParts.push({ text: `\n[The following is image ${index + 1} of the user's handwritten work]` });
-        userContentParts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+    
+    const apiFunction = (client: GoogleGenAI, model: string) => client.models.generateContent({
+        model,
+        contents: { parts: userPromptParts },
+        config: {
+            systemInstruction: getGradingSystemInstruction(questions),
+            responseMimeType: "application/json",
+            responseSchema: batchGradingSchema
+        }
     });
 
-    if (userContentParts.length === 0) {
-        return questions.map(q => ({
+    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+    const jsonResponse = parseJsonResponse(response.text);
+    const grades: any[] = jsonResponse.grades || [];
+
+    return questions.map((q, i) => {
+        const grade = grades.find(g => g.questionIndex === i) || { isCorrect: false, score: 0, feedback: 'AI grader did not return a result for this question.' };
+        return {
             question: q,
             userAnswer: submission,
-            isCorrect: false,
-            pointsAwarded: 0,
+            isCorrect: grade.isCorrect,
+            pointsAwarded: grade.score,
             maxPoints: 10,
-            examFeedback: "No answer was submitted for this question.",
-        }));
-    }
-    
-    try {
-        const response = await apiCallWithRetry<GenerateContentResponse>(
-            (client, model) => client.models.generateContent({
-                model,
-                contents: { parts: userContentParts },
-                config: {
-                    systemInstruction,
-                    responseMimeType: "application/json",
-                    responseSchema: batchGradingSchema,
-                    temperature: 0.3,
-                },
-            }),
-            'examGrading'
-        );
-
-        const jsonText = response.text;
-        if (!jsonText) {
-            throw new Error("API returned no text while grading exam.");
-        }
-        const result = JSON.parse(jsonText.trim());
-        const grades = result.grades as { questionIndex: number; isCorrect: boolean; score: number; feedback: string }[];
-
-        return questions.map((question, index) => {
-            const grade = grades.find(g => g.questionIndex === index);
-            if (grade) {
-                return {
-                    question: question,
-                    userAnswer: submission,
-                    isCorrect: grade.score >= 7,
-                    pointsAwarded: grade.score,
-                    maxPoints: 10,
-                    examFeedback: grade.feedback,
-                };
-            }
-            return {
-                question: question,
-                userAnswer: submission,
-                isCorrect: false,
-                pointsAwarded: 0,
-                maxPoints: 10,
-                examFeedback: "The AI did not return a grade for this question.",
-            };
-        });
-
-    } catch (error) {
-        console.error(`Batch grading error:`, error);
-        throw error;
-    }
+            examFeedback: grade.feedback,
+        };
+    });
 };
 
 export const generateExamPrediction = async (data: any): Promise<PredictedQuestion[]> => {
-    const systemInstruction = getPredictionSystemInstruction();
-    const userPromptParts = getPredictionUserPromptParts(data);
-    
-    try {
-        const response = await apiCallWithRetry<GenerateContentResponse>(
-            (client, model) => client.models.generateContent({
-                model,
-                contents: { parts: userPromptParts },
-                config: {
-                    systemInstruction,
-                    responseMimeType: "application/json",
-                    responseSchema: predictionSchema,
-                    temperature: 0.8,
-                },
-            }),
-            'examPrediction'
-        );
+    const modelIdentifier = 'examPrediction';
+    const parts = getPredictionUserPromptParts(data);
 
-        const jsonText = response.text;
-        if (!jsonText) {
-            throw new Error("Prediction API returned an empty response.");
+    const apiFunction = (client: GoogleGenAI, model: string) => client.models.generateContent({
+        model,
+        contents: { parts },
+        config: {
+            systemInstruction: getPredictionSystemInstruction(),
+            responseMimeType: "application/json",
+            responseSchema: predictionSchema
         }
-        const result = JSON.parse(jsonText.trim());
-        
-        if (result.predictions && Array.isArray(result.predictions)) {
-            return result.predictions;
-        }
-        throw new Error("Prediction API returned an invalid format.");
-
-    } catch(error) {
-        console.error("Error generating exam prediction:", error);
-        throw error;
-    }
+    });
+    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+    const jsonResponse = parseJsonResponse(response.text);
+    return jsonResponse.predictions || [];
 };
 
 export const generateStudyGuideForPrediction = async (question: PredictedQuestion): Promise<StudyGuide> => {
-    const systemInstruction = getStudyGuideInstruction(question);
-    
-    try {
-        const response = await apiCallWithRetry<GenerateContentResponse>(
-            (client, model) => client.models.generateContent({
-                model,
-                contents: { parts: [{ text: "Please generate the study guide based on the system instruction." }] },
-                config: {
-                    systemInstruction,
-                    responseMimeType: "application/json",
-                    responseSchema: studyGuideSchema,
-                    temperature: 0.6,
-                },
-            }),
-            'studyGuideGeneration'
-        );
-
-        const jsonText = response.text;
-        if (!jsonText) throw new Error("Study guide API returned an empty response.");
-        
-        const result = JSON.parse(jsonText.trim());
-        if (result.answerOutline && Array.isArray(result.youtubeSearchQueries)) return result as StudyGuide;
-        
-        throw new Error("Study guide API returned an invalid format.");
-
-    } catch(error) {
-        console.error("Error generating study guide:", error);
-        throw error;
-    }
+    const modelIdentifier = 'studyGuideGeneration';
+    const apiFunction = (client: GoogleGenAI, model: string) => client.models.generateContent({
+        model,
+        contents: { parts: [{ text: "Please generate the study guide." }] },
+        config: {
+            systemInstruction: getStudyGuideInstruction(question),
+            responseMimeType: "application/json",
+            responseSchema: studyGuideSchema
+        }
+    });
+    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+    return parseJsonResponse(response.text);
 };
 
-export const generatePersonalizedFeedback = async (quizHistory: QuizResult[]): Promise<PersonalizedFeedback | null> => {
-    if (quizHistory.length === 0 || quizHistory.some(r => r.mode === 'EXAM')) return null;
 
-    const sortedHistory = [...quizHistory].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    
-    const relevantLogData = sortedHistory.flatMap(result =>
-        result.answerLog.map(log => {
-            const pointsAwarded = typeof log.pointsAwarded === 'number' ? log.pointsAwarded : (log.isCorrect ? 10 : 0);
-            const maxPoints = typeof log.maxPoints === 'number' ? log.maxPoints : 10;
-            const topic = log.question.topic || "General Knowledge";
-            let userAnswerText = '[MC/TF Answer]';
-            if (typeof log.userAnswer === 'string') userAnswerText = log.userAnswer;
-            else if (Array.isArray(log.userAnswer)) userAnswerText = log.userAnswer.join(', ');
+export const generatePersonalizedFeedback = async (history: QuizResult[]): Promise<PersonalizedFeedback | null> => {
+    if (!history || history.length === 0) return null;
+    const modelIdentifier = 'feedbackGeneration';
+    const historyForPrompt = JSON.stringify(history.map(r => ({
+        quizDate: r.date,
+        answerLog: r.answerLog.map(l => ({
+            topic: l.question.topic,
+            questionText: l.question.questionText,
+            isCorrect: l.isCorrect,
+            pointsAwarded: l.pointsAwarded,
+            maxPoints: l.maxPoints,
+            aiFeedback: l.aiFeedback
+        }))
+    })));
 
-            return { quizDate: result.date, topic, question: log.question.questionText, userAnswerText, isCorrect: log.isCorrect, pointsAwarded, maxPoints, aiFeedback: log.aiFeedback };
-        })
-    );
+    const apiFunction = (client: GoogleGenAI, model: string) => client.models.generateContent({
+        model,
+        contents: { parts: [{ text: "Generate feedback based on the history in the system instruction."}] },
+        config: {
+            systemInstruction: getFeedbackSystemInstruction(historyForPrompt),
+            responseMimeType: "application/json",
+            responseSchema: personalizedFeedbackSchema
+        }
+    });
 
-    if (relevantLogData.length === 0) return null;
-
-    const systemInstruction = getFeedbackSystemInstruction(JSON.stringify(relevantLogData, null, 2));
-
-    try {
-        const response = await apiCallWithRetry<GenerateContentResponse>(
-            (client, model) => client.models.generateContent({
-                model,
-                contents: { parts: [{ text: "Please generate the feedback based on the data in the system instruction." }] },
-                config: {
-                    systemInstruction,
-                    responseMimeType: "application/json",
-                    responseSchema: personalizedFeedbackSchema,
-                    temperature: 0.5,
-                },
-            }),
-            'feedbackGeneration'
-        );
-
-        const jsonText = response.text;
-        if (!jsonText) throw new Error("Feedback generation API returned no text.");
-        return JSON.parse(jsonText.trim()) as PersonalizedFeedback;
-    } catch (error) {
-        console.error("Error generating personalized feedback:", error);
-        return null;
-    }
+    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+    return parseJsonResponse(response.text);
 };
-
 
 export const validateFillInTheBlankAnswer = async (questionText: string, correctAnswer: string, userAnswer: string): Promise<FibValidationResult> => {
+    const modelIdentifier = 'fibValidation';
     const systemInstruction = getFibValidationSystemInstruction(questionText, correctAnswer, userAnswer);
+
+    const apiFunction = (client: GoogleGenAI, model: string) => client.models.generateContent({
+        model,
+        contents: { parts: [{text: "Validate the user's answer."}] },
+        config: {
+            systemInstruction,
+            responseMimeType: "application/json",
+            responseSchema: fibValidationSchema
+        }
+    });
     try {
-        const response = await apiCallWithRetry<GenerateContentResponse>(
-            (client, model) => client.models.generateContent({
-                model,
-                contents: { parts: [{ text: "Evaluate the user's answer based on the system instruction."}] },
-                config: {
-                    systemInstruction,
-                    responseMimeType: "application/json",
-                    responseSchema: fibValidationSchema,
-                    temperature: 0.1,
-                    thinkingConfig: { thinkingBudget: 0 }
-                },
-            }),
-            'fibValidation'
-        );
-        
-        const jsonText = response.text;
-        if (!jsonText) throw new Error("AI validation returned no text.");
-        return JSON.parse(jsonText.trim()) as FibValidationResult;
-    } catch(error) {
-        console.error("Error during fill-in-the-blank validation:", error);
-        return { status: FibValidationStatus.INCORRECT, pointsAwarded: 0, comment: "Could not be validated." };
+        const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+        const json = parseJsonResponse(response.text);
+        return {
+            status: json.status as FibValidationStatus,
+            pointsAwarded: json.pointsAwarded,
+            comment: json.comment
+        };
+    } catch(e) {
+        console.error("FIB validation failed, defaulting to incorrect", e);
+        return { status: FibValidationStatus.INCORRECT, pointsAwarded: 0, comment: 'AI validation failed.' };
     }
-};
-
-export const generateVisualAid = async (conceptText: string): Promise<{ imageUrl: string; prompt: string }> => {
-    const promptGenerationSystemInstruction = `You are an AI assistant that creates vivid, detailed, and creative prompts for an image generation model. The user will provide a concept, and you must translate it into a prompt that will generate a helpful visual aid. The prompt should be conceptual, metaphorical, or diagrammatic. Focus on creating a visually striking and informative image. The prompt should be a single, descriptive paragraph.`;
-    
-    const promptResponse = await apiCallWithRetry<GenerateContentResponse>(
-        (client, model) => client.models.generateContent({
-            model,
-            contents: { parts: [{ text: `Generate an image prompt for this concept: ${conceptText}` }] },
-            config: { systemInstruction: promptGenerationSystemInstruction, temperature: 0.8 },
-        }),
-        'feedbackGeneration' // Re-using a text model's identifier
-    );
-
-    const imagePrompt = promptResponse.text;
-    if (!imagePrompt) throw new Error("Could not generate a prompt for the visual aid.");
-    
-    const imageResponse = await apiCallWithRetry<GenerateImagesResponse>(
-        (client, model) => client.models.generateImages({
-            model,
-            prompt: imagePrompt,
-            config: { numberOfImages: 1, outputMimeType: 'image/jpeg', aspectRatio: '16:9' },
-        }),
-        'visualAid'
-    );
-
-    if (!imageResponse.generatedImages || imageResponse.generatedImages.length === 0) {
-        throw new Error("The visual aid could not be generated.");
-    }
-    const base64ImageBytes = imageResponse.generatedImages?.[0]?.image?.imageBytes;
-    if (!base64ImageBytes) throw new Error("The visual aid was generated, but the image data is missing.");
-    
-    const imageUrl = `data:image/jpeg;base64,${base64ImageBytes}`;
-    return { imageUrl, prompt: imagePrompt };
 };

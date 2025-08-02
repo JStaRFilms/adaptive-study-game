@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage, MultipleChoiceQuestion, MatchingQuestion } from '../types';
+import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion } from '../types';
 import ProgressBar from './common/ProgressBar';
 import TimerBar from './common/TimerBar';
 import Markdown from './common/Markdown';
@@ -31,6 +31,8 @@ const QUESTION_TIME_LIMIT = 20; // 20 seconds per question
 const FIB_TIME_LIMIT = 35; // Extra time for typing
 const MATCHING_TIME_LIMIT_BASE = 15; // 15 seconds base
 const MATCHING_TIME_LIMIT_PER_ITEM = 8; // 8 seconds per item
+const SEQUENCE_TIME_LIMIT_BASE = 15;
+const SEQUENCE_TIME_LIMIT_PER_ITEM = 8;
 const SPEED_BONUS_THRESHOLD = 15; // Answer with >= 15s left for bonus
 const SPEED_BONUS_POINTS = 5;
 const BASE_POINTS = 10;
@@ -63,7 +65,15 @@ const StudyScreen = ({
   const [shuffledPrompts, setShuffledPrompts] = useState<{ text: string, originalIndex: number }[]>([]);
   const [placedMatches, setPlacedMatches] = useState<(number | null)[]>([]); // index = answer slot, value = original prompt index
   const [draggedItem, setDraggedItem] = useState<{ prompt: { text: string, originalIndex: number }, fromAnswerSlot?: number } | null>(null);
+  const [selectedMatchingPrompt, setSelectedMatchingPrompt] = useState<{ text: string, originalIndex: number } | null>(null);
   const [matchResults, setMatchResults] = useState<('correct' | 'incorrect' | null)[] | null>(null);
+
+  // State for Sequence questions
+  const [sequenceItems, setSequenceItems] = useState<{ text: string, originalIndex: number }[]>([]);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [selectedSequenceIndex, setSelectedSequenceIndex] = useState<number | null>(null);
+  const [sequenceResults, setSequenceResults] = useState<('correct' | 'incorrect')[] | null>(null);
   
   const isUntimedMode = mode === StudyMode.REVIEW || mode === StudyMode.SRS;
   const currentQuestion: Question = quiz.questions[currentQuestionIndex];
@@ -75,6 +85,9 @@ const StudyScreen = ({
         case QuestionType.MATCHING:
             const matchingQ = currentQuestion as MatchingQuestion;
             return MATCHING_TIME_LIMIT_BASE + matchingQ.prompts.length * MATCHING_TIME_LIMIT_PER_ITEM;
+        case QuestionType.SEQUENCE:
+            const sequenceQ = currentQuestion as SequenceQuestion;
+            return SEQUENCE_TIME_LIMIT_BASE + sequenceQ.items.length * SEQUENCE_TIME_LIMIT_PER_ITEM;
         default: return QUESTION_TIME_LIMIT;
     }
   };
@@ -162,6 +175,15 @@ const StudyScreen = ({
                 // Set results for styling
                 const results = (userAnswer as number[]).map((promptIdx, answerIdx) => promptIdx === answerIdx ? 'correct' : 'incorrect');
                 setMatchResults(results);
+            } else if (logEntry.question.questionType === QuestionType.SEQUENCE) {
+                const sequenceQ = logEntry.question as SequenceQuestion;
+                const userOrder = userAnswer as number[];
+                const reorderedItems = userOrder.map(originalIndex => ({
+                    text: sequenceQ.items[originalIndex],
+                    originalIndex
+                }));
+                setSequenceItems(reorderedItems);
+                setSequenceResults(userOrder.map((originalIdx, currentIdx) => originalIdx === currentIdx ? 'correct' : 'incorrect'));
             } else if (logEntry.question.questionType === QuestionType.MULTIPLE_CHOICE || userAnswer === 'SKIPPED') {
                 setSelectedOptionIndex(userAnswer as number | null);
             } else if (logEntry.question.questionType === QuestionType.FILL_IN_THE_BLANK) {
@@ -181,6 +203,10 @@ const StudyScreen = ({
             setPlacedMatches([]);
             setShuffledPrompts([]);
             setMatchResults(null);
+            setSelectedMatchingPrompt(null);
+            setSequenceItems([]);
+            setSequenceResults(null);
+            setSelectedSequenceIndex(null);
 
             if (currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
                  const numBlanks = (currentQuestion as FillInTheBlankQuestion).correctAnswers.length;
@@ -195,6 +221,14 @@ const StudyScreen = ({
                 }
                 setShuffledPrompts(promptsToShuffle);
                 setPlacedMatches(Array(matchingQ.answers.length).fill(null));
+            } else if (currentQuestion.questionType === QuestionType.SEQUENCE) {
+                const sequenceQ = currentQuestion as SequenceQuestion;
+                const itemsToShuffle = sequenceQ.items.map((text, originalIndex) => ({ text, originalIndex }));
+                for (let i = itemsToShuffle.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [itemsToShuffle[i], itemsToShuffle[j]] = [itemsToShuffle[j], itemsToShuffle[i]];
+                }
+                setSequenceItems(itemsToShuffle);
             }
         }
     }, [currentQuestionIndex, currentQuestion, answerLog, quiz.questions, timeLimitForCurrentQuestion]);
@@ -208,8 +242,8 @@ const StudyScreen = ({
         let maxPts = BASE_POINTS;
         if(currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK){
             maxPts = (currentQuestion as FillInTheBlankQuestion).correctAnswers.length * BASE_POINTS;
-        } else if (currentQuestion.questionType === QuestionType.MATCHING) {
-            maxPts = (currentQuestion as MatchingQuestion).prompts.length > 0 ? BASE_POINTS : 0;
+        } else if (currentQuestion.questionType === QuestionType.MATCHING || currentQuestion.questionType === QuestionType.SEQUENCE) {
+            maxPts = BASE_POINTS;
         }
         await processAnswer({ awarded: 0, max: maxPts }, null); 
       };
@@ -301,6 +335,23 @@ const StudyScreen = ({
     const awardedPoints = Math.round((correctCount / matchingQ.prompts.length) * maxPoints);
     await processAnswer({ awarded: awardedPoints, max: maxPoints }, placedMatches);
   };
+
+    const handleSequenceSubmit = async () => {
+        if (currentQuestion.questionType !== QuestionType.SEQUENCE) return;
+        const userOrder = sequenceItems.map(item => item.originalIndex);
+        const results: ('correct' | 'incorrect')[] = [];
+        let isFullyCorrect = true;
+        for (let i = 0; i < userOrder.length; i++) {
+            if (userOrder[i] !== i) {
+                isFullyCorrect = false;
+                results[i] = 'incorrect';
+            } else {
+                results[i] = 'correct';
+            }
+        }
+        setSequenceResults(results);
+        await processAnswer({ awarded: isFullyCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, userOrder);
+    };
   
     const handleSkip = useCallback(async () => {
         if (answerStatus !== 'unanswered' || mode === StudyMode.SRS) return;
@@ -308,7 +359,7 @@ const StudyScreen = ({
         let maxPts = BASE_POINTS;
         if (currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
             maxPts = (currentQuestion as FillInTheBlankQuestion).correctAnswers.length * BASE_POINTS;
-        } else if (currentQuestion.questionType === QuestionType.MATCHING) {
+        } else if (currentQuestion.questionType === QuestionType.MATCHING || currentQuestion.questionType === QuestionType.SEQUENCE) {
             maxPts = BASE_POINTS;
         }
 
@@ -366,7 +417,8 @@ const StudyScreen = ({
          feedbackContent = answerStatus === 'incorrect' ? <p className="text-lg font-semibold">The correct answer was: <span className="text-correct">{currentQuestion.options[currentQuestion.correctAnswerIndex]}</span></p> : null;
          break;
       case QuestionType.MATCHING:
-          // Feedback for matching is shown inline on the items themselves.
+      case QuestionType.SEQUENCE:
+          // Feedback for these types is shown inline on the items themselves.
           break;
     }
 
@@ -387,6 +439,86 @@ const StudyScreen = ({
     const isAnswered = answerStatus !== 'unanswered';
 
     switch (currentQuestion.questionType) {
+        case QuestionType.SEQUENCE:
+            const handleSequenceItemClick = (clickedIndex: number) => {
+                if (isAnswered) return;
+                if (selectedSequenceIndex === null) {
+                    setSelectedSequenceIndex(clickedIndex);
+                } else if (selectedSequenceIndex === clickedIndex) {
+                    setSelectedSequenceIndex(null);
+                } else {
+                    const newItems = [...sequenceItems];
+                    [newItems[selectedSequenceIndex], newItems[clickedIndex]] = [newItems[clickedIndex], newItems[selectedSequenceIndex]];
+                    setSequenceItems(newItems);
+                    setSelectedSequenceIndex(null);
+                }
+            };
+            const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
+                if (isAnswered) return;
+                setSelectedSequenceIndex(null);
+                setDraggedIndex(index);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData("text/plain", index.toString());
+            };
+            const handleDragEnd = () => {
+                setDraggedIndex(null);
+                setDragOverIndex(null);
+            };
+            const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault();
+            const handleDrop = (e: React.DragEvent<HTMLDivElement>, dropIndex: number) => {
+                e.preventDefault();
+                if (draggedIndex === null || isAnswered) return;
+                const newItems = [...sequenceItems];
+                const [draggedItem] = newItems.splice(draggedIndex, 1);
+                newItems.splice(dropIndex, 0, draggedItem);
+                setSequenceItems(newItems);
+            };
+
+            return (
+                 <div className="flex flex-col items-center">
+                    <Markdown as="p" content={currentQuestion.questionText} className="text-center text-text-primary mb-4" />
+                    <div className="bg-yellow-900/50 text-yellow-200 text-sm px-4 py-2 rounded-lg mb-6 flex items-center gap-2">
+                        <span className="text-lg">💡</span>
+                        <span>Tap to select, tap again to swap. Or drag and drop.</span>
+                    </div>
+                    <div className="w-full max-w-lg space-y-3">
+                        {sequenceItems.map((item, index) => {
+                             const resultState = sequenceResults?.[index];
+                             const isSelected = selectedSequenceIndex === index;
+                             let borderClass = 'border-transparent';
+                             if (isSelected) borderClass = 'border-brand-primary ring-2 ring-brand-primary';
+                             if (resultState === 'correct' && isAnswered) borderClass = 'border-correct';
+                             if (resultState === 'incorrect' && isAnswered) borderClass = 'border-incorrect';
+                            return (
+                                <div
+                                    key={item.originalIndex}
+                                    draggable={!isAnswered}
+                                    onClick={() => handleSequenceItemClick(index)}
+                                    onDragStart={(e) => handleDragStart(e, index)}
+                                    onDragEnd={handleDragEnd}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(e, index)}
+                                    onDragEnter={() => !isAnswered && setDragOverIndex(index)}
+                                    onDragLeave={() => !isAnswered && setDragOverIndex(null)}
+                                    className={`sequence-item ${isAnswered ? 'answered' : ''} ${draggedIndex === index ? 'dragging' : ''} ${dragOverIndex === index ? 'drag-over' : ''} border-2 ${borderClass}`}
+                                >
+                                    <div className="drag-handle">⋮⋮</div>
+                                    <div className="sequence-number">{index + 1}</div>
+                                    <div className="flex-1">
+                                      <Markdown content={item.text} as="span" />
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                    {!isAnswered && (
+                        <button onClick={handleSequenceSubmit} className="mt-8 px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed">
+                            Submit Order
+                        </button>
+                    )}
+                </div>
+            );
+
         case QuestionType.MATCHING:
             const matchingQ = currentQuestion as MatchingQuestion;
             const promptItems = shuffledPrompts.map(p => ({
@@ -394,53 +526,76 @@ const StudyScreen = ({
                 isPlaced: placedMatches.includes(p.originalIndex),
             }));
 
-            const handleDragStart = (e: React.DragEvent, prompt: { text: string; originalIndex: number; }, fromAnswerSlot?: number) => {
+            const handlePromptClick = (prompt: { text: string; originalIndex: number }) => {
                 if (isAnswered) return;
+                if (selectedMatchingPrompt?.originalIndex === prompt.originalIndex) {
+                    setSelectedMatchingPrompt(null);
+                } else {
+                    setSelectedMatchingPrompt(prompt);
+                }
+            };
+
+            const handleAnswerSlotClick = (targetAnswerIndex: number) => {
+                if (isAnswered) return;
+                if (!selectedMatchingPrompt) { // Nothing selected, maybe pick up from slot?
+                    const itemToSelect = placedMatches[targetAnswerIndex];
+                    if (itemToSelect !== null) {
+                        const promptObject = matchingQ.prompts.map((text, originalIndex) => ({text, originalIndex})).find(p => p.originalIndex === itemToSelect);
+                        if(promptObject) {
+                            const newPlaced = [...placedMatches];
+                            newPlaced[targetAnswerIndex] = null;
+                            setPlacedMatches(newPlaced);
+                            setSelectedMatchingPrompt(promptObject);
+                        }
+                    }
+                    return;
+                }
+            
+                const newPlaced = [...placedMatches];
+                const promptToPlace = selectedMatchingPrompt.originalIndex;
+                const occupantOfTargetSlot = newPlaced[targetAnswerIndex];
+            
+                // Is the selected prompt already in a slot?
+                const fromAnswerSlot = placedMatches.indexOf(promptToPlace);
+            
+                newPlaced[targetAnswerIndex] = promptToPlace;
+                if (fromAnswerSlot !== -1) {
+                    newPlaced[fromAnswerSlot] = occupantOfTargetSlot;
+                }
+            
+                setPlacedMatches(newPlaced);
+                setSelectedMatchingPrompt(null);
+            };
+
+            const handleMatchingDragStart = (e: React.DragEvent, prompt: { text: string; originalIndex: number; }, fromAnswerSlot?: number) => {
+                if (isAnswered) return;
+                setSelectedMatchingPrompt(null);
                 setDraggedItem({ prompt, fromAnswerSlot });
                 e.dataTransfer.effectAllowed = 'move';
             };
 
-            const handleDrop = (e: React.DragEvent, targetAnswerIndex: number) => {
+            const handleMatchingDrop = (e: React.DragEvent, targetAnswerIndex: number) => {
                 e.preventDefault();
                 if (!draggedItem || isAnswered) return;
                 
                 const newPlaced = [...placedMatches];
                 const { prompt, fromAnswerSlot } = draggedItem;
 
-                // Prompt currently in the target slot
-                const existingPromptInTarget = newPlaced[targetAnswerIndex];
-
-                // If dropping on where it came from, do nothing.
+                const occupantOfTargetSlot = newPlaced[targetAnswerIndex];
                 if (fromAnswerSlot === targetAnswerIndex) {
                     setDraggedItem(null);
                     return;
                 }
                 
-                // If it came from another answer slot, clear its original position
-                if (fromAnswerSlot !== undefined) {
-                    newPlaced[fromAnswerSlot] = null;
-                }
-
-                // Place the dragged prompt in the new slot
                 newPlaced[targetAnswerIndex] = prompt.originalIndex;
-
-                // If target slot had a prompt, and we dragged from the prompt list (not another answer slot),
-                // we need to un-place the existing prompt.
-                if (existingPromptInTarget !== null && fromAnswerSlot === undefined) {
-                    // This logic is simple replacement. For swapping, it would be more complex.
+                if (fromAnswerSlot !== undefined) {
+                    newPlaced[fromAnswerSlot] = occupantOfTargetSlot;
                 }
 
                 setPlacedMatches(newPlaced);
                 setDraggedItem(null);
             };
-
-            const handleUnplace = (answerIndexToClear: number) => {
-                if (isAnswered) return;
-                const newPlaced = [...placedMatches];
-                newPlaced[answerIndexToClear] = null;
-                setPlacedMatches(newPlaced);
-            };
-
+            
             return (
                 <div className="flex flex-col items-center">
                     <Markdown as="p" content={matchingQ.questionText} className="text-center text-text-primary mb-6" />
@@ -448,19 +603,23 @@ const StudyScreen = ({
                         {/* Prompts Column */}
                         <div className="flex flex-col gap-3">
                             <h3 className="font-bold text-center text-lg text-text-secondary">{matchingQ.promptTitle || 'Concepts'}</h3>
-                            {promptItems.map((p) => (
+                            {promptItems.map((p) => {
+                                const isSelected = selectedMatchingPrompt?.originalIndex === p.originalIndex;
+                                return (
                                 <div
                                     key={p.originalIndex}
                                     draggable={!p.isPlaced && !isAnswered}
-                                    onDragStart={(e) => handleDragStart(e, p)}
+                                    onClick={() => !p.isPlaced && handlePromptClick(p)}
+                                    onDragStart={(e) => handleMatchingDragStart(e, p)}
                                     className={`p-4 rounded-lg border-2 transition-all duration-200 ${
                                         p.isPlaced ? 'bg-surface-dark border-gray-700 text-gray-500 cursor-not-allowed' :
-                                        'bg-gray-700/80 border-gray-600 hover:bg-gray-600 cursor-grab active:cursor-grabbing'
+                                        isSelected ? 'ring-2 ring-brand-primary border-brand-primary bg-gray-600 cursor-pointer' :
+                                        'bg-gray-700/80 border-gray-600 hover:bg-gray-600 cursor-pointer active:cursor-grabbing'
                                     }`}
                                 >
                                     <Markdown content={p.text} as="span" />
                                 </div>
-                            ))}
+                            )})}
                         </div>
 
                         {/* Answers Column (Drop Zones) */}
@@ -474,21 +633,21 @@ const StudyScreen = ({
                                 return (
                                     <div
                                         key={answerIndex}
-                                        onDrop={(e) => handleDrop(e, answerIndex)}
+                                        onClick={() => handleAnswerSlotClick(answerIndex)}
+                                        onDrop={(e) => handleMatchingDrop(e, answerIndex)}
                                         onDragOver={(e) => e.preventDefault()}
-                                        className={`p-4 rounded-lg border-2 min-h-[80px] flex flex-col justify-center transition-all duration-200 ${
+                                        className={`p-4 rounded-lg border-2 min-h-[80px] flex flex-col justify-center transition-all duration-200 cursor-pointer ${
                                             resultState === 'correct' ? 'border-correct bg-correct/10' :
                                             resultState === 'incorrect' ? 'border-incorrect bg-incorrect/10' :
                                             'border-dashed border-gray-600 hover:border-brand-primary hover:bg-brand-primary/10'
                                         }`}
                                     >
-                                        <p className="text-text-secondary mb-2">{answerText}</p>
+                                        <p className="text-text-secondary mb-2 pointer-events-none">{answerText}</p>
                                         {placedPrompt ? (
                                             <div 
                                                 draggable={!isAnswered}
-                                                onDragStart={(e) => handleDragStart(e, {text: placedPrompt, originalIndex: placedPromptIndex!}, answerIndex)}
-                                                onClick={() => handleUnplace(answerIndex)}
-                                                className={`mt-2 p-2 rounded-md text-center text-white font-semibold cursor-pointer ${
+                                                onDragStart={(e) => handleMatchingDragStart(e, {text: placedPrompt, originalIndex: placedPromptIndex!}, answerIndex)}
+                                                className={`mt-2 p-2 rounded-md text-center text-white font-semibold ${
                                                      resultState === 'correct' ? 'bg-correct/80' :
                                                      resultState === 'incorrect' ? 'bg-incorrect/80' :
                                                      'bg-brand-secondary'
@@ -497,7 +656,7 @@ const StudyScreen = ({
                                                 {placedPrompt}
                                             </div>
                                         ) : (
-                                            <div className="text-center text-gray-500 italic text-sm">Drop here</div>
+                                            <div className="text-center text-gray-500 italic text-sm pointer-events-none">Drop here</div>
                                         )}
                                     </div>
                                 );
@@ -687,7 +846,7 @@ const StudyScreen = ({
       </header>
       
       <div className="bg-surface-dark p-6 sm:p-8 rounded-xl shadow-2xl flex flex-col justify-center flex-grow">
-        {currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK && currentQuestion.questionType !== QuestionType.MATCHING && <Markdown as="h2" content={currentQuestion.questionText} className="text-2xl sm:text-3xl font-bold mb-8 text-text-primary text-center prose" />}
+        {currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK && currentQuestion.questionType !== QuestionType.MATCHING && currentQuestion.questionType !== QuestionType.SEQUENCE && <Markdown as="h2" content={currentQuestion.questionText} className="text-2xl sm:text-3xl font-bold mb-8 text-text-primary text-center prose" />}
         {renderQuestionBody()}
         {answerStatus !== 'unanswered' && !isVerifyingAnswer && renderAnswerFeedback()}
       </div>

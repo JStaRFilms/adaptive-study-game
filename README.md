@@ -26,28 +26,34 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 - **AI-Powered Quiz Generation**: Automatically creates high-quality quizzes from your study materials.
 - **Multimodal Input**: Generate quizzes from a mix of sources:
   - Pasted text notes
-  - Documents (`.txt`, `.pdf`, `.docx`, `.md`)
+  - Documents (`.txt`, `.pdf`, `.docx`, `.md`, `.pptx`)
   - Spreadsheets (`.xlsx`, `.csv`)
   - Images (`.png`, `.jpg`, `.webp`)
-  - Audio Files (`.mp3`, `.m4a`, `.wav`, etc.) - The AI transcribes the content for you.
+  - Audio Files (`.mp3`, `.m4a`, `.wav`, etc.)
+  - **YouTube videos** via URL.
 - **Flexible Knowledge Sources**: Choose how the AI generates questions:
   - **Notes Only**: Strictly uses the materials you provide.
   - **Notes + AI Knowledge**: Supplements your notes with the AI's vast general knowledge.
   - **Notes + Web Search**: Uses Google Search to find the latest information on your topic.
-- **AI Study Coach Chat**: While taking a quiz, slide out a chat panel to ask the AI for hints or explanations about the current question. The AI has context on your notes and the quiz.
-- **AI Study Coach Feedback**: After each quiz, receive personalized feedback from an AI coach that analyzes your performance to identify your strengths and weaknesses.
-- **Actionable Recommendations**: The AI coach provides clear next steps, including a one-click button to instantly generate a new, focused practice quiz on the topics you need to improve on.
-- **Multiple Question & Study Modes**:
-  - **Practice Mode**: Timed multiple choice, true/false, and fill-in-the-blank questions.
+- **Diverse Question Types**: Keep study sessions fresh with a variety of formats:
+  - Multiple Choice
+  - True/False
+  - Fill-in-the-Blank (with AI-powered fuzzy matching)
+  - Open-Ended (for Exam Mode)
+  - **Matching**: Drag and drop to match concepts with definitions.
+  - **Sequence**: Drag and drop to arrange steps in chronological order.
+- **Spaced Repetition System (SRS)**: An intelligent review mode that schedules questions based on your past performance, helping you commit information to long-term memory.
+- **AI Study Coach Chat**: While taking a quiz or reviewing results, slide out a chat panel to ask the AI for hints or explanations. The AI has context on your notes and the specific quiz.
+- **AI-Powered Feedback & Analytics**:
+  - **Personalized Reports**: After each quiz, receive feedback from an AI coach that analyzes your performance to identify strengths and weaknesses.
+  - **Actionable Recommendations**: The AI coach provides clear next steps, including a one-click button to instantly generate a new, focused practice quiz.
+  - **Statistics Dashboard**: View your overall performance, track accuracy over time, and see your strongest and weakest topics across all study sets.
+- **Advanced Study Modes**:
+  - **Practice Mode**: Timed questions with points, streaks, and speed bonuses.
   - **Review Mode**: Untimed, self-paced version of Practice Mode.
-  - **Exam Mode**: A simulated exam with open-ended questions requiring long-form answers.
-- **AI-Powered Exam Grading**: In Exam Mode, submit typed answers and **upload images of handwritten work**. The AI grades your responses against a rubric, providing a score and detailed feedback for each question.
-- **AI Exam Prediction**: A powerful "detective mode" where the AI acts as your teacher to predict likely exam questions. Prime the AI with your teacher's persona, past exams, and other materials for a highly tailored study guide.
-- **Gamified Learning**: A redesigned quiz interface with points, streaks, and speed bonuses to make studying engaging.
-- **Persistent Study Sets**: Create, edit, and save study sets. Your notes and associated files are saved in your browser's local storage.
-- **Quiz History & Progress Tracking**: Every quiz session is automatically saved. Review past attempts to track your scores, accuracy, and improvement over time.
-- **Detailed Answer Review**: After each quiz, access a comprehensive review screen showing each question, your answer, the correct answer, and a clear explanation. The AI Study Coach report is also available here.
-
+  - **Exam Mode**: A simulated exam with open-ended questions requiring long-form answers. The AI grades your typed answers and **uploaded images of handwritten work**.
+- **AI Exam Prediction**: A powerful "detective mode" where the AI acts as your teacher to predict likely exam questions based on your notes, past exams, and teacher's style.
+- **Persistent Local Storage**: Create, edit, and save study sets. Your notes and quiz history are saved securely in your browser's IndexedDB.
 
 ## 🚀 Project Philosophy
 > This project is built on a few core principles:
@@ -58,10 +64,12 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 
 ## 🛠️ How It Works
 
-1.  **Create a Study Set**: Add your notes by pasting text or uploading files (`.pdf`, `.docx`, images, audio, etc.). Your sets are saved for later.
+1.  **Create a Study Set**: Add your notes by pasting text, uploading files (`.pdf`, `.docx`, images, audio, etc.), or adding YouTube URLs. Your sets are saved for later.
 2.  **Choose Your Path**:
-    - **Study**: The app analyzes your notes, identifies key topics, and lets you configure a quiz (Practice, Review, or Exam Mode).
-    - **Predict**: Enter the Exam Prediction mode. Provide details about your teacher's style, upload past exams or quizzes, and let the AI generate a list of probable exam questions to guide your studying.
+    - **Study**: The app analyzes your notes, identifies key topics, and lets you configure a quiz (Practice, Review, or Exam Mode) with various question types, including multiple choice, matching, and sequence.
+    - **Spaced Repetition**: Start a review session that intelligently quizzes you on items you're close to forgetting.
+    - **Predict**: Enter the Exam Prediction mode. Provide details about your teacher's style, upload past exams or quizzes, and let the AI generate a list of probable exam questions.
+    - **Stats**: View your overall progress and topic performance on the statistics dashboard.
 3.  **Take the Quiz**: Play through the generated quiz, score points, and actively learn the material. For exams, type your answers or upload photos of your work.
 4.  **Get AI-Powered Results**: After an exam, the AI evaluates your answers, providing scores and constructive feedback. For practice quizzes, see a summary of your score and accuracy.
 5.  **Review and Improve**: Dive into a detailed review of your answers. The **AI Study Coach** will give you personalized feedback on your strengths and weaknesses. From here, you can retake the same quiz, return to your sets, or instantly launch a new, focused quiz tailored to the topics you struggled with.
@@ -71,13 +79,14 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 This app is built with a modern, build-free stack, focusing on performance and developer experience.
 
 -   **Core Framework**: [React](https://react.dev/) (with Hooks) & [TypeScript](https://www.typescriptlang.org/) for a robust and type-safe UI.
--   **AI Engine**: [Google Gemini API](https://ai.google.dev/) (`gemini-2.5-flash`) for all intelligent features, including quiz generation, exam grading, and prediction.
+-   **AI Engine**: [Google Gemini API](https://ai.google.dev/) (`gemini-2.5-flash`, `gemini-2.5-pro`) for all intelligent features.
 -   **Styling**: [Tailwind CSS](https://tailwindcss.com/) for a utility-first, responsive design system.
 -   **Module System**: Browser-native ES Modules loaded directly from the [esm.sh](https://esm.sh/) CDN. This eliminates the need for local `node_modules` or a bundling step.
 -   **Client-Side File Processing**:
     -   [PDF.js](https://mozilla.github.io/pdf.js/) for parsing `.pdf` files.
     -   [Mammoth.js](https://github.com/mwilliamson/mammoth.js) for extracting text from `.docx` files.
     -   [SheetJS](https://sheetjs.com/) for handling `.xlsx` and `.csv` spreadsheets.
+-   **Local Database**: [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) (via `idb` library) for robust, persistent client-side storage.
 
 
 ## 🔧 Getting Started
@@ -148,10 +157,11 @@ export default defineConfig(({ mode }) => {
 
 ## 🗺️ Roadmap
 
-- [x] **Deeper Analysis**: Provide users with insights into their weak spots and suggest topics to focus on. (Initial version implemented!)
+- [x] **Deeper Analysis**: Provide users with insights into their weak spots and suggest topics to focus on. (Implemented!)
+- [x] **More Question Types**: Introduce matching and sequencing questions. (Implemented!)
 - [ ] **Long-term Progress Tracking**: Track performance on specific topics across multiple quiz sessions to visualize improvement over time.
 - [ ] **Enhanced Gamification**: Leaderboards, achievements, and shareable results.
-- [ ] **More Question Types**: Introduce diagram labeling, matching, and sequencing questions.
+- [ ] **Even More Question Types**: Introduce diagram labeling and other interactive formats.
 - [ ] **Collaborative Study Sets**: Allow users to share their study sets with others.
 - [ ] **Localization**: Translate the UI into multiple languages.
 

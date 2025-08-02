@@ -1,8 +1,4 @@
-
-
-
-
-import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, StudySet, Quiz, QuizResult, PersonalizedFeedback, QuestionType, MatchingQuestion } from '../types';
+import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, StudySet, Quiz, QuizResult, PersonalizedFeedback, QuestionType, MatchingQuestion, SequenceQuestion } from '../types';
 
 export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[], customInstructions?: string): string => {
     let baseInstruction = '';
@@ -20,7 +16,7 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
     } else {
         baseInstruction = `You are an expert educator. Your task is to create a high-quality, mixed-type quiz based on the user's materials.
 - Create exactly ${numberOfQuestions} questions.
-- Include a mix of MULTIPLE_CHOICE, TRUE_FALSE, FILL_IN_THE_BLANK, and MATCHING questions.
+- Include a mix of MULTIPLE_CHOICE, TRUE_FALSE, FILL_IN_THE_BLANK, MATCHING, and SEQUENCE questions.
 - Test key concepts, definitions, and facts from the provided materials.
 - Adhere strictly to the provided JSON schema.
 - For EVERY question, provide a brief 'explanation' for the correct answer.
@@ -29,6 +25,7 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
 - For TRUE_FALSE questions: Provide a statement and its boolean truth value.
 - For FILL_IN_THE_BLANK questions: The 'questionText' can contain multiple '___' placeholders. The 'correctAnswers' property MUST be an array of strings with one answer for each '___', in order. The 'acceptableAnswers' property, if provided, MUST be an array of string arrays, corresponding to each correct answer. Provide a generous list of acceptable answers including common synonyms, misspellings, and plural/singular variations to avoid penalizing minor errors.
 - For MATCHING questions: Provide two string arrays, 'prompts' and 'answers', of equal length where prompts[i] matches answers[i]. The 'prompt' is the draggable item, and the 'answer' is the drop zone. Also provide a general 'questionText' instruction for the user. Optionally, provide 'promptTitle' (e.g., 'Concepts') and 'answerTitle' (e.g., 'Definitions') for the column headers.
+- For SEQUENCE questions: Provide a 'questionText' instruction. The 'items' property must be an array of strings with the steps in the correct chronological order.
 - CRITICAL: For FILL_IN_THE_BLANK questions, the answers MUST be common, easily typeable words or numbers. AVOID answers that require special symbols, mathematical notations (e.g., Σ, ε, ∗), or anything not found on a standard keyboard. Use MULTIPLE_CHOICE for concepts that involve such symbols.
 - Use markdown for formatting, like **bold** for emphasis.`;
     }
@@ -52,14 +49,15 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
 - 'questionText': (string) The open-ended question.
 - 'explanation': (string) A detailed grading rubric.
 - 'topic': (string) The main topic of the question.`
-                    : `- 'questionType': (string) One of 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'MATCHING'.
+                    : `- 'questionType': (string) One of 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'MATCHING', 'SEQUENCE'.
 - 'questionText': (string) The question. For FILL_IN_THE_BLANK, it must contain '___'.
 - 'explanation': (string) A brief explanation of the correct answer.
 - 'topic': (string) The main topic of the question.
 - For MULTIPLE_CHOICE: 'options' (array of 4 strings) and 'correctAnswerIndex' (integer).
 - For TRUE_FALSE: 'correctAnswerBoolean' (boolean).
 - For FILL_IN_THE_BLANK: 'correctAnswers' (array of strings) and optional 'acceptableAnswers' (array of array of strings).
-- For MATCHING: 'prompts' (array of strings), 'answers' (array of strings), 'promptTitle' (string, optional), 'answerTitle' (string, optional).`;
+- For MATCHING: 'prompts' (array of strings), 'answers' (array of strings), 'promptTitle' (string, optional), 'answerTitle' (string, optional).
+- For SEQUENCE: 'items' (array of strings in correct order).`;
 
                 baseInstruction += `\n\nYour response MUST be a single markdown JSON code block. Do not include any text outside of this block. The JSON object must have a 'questions' key, which is an array of question objects. Each question object must have these keys:
 ${schemaDescription}
@@ -209,6 +207,24 @@ Now, generate the feedback based on this data, adhering strictly to the JSON sch
 `;
 };
 
+export const getFibValidationSystemInstruction = (questionText: string, correctAnswer: string, userAnswer: string): string => {
+    return `You are an AI grading assistant. Your task is to evaluate a user's answer to a fill-in-the-blank question with nuance. The user's answer was not an exact match to the expected answer. You must determine if the user's answer is a valid, semantically correct alternative and award points accordingly.
+
+**Context:**
+- Question: "${questionText}"
+- Expected Answer for the blank: "${correctAnswer}"
+- User's Submitted Answer: "${userAnswer}"
+
+**Evaluation & Scoring Criteria:**
+- **CORRECT (10 points):** The user's answer is a correct synonym, a correct plural/singular form, or a typo that doesn't change the meaning. Example: Expected 'words', user says 'a word'.
+- **PARTIAL (5 points):** The user's answer is partially correct, related to the topic, but not the best or most precise answer. Example: Expected 'mitosis', user says 'cell division'. It's related but not specific enough.
+- **INCORRECT (0 points):** The user's answer is factually incorrect, a different concept, or nonsensical. Example: Expected 'mitochondria', user says 'chloroplast'.
+
+**Output:**
+Respond ONLY with a JSON object matching the required schema. Be strict in your evaluation but fair. Provide a brief comment explaining your reasoning.
+`;
+};
+
 export const getStudyChatSystemInstruction = (studySet: StudySet, quiz: Quiz): string => {
     const quizQuestionText = quiz.questions.map((q, i) => `${i + 1}. ${q.questionText}`).join('\n');
     
@@ -246,6 +262,12 @@ export const getReviewChatSystemInstruction = (studySet: StudySet, result: QuizR
                     return `${promptText} -> ${answerText}`;
                 }).join('; ');
                 userAnswerText = `[Matches: ${matches}]`;
+            } else if (log.question.questionType === QuestionType.SEQUENCE) {
+                const sequenceQ = log.question as SequenceQuestion;
+                const userOrderIndices = log.userAnswer as number[];
+                const orderedItems = userOrderIndices.map((originalIndex, i) => `${i + 1}. ${sequenceQ.items[originalIndex]}`).join(', ');
+                userAnswerText = `[Order: ${orderedItems}]`;
+                if (userAnswerText.length > 70) userAnswerText = userAnswerText.substring(0, 67) + '...';
             } else {
                 const answerString = JSON.stringify(log.userAnswer);
                 userAnswerText = answerString.length > 50 ? `${answerString.substring(0, 50)}...` : answerString;
@@ -310,23 +332,5 @@ This is your most important function.
 - **DO NOT** ask for confirmation (e.g., "Are you ready?"). The user's request IS the confirmation. Act immediately.
 - **DO NOT** forget to append the \`[ACTION:CREATE_QUIZ:..]\` command.
 - If the user says something vague like "create the quiz again", you MUST default to creating a quiz based on the **weakness topics** from the AI Coach Performance Report, and you should not specify a question count.
-`;
-};
-
-export const getFibValidationSystemInstruction = (questionText: string, correctAnswer: string, userAnswer: string): string => {
-    return `You are an AI grading assistant. Your task is to evaluate a user's answer to a fill-in-the-blank question with nuance. The user's answer was not an exact match to the expected answer. You must determine if the user's answer is a valid, semantically correct alternative and award points accordingly.
-
-**Context:**
-- Question: "${questionText}"
-- Expected Answer for the blank: "${correctAnswer}"
-- User's Submitted Answer: "${userAnswer}"
-
-**Evaluation & Scoring Criteria:**
-- **CORRECT (10 points):** The user's answer is a correct synonym, a correct plural/singular form, or a typo that doesn't change the meaning. Example: Expected 'words', user says 'a word'.
-- **PARTIAL (5 points):** The user's answer is partially correct, related to the topic, but not the best or most precise answer. Example: Expected 'mitosis', user says 'cell division'. It's related but not specific enough.
-- **INCORRECT (0 points):** The user's answer is factually incorrect, a different concept, or nonsensical. Example: Expected 'mitochondria', user says 'chloroplast'.
-
-**Output:**
-Respond ONLY with a JSON object matching the required schema. Be strict in your evaluation but fair. Provide a brief comment explaining your reasoning.
 `;
 };

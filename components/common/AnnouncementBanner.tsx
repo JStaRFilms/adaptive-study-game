@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-const ANNOUNCEMENT_ID = 'powerpoint-chat-scroll-20240727'; // Change this ID for new announcements
+const ANNOUNCEMENT_ID = 'sequence-matching-srs-20240728'; // Change this ID for new announcements
 const ANNOUNCEMENT_MESSAGE = (
     <>
-        <strong>✨ New Features:</strong> You can now upload PowerPoint files! Plus, the AI Chat experience has been upgraded with smoother scrolling.
+        <strong>🚀 Major Update:</strong> New "Sequence" and "Matching" question types are here! Plus, a new Spaced Repetition System (SRS) to supercharge your memory.
     </>
 );
 

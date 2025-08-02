@@ -12,6 +12,7 @@ export enum QuestionType {
   FILL_IN_THE_BLANK = 'FILL_IN_THE_BLANK',
   OPEN_ENDED = 'OPEN_ENDED',
   MATCHING = 'MATCHING',
+  SEQUENCE = 'SEQUENCE',
 }
 
 export enum StudyMode {
@@ -94,7 +95,16 @@ export interface MatchingQuestion {
   studySetId?: string;
 }
 
-export type Question = MultipleChoiceQuestion | TrueFalseQuestion | FillInTheBlankQuestion | OpenEndedQuestion | MatchingQuestion;
+export interface SequenceQuestion {
+  questionType: QuestionType.SEQUENCE;
+  questionText: string;
+  items: string[]; // Correct order
+  explanation: string;
+  topic?: string;
+  studySetId?: string;
+}
+
+export type Question = MultipleChoiceQuestion | TrueFalseQuestion | FillInTheBlankQuestion | OpenEndedQuestion | MatchingQuestion | SequenceQuestion;
 
 export interface WebSource {
     uri: string;

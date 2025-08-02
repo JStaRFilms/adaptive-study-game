@@ -285,6 +285,72 @@
     border-radius: 0;
     font-size: 1em;
   }
+
+  /* Styles for Sequence Question type */
+  .sequence-item {
+    background: #111827; /* background-dark */
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+  .sequence-item.answered {
+    cursor: not-allowed;
+  }
+  .sequence-item.answered:hover {
+    transform: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  .sequence-item:not(.answered):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    border-color: #14b8a6; /* brand-primary */
+  }
+  .sequence-item.dragging {
+    opacity: 0.8;
+    transform: rotate(2deg) scale(1.02);
+    cursor: grabbing;
+    z-index: 1000;
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+  }
+  .sequence-item.drag-over {
+    border-color: #3b82f6; /* A neutral blue for drop target */
+    background: #2563eb20;
+  }
+  .drag-handle {
+    color: #9ca3af; /* gray-400 */
+    font-size: 1.5rem;
+    cursor: grab;
+    padding: 5px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    touch-action: none;
+  }
+  .drag-handle:hover {
+    background: #374151; /* gray-700 */
+    color: #f9fafb; /* gray-50 */
+  }
+  .sequence-number {
+    background-color: #0f766e; /* brand-secondary */
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  
 </style>
 <link rel="stylesheet" href="/index.css">
 </head>

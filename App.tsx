@@ -2,8 +2,10 @@
 
 
 
+
+
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion } from './types';
+import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion } from './types';
 import { GoogleGenAI, Chat } from '@google/genai';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -549,6 +551,13 @@ const App: React.FC = () => {
                         .join('; and ');
                     
                     userAnswerText = matches ? `The user made the following matches: ${matches}.` : 'The user did not make any matches.';
+                } else if (contextQuestion.questionType === QuestionType.SEQUENCE) {
+                    const sequenceQ = contextQuestion as SequenceQuestion;
+                    const userOrderIndices = contextLog.userAnswer as number[];
+                    const orderedItemsText = userOrderIndices.map((originalIndex, displayIndex) => 
+                        `${displayIndex + 1}. ${sequenceQ.items[originalIndex]}`
+                    ).join('\n');
+                    userAnswerText = `The user submitted the following order:\n${orderedItemsText}`;
                 } else if (typeof contextLog.userAnswer === 'string' || typeof contextLog.userAnswer === 'number' || typeof contextLog.userAnswer === 'boolean') {
                     userAnswerText = `The user answered: "${contextLog.userAnswer}"`
                 }
