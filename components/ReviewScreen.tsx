@@ -1,6 +1,7 @@
 
+
 import React, { useState } from 'react';
-import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer, WebSource, PersonalizedFeedback, QuizResult, ChatMessage } from '../types';
+import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer, WebSource, PersonalizedFeedback, QuizResult, ChatMessage, MatchingQuestion } from '../types';
 import Markdown from './common/Markdown';
 import { extractAnswerForQuestion } from '../utils/textUtils';
 import LoadingSpinner from './common/LoadingSpinner';
@@ -67,6 +68,25 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
             const answers = Array.isArray(userAnswer) ? userAnswer : [userAnswer];
             const answerText = answers.map(a => `"${a as string}"`).join(', ');
             return <span className={answerStyle}>{answerText}</span>;
+        case QuestionType.MATCHING:
+            const matchingQ = question as MatchingQuestion;
+            const userMatches = userAnswer as number[];
+            return (
+                <div className="space-y-2">
+                    {matchingQ.answers.map((answerText, answerIndex) => {
+                        const promptIndex = userMatches[answerIndex];
+                        const promptText = promptIndex !== null ? matchingQ.prompts[promptIndex] : '— No Match —';
+                        const isMatchCorrect = promptIndex === answerIndex;
+                        return (
+                            <div key={answerIndex} className={`p-2 rounded-md flex items-center justify-between text-sm ${isMatchCorrect ? 'bg-correct/10' : 'bg-incorrect/10'}`}>
+                                <span className="flex-1 text-left">{answerText}</span>
+                                <span className={`font-bold mx-4 ${isMatchCorrect ? 'text-correct' : 'text-incorrect'}`}>↔</span>
+                                <span className="flex-1 text-right">{promptText}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
         case QuestionType.OPEN_ENDED:
             if (parsedAnswerText) {
                 return <div className="bg-gray-900 p-3 rounded-md whitespace-pre-wrap">{parsedAnswerText}</div>;
@@ -82,21 +102,37 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
 
   const renderCorrectAnswer = () => {
     if (isCorrect) return null;
-    let correctAnswerText = '';
+    let correctAnswerContent = null;
     switch (question.questionType) {
         case QuestionType.MULTIPLE_CHOICE:
-            correctAnswerText = (question as MultipleChoiceQuestion).options[(question as MultipleChoiceQuestion).correctAnswerIndex];
+            correctAnswerContent = <p>Correct Answer: <span className="font-bold text-correct">{(question as MultipleChoiceQuestion).options[(question as MultipleChoiceQuestion).correctAnswerIndex]}</span></p>;
             break;
         case QuestionType.TRUE_FALSE:
-            correctAnswerText = (question as TrueFalseQuestion).correctAnswer ? 'True' : 'False';
+            correctAnswerContent = <p>Correct Answer: <span className="font-bold text-correct">{(question as TrueFalseQuestion).correctAnswer ? 'True' : 'False'}</span></p>;
             break;
         case QuestionType.FILL_IN_THE_BLANK:
-            correctAnswerText = (question as FillInTheBlankQuestion).correctAnswers.map(a => `"${a}"`).join(', ');
+            const correctAnswerText = (question as FillInTheBlankQuestion).correctAnswers.map(a => `"${a}"`).join(', ');
+            correctAnswerContent = <p>Correct Answer: <span className="font-bold text-correct">{correctAnswerText}</span></p>;
+            break;
+        case QuestionType.MATCHING:
+            const matchingQ = question as MatchingQuestion;
+            correctAnswerContent = (
+                <div className="space-y-2">
+                    <p className="font-bold text-correct">Correct Matches:</p>
+                    {matchingQ.prompts.map((promptText, index) => (
+                        <div key={index} className="p-2 rounded-md flex items-center justify-between text-sm bg-gray-900">
+                             <span className="flex-1 text-left">{matchingQ.answers[index]}</span>
+                             <span className="font-bold mx-4 text-correct">↔</span>
+                             <span className="flex-1 text-right">{promptText}</span>
+                        </div>
+                    ))}
+                </div>
+            );
             break;
         default:
             return null;
     }
-    return <p>Correct Answer: <span className="font-bold text-correct">{correctAnswerText}</span></p>;
+    return <div className="border-t border-gray-700 pt-3">{correctAnswerContent}</div>;
   };
 
   return (

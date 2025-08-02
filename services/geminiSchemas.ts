@@ -1,5 +1,6 @@
 
 
+
 import { Type } from "@google/genai";
 
 export const questionSchema = {
@@ -7,12 +8,12 @@ export const questionSchema = {
     properties: {
         questionType: {
             type: Type.STRING,
-            description: "The type of the question. Must be one of 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', or 'OPEN_ENDED'.",
-            enum: ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'OPEN_ENDED'],
+            description: "The type of the question. Must be one of 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'OPEN_ENDED', or 'MATCHING'.",
+            enum: ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'OPEN_ENDED', 'MATCHING'],
         },
         questionText: {
             type: Type.STRING,
-            description: "The text of the question. For FILL_IN_THE_BLANK questions, this text must include '___' to indicate where the answer goes."
+            description: "The text of the question. For FILL_IN_THE_BLANK questions, this text must include '___' to indicate where the answer goes. For MATCHING, this is the main instruction."
         },
         explanation: {
             type: Type.STRING,
@@ -54,7 +55,29 @@ export const questionSchema = {
                 },
             },
             nullable: true,
-        }
+        },
+        prompts: {
+            type: Type.ARRAY,
+            description: "For MATCHING questions, an array of strings for the draggable items. For other question types, this should be null.",
+            items: { type: Type.STRING },
+            nullable: true,
+        },
+        answers: {
+            type: Type.ARRAY,
+            description: "For MATCHING questions, an array of strings for the dropzone items, corresponding to the prompts. For other question types, this should be null.",
+            items: { type: Type.STRING },
+            nullable: true,
+        },
+        promptTitle: {
+            type: Type.STRING,
+            description: "For MATCHING questions, the optional title for the prompts column (e.g., 'Concepts').",
+            nullable: true,
+        },
+        answerTitle: {
+            type: Type.STRING,
+            description: "For MATCHING questions, the optional title for the answers column (e.g., 'Definitions').",
+            nullable: true,
+        },
     },
     required: ["questionType", "questionText", "explanation", "topic"]
 };

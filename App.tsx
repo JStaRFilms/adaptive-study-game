@@ -1,7 +1,9 @@
 
 
+
+
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer } from './types';
+import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion } from './types';
 import { GoogleGenAI, Chat } from '@google/genai';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -533,6 +535,20 @@ const App: React.FC = () => {
                     userAnswerText = `The user answered: ${contextLog.userAnswer ? 'True' : 'False'}`;
                 } else if (contextQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
                     userAnswerText = `The user answered: "${(contextLog.userAnswer as string[]).join('", "')}"`;
+                } else if (contextQuestion.questionType === QuestionType.MATCHING) {
+                    const matchingQ = contextQuestion as MatchingQuestion;
+                    const userAnswerArray = contextLog.userAnswer as (number | null)[];
+                    const matches = userAnswerArray
+                        .map((promptIndex, answerIndex) => {
+                            if (promptIndex === null) return null; // Skip unmatched answers
+                            const promptText = `"${matchingQ.prompts[promptIndex]}"`;
+                            const answerText = `"${matchingQ.answers[answerIndex]}"`;
+                            return `${promptText} with ${answerText}`;
+                        })
+                        .filter(Boolean) // Remove nulls
+                        .join('; and ');
+                    
+                    userAnswerText = matches ? `The user made the following matches: ${matches}.` : 'The user did not make any matches.';
                 } else if (typeof contextLog.userAnswer === 'string' || typeof contextLog.userAnswer === 'number' || typeof contextLog.userAnswer === 'boolean') {
                     userAnswerText = `The user answered: "${contextLog.userAnswer}"`
                 }

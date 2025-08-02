@@ -11,6 +11,7 @@ export enum QuestionType {
   TRUE_FALSE = 'TRUE_FALSE',
   FILL_IN_THE_BLANK = 'FILL_IN_THE_BLANK',
   OPEN_ENDED = 'OPEN_ENDED',
+  MATCHING = 'MATCHING',
 }
 
 export enum StudyMode {
@@ -81,7 +82,19 @@ export interface OpenEndedQuestion {
   studySetId?: string;
 }
 
-export type Question = MultipleChoiceQuestion | TrueFalseQuestion | FillInTheBlankQuestion | OpenEndedQuestion;
+export interface MatchingQuestion {
+  questionType: QuestionType.MATCHING;
+  questionText: string;
+  prompts: string[];
+  answers: string[];
+  promptTitle?: string;
+  answerTitle?: string;
+  explanation: string;
+  topic?: string;
+  studySetId?: string;
+}
+
+export type Question = MultipleChoiceQuestion | TrueFalseQuestion | FillInTheBlankQuestion | OpenEndedQuestion | MatchingQuestion;
 
 export interface WebSource {
     uri: string;
@@ -112,7 +125,7 @@ export interface OpenEndedAnswer {
   images: { mimeType: string; data: string }[];
 }
 
-export type UserAnswer = string | string[] | number | boolean | OpenEndedAnswer | null | 'SKIPPED';
+export type UserAnswer = string | string[] | number | number[] | boolean | OpenEndedAnswer | null | 'SKIPPED';
 
 export interface AnswerLog {
   question: Question;

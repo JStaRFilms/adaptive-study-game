@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI, GenerateContentResponse, GenerateImagesResponse } from "@google/genai";
 import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide } from '../types';
 import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, personalizedFeedbackSchema, fibValidationSchema, studyGuideSchema } from './geminiSchemas';
@@ -225,6 +226,9 @@ export const generateQuiz = async (userContentParts: PromptPart[], config: QuizC
                     };
                 case QuestionType.OPEN_ENDED:
                      return { questionType, questionText, explanation: q.explanation, topic };
+                case QuestionType.MATCHING:
+                    if (!q.prompts || !Array.isArray(q.prompts) || !q.answers || !Array.isArray(q.answers) || q.prompts.length !== q.answers.length || q.prompts.length === 0) return null;
+                    return { questionType, questionText, prompts: q.prompts, answers: q.answers, promptTitle: q.promptTitle, answerTitle: q.answerTitle, explanation: q.explanation, topic };
                 default:
                     console.warn(`Skipping invalid question from AI (unknown type: ${questionType}):`, q);
                     return null;

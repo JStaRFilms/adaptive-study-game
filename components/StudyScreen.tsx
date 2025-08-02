@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage, MultipleChoiceQuestion } from '../types';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage, MultipleChoiceQuestion, MatchingQuestion } from '../types';
 import ProgressBar from './common/ProgressBar';
 import TimerBar from './common/TimerBar';
 import Markdown from './common/Markdown';
@@ -29,6 +29,8 @@ type AnswerStatus = 'unanswered' | 'correct' | 'incorrect' | 'partial';
 
 const QUESTION_TIME_LIMIT = 20; // 20 seconds per question
 const FIB_TIME_LIMIT = 35; // Extra time for typing
+const MATCHING_TIME_LIMIT_BASE = 15; // 15 seconds base
+const MATCHING_TIME_LIMIT_PER_ITEM = 8; // 8 seconds per item
 const SPEED_BONUS_THRESHOLD = 15; // Answer with >= 15s left for bonus
 const SPEED_BONUS_POINTS = 5;
 const BASE_POINTS = 10;
@@ -41,8 +43,6 @@ const StudyScreen = ({
 }: StudyScreenProps) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
-  const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
-  const [fillBlankAnswers, setFillBlankAnswers] = useState<string[]>([]);
   const [answerStatus, setAnswerStatus] = useState<AnswerStatus>('unanswered');
   const [streak, setStreak] = useState(0);
   const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_LIMIT);
@@ -54,11 +54,31 @@ const StudyScreen = ({
   const [isVerifyingAnswer, setIsVerifyingAnswer] = useState(false);
   const [isTimedOut, setIsTimedOut] = useState(false);
   const [explanationRequestedMap, setExplanationRequestedMap] = useState<Record<number, boolean>>({});
+
+  // State for different question types
+  const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
+  const [fillBlankAnswers, setFillBlankAnswers] = useState<string[]>([]);
+  
+  // State for Matching questions
+  const [shuffledPrompts, setShuffledPrompts] = useState<{ text: string, originalIndex: number }[]>([]);
+  const [placedMatches, setPlacedMatches] = useState<(number | null)[]>([]); // index = answer slot, value = original prompt index
+  const [draggedItem, setDraggedItem] = useState<{ prompt: { text: string, originalIndex: number }, fromAnswerSlot?: number } | null>(null);
+  const [matchResults, setMatchResults] = useState<('correct' | 'incorrect' | null)[] | null>(null);
   
   const isUntimedMode = mode === StudyMode.REVIEW || mode === StudyMode.SRS;
   const currentQuestion: Question = quiz.questions[currentQuestionIndex];
   const totalQuestions = quiz.questions.length;
-  const timeLimitForCurrentQuestion = currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK ? FIB_TIME_LIMIT : QUESTION_TIME_LIMIT;
+
+  const getTimeLimitForCurrentQuestion = () => {
+    switch(currentQuestion.questionType) {
+        case QuestionType.FILL_IN_THE_BLANK: return FIB_TIME_LIMIT;
+        case QuestionType.MATCHING:
+            const matchingQ = currentQuestion as MatchingQuestion;
+            return MATCHING_TIME_LIMIT_BASE + matchingQ.prompts.length * MATCHING_TIME_LIMIT_PER_ITEM;
+        default: return QUESTION_TIME_LIMIT;
+    }
+  };
+  const timeLimitForCurrentQuestion = getTimeLimitForCurrentQuestion();
   const isChatAllowedNow = isChatEnabled && answerStatus !== 'unanswered';
 
   const goToNextQuestion = useCallback(() => {
@@ -122,8 +142,8 @@ const StudyScreen = ({
     useEffect(() => {
         const logEntry = answerLog.find(log => log.question.questionText === quiz.questions[currentQuestionIndex].questionText);
 
-        if (logEntry) {
-            const { pointsAwarded, maxPoints, aiFeedback } = logEntry;
+        if (logEntry) { // REVIEWING a previously answered question
+            const { pointsAwarded, maxPoints, aiFeedback, userAnswer } = logEntry;
             if (pointsAwarded === maxPoints) setAnswerStatus('correct');
             else if (pointsAwarded > 0) setAnswerStatus('partial');
             else setAnswerStatus('incorrect');
@@ -134,30 +154,47 @@ const StudyScreen = ({
             setCorrectionFeedback(aiFeedback || null);
             setIsTimedOut(false);
 
-            if (logEntry.question.questionType === QuestionType.MULTIPLE_CHOICE || logEntry.userAnswer === 'SKIPPED') {
-                setSelectedOptionIndex(logEntry.userAnswer as number | null);
-                setFillBlankAnswers([]);
+            // Set answer state based on question type
+            if (logEntry.question.questionType === QuestionType.MATCHING) {
+                const matchingQ = logEntry.question as MatchingQuestion;
+                setShuffledPrompts(matchingQ.prompts.map((text, originalIndex) => ({ text, originalIndex })));
+                setPlacedMatches(userAnswer as number[]);
+                // Set results for styling
+                const results = (userAnswer as number[]).map((promptIdx, answerIdx) => promptIdx === answerIdx ? 'correct' : 'incorrect');
+                setMatchResults(results);
+            } else if (logEntry.question.questionType === QuestionType.MULTIPLE_CHOICE || userAnswer === 'SKIPPED') {
+                setSelectedOptionIndex(userAnswer as number | null);
             } else if (logEntry.question.questionType === QuestionType.FILL_IN_THE_BLANK) {
-                setFillBlankAnswers(logEntry.userAnswer as string[] || []);
-                setSelectedOptionIndex(null);
-            } else { // True/False
-                setSelectedOptionIndex(null);
-                setFillBlankAnswers([]);
+                setFillBlankAnswers(userAnswer as string[] || []);
             }
-        } else {
-            // Reset for a new question
+        } else { // NEW question
             setTimeLeft(timeLimitForCurrentQuestion);
             setBonusPointsAwarded(0);
             setAnswerStatus('unanswered');
             setIsTimedOut(false);
-            setSelectedOptionIndex(null);
             setAnswerExplanation(null);
             setCorrectionFeedback(null);
+            
+            // Reset all answer states
+            setSelectedOptionIndex(null);
+            setFillBlankAnswers([]);
+            setPlacedMatches([]);
+            setShuffledPrompts([]);
+            setMatchResults(null);
+
             if (currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
                  const numBlanks = (currentQuestion as FillInTheBlankQuestion).correctAnswers.length;
                  setFillBlankAnswers(Array(numBlanks).fill(''));
-            } else {
-                 setFillBlankAnswers([]);
+            } else if (currentQuestion.questionType === QuestionType.MATCHING) {
+                const matchingQ = currentQuestion as MatchingQuestion;
+                // Shuffle prompts for the game
+                const promptsToShuffle = matchingQ.prompts.map((text, originalIndex) => ({ text, originalIndex }));
+                for (let i = promptsToShuffle.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [promptsToShuffle[i], promptsToShuffle[j]] = [promptsToShuffle[j], promptsToShuffle[i]];
+                }
+                setShuffledPrompts(promptsToShuffle);
+                setPlacedMatches(Array(matchingQ.answers.length).fill(null));
             }
         }
     }, [currentQuestionIndex, currentQuestion, answerLog, quiz.questions, timeLimitForCurrentQuestion]);
@@ -171,6 +208,8 @@ const StudyScreen = ({
         let maxPts = BASE_POINTS;
         if(currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK){
             maxPts = (currentQuestion as FillInTheBlankQuestion).correctAnswers.length * BASE_POINTS;
+        } else if (currentQuestion.questionType === QuestionType.MATCHING) {
+            maxPts = (currentQuestion as MatchingQuestion).prompts.length > 0 ? BASE_POINTS : 0;
         }
         await processAnswer({ awarded: 0, max: maxPts }, null); 
       };
@@ -239,6 +278,29 @@ const StudyScreen = ({
 
     setIsVerifyingAnswer(false);
   };
+
+  const handleMatchingSubmit = async () => {
+    if (currentQuestion.questionType !== QuestionType.MATCHING) return;
+    
+    const matchingQ = currentQuestion as MatchingQuestion;
+    const maxPoints = BASE_POINTS;
+    let correctCount = 0;
+    const results: ('correct' | 'incorrect' | null)[] = Array(matchingQ.answers.length).fill(null);
+
+    placedMatches.forEach((promptOriginalIndex, answerIndex) => {
+        if (promptOriginalIndex === answerIndex) {
+            correctCount++;
+            results[answerIndex] = 'correct';
+        } else if (promptOriginalIndex !== null) {
+            results[answerIndex] = 'incorrect';
+        }
+    });
+
+    setMatchResults(results);
+
+    const awardedPoints = Math.round((correctCount / matchingQ.prompts.length) * maxPoints);
+    await processAnswer({ awarded: awardedPoints, max: maxPoints }, placedMatches);
+  };
   
     const handleSkip = useCallback(async () => {
         if (answerStatus !== 'unanswered' || mode === StudyMode.SRS) return;
@@ -246,6 +308,8 @@ const StudyScreen = ({
         let maxPts = BASE_POINTS;
         if (currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
             maxPts = (currentQuestion as FillInTheBlankQuestion).correctAnswers.length * BASE_POINTS;
+        } else if (currentQuestion.questionType === QuestionType.MATCHING) {
+            maxPts = BASE_POINTS;
         }
 
         await processAnswer(
@@ -301,6 +365,9 @@ const StudyScreen = ({
       case QuestionType.MULTIPLE_CHOICE:
          feedbackContent = answerStatus === 'incorrect' ? <p className="text-lg font-semibold">The correct answer was: <span className="text-correct">{currentQuestion.options[currentQuestion.correctAnswerIndex]}</span></p> : null;
          break;
+      case QuestionType.MATCHING:
+          // Feedback for matching is shown inline on the items themselves.
+          break;
     }
 
     return (
@@ -318,76 +385,198 @@ const StudyScreen = ({
 
   const renderQuestionBody = () => {
     const isAnswered = answerStatus !== 'unanswered';
-    
-    if (currentQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
-        const parts = currentQuestion.questionText.split('___');
-        
-        return (
-             <form onSubmit={isAnswered || isVerifyingAnswer ? (e) => e.preventDefault() : handleFibSubmit} className="flex flex-col items-center gap-4">
-                <div className="text-2xl sm:text-3xl font-bold text-text-primary text-center flex flex-wrap items-center justify-center gap-2 leading-relaxed">
-                    {parts.map((part, index) => (
-                      <React.Fragment key={index}>
-                        <Markdown content={part} as="span"/>
-                        {index < parts.length - 1 && (
-                             <input
-                                type="text"
-                                value={fillBlankAnswers[index] || ''}
-                                onChange={isAnswered || isVerifyingAnswer ? undefined : e => {
-                                    const newAnswers = [...fillBlankAnswers];
-                                    newAnswers[index] = e.target.value;
-                                    setFillBlankAnswers(newAnswers);
-                                }}
-                                readOnly={isAnswered || isVerifyingAnswer}
-                                className="inline-block mx-2 px-2 py-1 text-center bg-gray-900 border-b-2 border-brand-primary focus:outline-none focus:ring-0 text-brand-primary font-bold"
-                                autoFocus={!isAnswered && index === 0}
-                                aria-label={`Fill in the blank answer ${index + 1}`}
-                                size={Math.max(1, fillBlankAnswers[index]?.length || (currentQuestion as FillInTheBlankQuestion).correctAnswers[index].length/2)}
-                            />
-                        )}
-                      </React.Fragment>
-                    ))}
-                </div>
-                {!isAnswered && 
-                  <button type="submit" disabled={fillBlankAnswers.every(a => !a.trim()) || isVerifyingAnswer} className="mt-4 px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[160px]">
-                      {isVerifyingAnswer && <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>}
-                      {isVerifyingAnswer ? 'Verifying...' : 'Submit'}
-                  </button>
-                }
-            </form>
-        );
-    }
-    
-    if (isAnswered) {
-        if (currentQuestion.questionType === QuestionType.MULTIPLE_CHOICE) {
-            return (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {currentQuestion.options.map((option, index) => {
-                        const isCorrect = index === currentQuestion.correctAnswerIndex;
-                        const isSelected = index === selectedOptionIndex;
-                        let style = 'bg-surface-dark opacity-60 cursor-not-allowed';
-                        if (isCorrect) style = 'bg-correct/80 ring-2 ring-correct animate-pulse cursor-not-allowed';
-                        else if (isSelected) style = 'bg-incorrect/80 ring-2 ring-incorrect cursor-not-allowed';
-                        return <button key={index} disabled className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${style}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><Markdown content={option} as="span" /></button>;
-                    })}
-                </div>
-            );
-        }
-        return null;
-    }
 
     switch (currentQuestion.questionType) {
+        case QuestionType.MATCHING:
+            const matchingQ = currentQuestion as MatchingQuestion;
+            const promptItems = shuffledPrompts.map(p => ({
+                ...p,
+                isPlaced: placedMatches.includes(p.originalIndex),
+            }));
+
+            const handleDragStart = (e: React.DragEvent, prompt: { text: string; originalIndex: number; }, fromAnswerSlot?: number) => {
+                if (isAnswered) return;
+                setDraggedItem({ prompt, fromAnswerSlot });
+                e.dataTransfer.effectAllowed = 'move';
+            };
+
+            const handleDrop = (e: React.DragEvent, targetAnswerIndex: number) => {
+                e.preventDefault();
+                if (!draggedItem || isAnswered) return;
+                
+                const newPlaced = [...placedMatches];
+                const { prompt, fromAnswerSlot } = draggedItem;
+
+                // Prompt currently in the target slot
+                const existingPromptInTarget = newPlaced[targetAnswerIndex];
+
+                // If dropping on where it came from, do nothing.
+                if (fromAnswerSlot === targetAnswerIndex) {
+                    setDraggedItem(null);
+                    return;
+                }
+                
+                // If it came from another answer slot, clear its original position
+                if (fromAnswerSlot !== undefined) {
+                    newPlaced[fromAnswerSlot] = null;
+                }
+
+                // Place the dragged prompt in the new slot
+                newPlaced[targetAnswerIndex] = prompt.originalIndex;
+
+                // If target slot had a prompt, and we dragged from the prompt list (not another answer slot),
+                // we need to un-place the existing prompt.
+                if (existingPromptInTarget !== null && fromAnswerSlot === undefined) {
+                    // This logic is simple replacement. For swapping, it would be more complex.
+                }
+
+                setPlacedMatches(newPlaced);
+                setDraggedItem(null);
+            };
+
+            const handleUnplace = (answerIndexToClear: number) => {
+                if (isAnswered) return;
+                const newPlaced = [...placedMatches];
+                newPlaced[answerIndexToClear] = null;
+                setPlacedMatches(newPlaced);
+            };
+
+            return (
+                <div className="flex flex-col items-center">
+                    <Markdown as="p" content={matchingQ.questionText} className="text-center text-text-primary mb-6" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 w-full">
+                        {/* Prompts Column */}
+                        <div className="flex flex-col gap-3">
+                            <h3 className="font-bold text-center text-lg text-text-secondary">{matchingQ.promptTitle || 'Concepts'}</h3>
+                            {promptItems.map((p) => (
+                                <div
+                                    key={p.originalIndex}
+                                    draggable={!p.isPlaced && !isAnswered}
+                                    onDragStart={(e) => handleDragStart(e, p)}
+                                    className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                                        p.isPlaced ? 'bg-surface-dark border-gray-700 text-gray-500 cursor-not-allowed' :
+                                        'bg-gray-700/80 border-gray-600 hover:bg-gray-600 cursor-grab active:cursor-grabbing'
+                                    }`}
+                                >
+                                    <Markdown content={p.text} as="span" />
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Answers Column (Drop Zones) */}
+                        <div className="flex flex-col gap-3">
+                            <h3 className="font-bold text-center text-lg text-text-secondary">{matchingQ.answerTitle || 'Definitions'}</h3>
+                            {matchingQ.answers.map((answerText, answerIndex) => {
+                                const placedPromptIndex = placedMatches[answerIndex];
+                                const placedPrompt = placedPromptIndex !== null ? matchingQ.prompts[placedPromptIndex] : null;
+                                const resultState = matchResults?.[answerIndex];
+
+                                return (
+                                    <div
+                                        key={answerIndex}
+                                        onDrop={(e) => handleDrop(e, answerIndex)}
+                                        onDragOver={(e) => e.preventDefault()}
+                                        className={`p-4 rounded-lg border-2 min-h-[80px] flex flex-col justify-center transition-all duration-200 ${
+                                            resultState === 'correct' ? 'border-correct bg-correct/10' :
+                                            resultState === 'incorrect' ? 'border-incorrect bg-incorrect/10' :
+                                            'border-dashed border-gray-600 hover:border-brand-primary hover:bg-brand-primary/10'
+                                        }`}
+                                    >
+                                        <p className="text-text-secondary mb-2">{answerText}</p>
+                                        {placedPrompt ? (
+                                            <div 
+                                                draggable={!isAnswered}
+                                                onDragStart={(e) => handleDragStart(e, {text: placedPrompt, originalIndex: placedPromptIndex!}, answerIndex)}
+                                                onClick={() => handleUnplace(answerIndex)}
+                                                className={`mt-2 p-2 rounded-md text-center text-white font-semibold cursor-pointer ${
+                                                     resultState === 'correct' ? 'bg-correct/80' :
+                                                     resultState === 'incorrect' ? 'bg-incorrect/80' :
+                                                     'bg-brand-secondary'
+                                                }`}
+                                            >
+                                                {placedPrompt}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center text-gray-500 italic text-sm">Drop here</div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    {!isAnswered && (
+                        <button onClick={handleMatchingSubmit} disabled={placedMatches.every(p => p === null)} className="mt-8 px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed">
+                            Submit Matches
+                        </button>
+                    )}
+                </div>
+            );
+
+        case QuestionType.FILL_IN_THE_BLANK:
+            const parts = currentQuestion.questionText.split('___');
+            return (
+                 <form onSubmit={isAnswered || isVerifyingAnswer ? (e) => e.preventDefault() : handleFibSubmit} className="flex flex-col items-center gap-4">
+                    <div className="text-2xl sm:text-3xl font-bold text-text-primary text-center flex flex-wrap items-center justify-center gap-2 leading-relaxed">
+                        {parts.map((part, index) => (
+                          <React.Fragment key={index}>
+                            <Markdown content={part} as="span"/>
+                            {index < parts.length - 1 && (
+                                 <input
+                                    type="text"
+                                    value={fillBlankAnswers[index] || ''}
+                                    onChange={isAnswered || isVerifyingAnswer ? undefined : e => {
+                                        const newAnswers = [...fillBlankAnswers];
+                                        newAnswers[index] = e.target.value;
+                                        setFillBlankAnswers(newAnswers);
+                                    }}
+                                    readOnly={isAnswered || isVerifyingAnswer}
+                                    className="inline-block mx-2 px-2 py-1 text-center bg-gray-900 border-b-2 border-brand-primary focus:outline-none focus:ring-0 text-brand-primary font-bold"
+                                    autoFocus={!isAnswered && index === 0}
+                                    aria-label={`Fill in the blank answer ${index + 1}`}
+                                    size={Math.max(1, fillBlankAnswers[index]?.length || (currentQuestion as FillInTheBlankQuestion).correctAnswers[index].length/2)}
+                                />
+                            )}
+                          </React.Fragment>
+                        ))}
+                    </div>
+                    {!isAnswered && 
+                      <button type="submit" disabled={fillBlankAnswers.every(a => !a.trim()) || isVerifyingAnswer} className="mt-4 px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[160px]">
+                          {isVerifyingAnswer && <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>}
+                          {isVerifyingAnswer ? 'Verifying...' : 'Submit'}
+                      </button>
+                    }
+                </form>
+            );
+        
         case QuestionType.MULTIPLE_CHOICE:
+            if (isAnswered) {
+                return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {(currentQuestion as MultipleChoiceQuestion).options.map((option, index) => {
+                            const isCorrect = index === (currentQuestion as MultipleChoiceQuestion).correctAnswerIndex;
+                            const isSelected = index === selectedOptionIndex;
+                            let style = 'bg-surface-dark opacity-60 cursor-not-allowed';
+                            if (isCorrect) style = 'bg-correct/80 ring-2 ring-correct animate-pulse cursor-not-allowed';
+                            else if (isSelected) style = 'bg-incorrect/80 ring-2 ring-incorrect cursor-not-allowed';
+                            return <button key={index} disabled className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${style}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><Markdown content={option} as="span" /></button>;
+                        })}
+                    </div>
+                );
+            }
             return (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {currentQuestion.options.map((option, index) => <button key={index} onClick={() => setSelectedOptionIndex(index)} className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${selectedOptionIndex === index ? 'bg-brand-primary ring-2 ring-white' : 'bg-surface-dark hover:bg-gray-600'}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><Markdown content={option} as="span" /></button>)}
+                  {(currentQuestion as MultipleChoiceQuestion).options.map((option, index) => <button key={index} onClick={() => setSelectedOptionIndex(index)} className={`w-full p-4 rounded-lg text-left text-lg font-medium transition-all duration-300 ${selectedOptionIndex === index ? 'bg-brand-primary ring-2 ring-white' : 'bg-surface-dark hover:bg-gray-600'}`}><span className="mr-2 font-bold">{String.fromCharCode(65 + index)}.</span><Markdown content={option} as="span" /></button>)}
                 </div>
                 <div className="mt-6 flex justify-center"><button onClick={handleMcSubmit} disabled={selectedOptionIndex === null} className="px-10 py-3 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 disabled:cursor-not-allowed">Submit</button></div>
               </>
             );
+
         case QuestionType.TRUE_FALSE:
+            if (isAnswered) return null;
             return <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6"><button onClick={() => handleTfSubmit(true)} className="p-6 text-2xl font-bold bg-green-700 hover:bg-green-600 rounded-lg transition-colors">TRUE</button><button onClick={() => handleTfSubmit(false)} className="p-6 text-2xl font-bold bg-red-700 hover:bg-red-600 rounded-lg transition-colors">FALSE</button></div>;
     }
+    return null;
   }
 
   const renderFeedbackMessage = () => {
@@ -432,7 +621,7 @@ const StudyScreen = ({
   }
 
   return (
-    <div className="w-full max-w-3xl mx-auto p-4 flex flex-col animate-fade-in h-full relative">
+    <div className="w-full max-w-4xl mx-auto p-4 flex flex-col animate-fade-in h-full relative">
       <header className="mb-6">
           <div className="bg-surface-dark p-3 sm:p-4 rounded-xl shadow-lg w-full">
               <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-x-4 gap-y-2 text-text-secondary font-semibold">
@@ -498,7 +687,7 @@ const StudyScreen = ({
       </header>
       
       <div className="bg-surface-dark p-6 sm:p-8 rounded-xl shadow-2xl flex flex-col justify-center flex-grow">
-        {currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK && <Markdown as="h2" content={currentQuestion.questionText} className="text-2xl sm:text-3xl font-bold mb-8 text-text-primary text-center prose" />}
+        {currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK && currentQuestion.questionType !== QuestionType.MATCHING && <Markdown as="h2" content={currentQuestion.questionText} className="text-2xl sm:text-3xl font-bold mb-8 text-text-primary text-center prose" />}
         {renderQuestionBody()}
         {answerStatus !== 'unanswered' && !isVerifyingAnswer && renderAnswerFeedback()}
       </div>

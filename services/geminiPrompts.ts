@@ -1,6 +1,8 @@
 
 
-import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, StudySet, Quiz, QuizResult, PersonalizedFeedback } from '../types';
+
+
+import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, StudySet, Quiz, QuizResult, PersonalizedFeedback, QuestionType, MatchingQuestion } from '../types';
 
 export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[], customInstructions?: string): string => {
     let baseInstruction = '';
@@ -18,7 +20,7 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
     } else {
         baseInstruction = `You are an expert educator. Your task is to create a high-quality, mixed-type quiz based on the user's materials.
 - Create exactly ${numberOfQuestions} questions.
-- Include a mix of MULTIPLE_CHOICE, TRUE_FALSE, and FILL_IN_THE_BLANK questions.
+- Include a mix of MULTIPLE_CHOICE, TRUE_FALSE, FILL_IN_THE_BLANK, and MATCHING questions.
 - Test key concepts, definitions, and facts from the provided materials.
 - Adhere strictly to the provided JSON schema.
 - For EVERY question, provide a brief 'explanation' for the correct answer.
@@ -26,6 +28,7 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
 - For MULTIPLE_CHOICE questions: Provide exactly 4 options and the 0-based index of the correct one.
 - For TRUE_FALSE questions: Provide a statement and its boolean truth value.
 - For FILL_IN_THE_BLANK questions: The 'questionText' can contain multiple '___' placeholders. The 'correctAnswers' property MUST be an array of strings with one answer for each '___', in order. The 'acceptableAnswers' property, if provided, MUST be an array of string arrays, corresponding to each correct answer. Provide a generous list of acceptable answers including common synonyms, misspellings, and plural/singular variations to avoid penalizing minor errors.
+- For MATCHING questions: Provide two string arrays, 'prompts' and 'answers', of equal length where prompts[i] matches answers[i]. The 'prompt' is the draggable item, and the 'answer' is the drop zone. Also provide a general 'questionText' instruction for the user. Optionally, provide 'promptTitle' (e.g., 'Concepts') and 'answerTitle' (e.g., 'Definitions') for the column headers.
 - CRITICAL: For FILL_IN_THE_BLANK questions, the answers MUST be common, easily typeable words or numbers. AVOID answers that require special symbols, mathematical notations (e.g., Σ, ε, ∗), or anything not found on a standard keyboard. Use MULTIPLE_CHOICE for concepts that involve such symbols.
 - Use markdown for formatting, like **bold** for emphasis.`;
     }
@@ -49,13 +52,14 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
 - 'questionText': (string) The open-ended question.
 - 'explanation': (string) A detailed grading rubric.
 - 'topic': (string) The main topic of the question.`
-                    : `- 'questionType': (string) One of 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK'.
+                    : `- 'questionType': (string) One of 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_IN_THE_BLANK', 'MATCHING'.
 - 'questionText': (string) The question. For FILL_IN_THE_BLANK, it must contain '___'.
 - 'explanation': (string) A brief explanation of the correct answer.
 - 'topic': (string) The main topic of the question.
 - For MULTIPLE_CHOICE: 'options' (array of 4 strings) and 'correctAnswerIndex' (integer).
 - For TRUE_FALSE: 'correctAnswerBoolean' (boolean).
-- For FILL_IN_THE_BLANK: 'correctAnswers' (array of strings) and optional 'acceptableAnswers' (array of array of strings).`;
+- For FILL_IN_THE_BLANK: 'correctAnswers' (array of strings) and optional 'acceptableAnswers' (array of array of strings).
+- For MATCHING: 'prompts' (array of strings), 'answers' (array of strings), 'promptTitle' (string, optional), 'answerTitle' (string, optional).`;
 
                 baseInstruction += `\n\nYour response MUST be a single markdown JSON code block. Do not include any text outside of this block. The JSON object must have a 'questions' key, which is an array of question objects. Each question object must have these keys:
 ${schemaDescription}
@@ -233,8 +237,19 @@ export const getReviewChatSystemInstruction = (studySet: StudySet, result: QuizR
     const answerLogSummary = result.answerLog.map((log, i) => {
         let userAnswerText = 'SKIPPED';
         if (log.userAnswer && log.userAnswer !== 'SKIPPED') {
-            const answerString = JSON.stringify(log.userAnswer);
-            userAnswerText = answerString.length > 50 ? `${answerString.substring(0, 50)}...` : answerString;
+            if (log.question.questionType === QuestionType.MATCHING) {
+                const matchingQ = log.question as MatchingQuestion;
+                const userAnswerArray = log.userAnswer as (number | null)[];
+                const matches = userAnswerArray.map((promptIndex, answerIndex) => {
+                    const promptText = promptIndex !== null ? `"${matchingQ.prompts[promptIndex]}"` : "nothing";
+                    const answerText = `"${matchingQ.answers[answerIndex]}"`;
+                    return `${promptText} -> ${answerText}`;
+                }).join('; ');
+                userAnswerText = `[Matches: ${matches}]`;
+            } else {
+                const answerString = JSON.stringify(log.userAnswer);
+                userAnswerText = answerString.length > 50 ? `${answerString.substring(0, 50)}...` : answerString;
+            }
         }
         const questionText = log.question.questionText.length > 70 ? `${log.question.questionText.substring(0, 70)}...` : log.question.questionText;
         return `Q${i + 1} (${log.question.topic}): ${questionText} | User answered: ${userAnswerText} | Points: ${log.pointsAwarded}/${log.maxPoints}`;
