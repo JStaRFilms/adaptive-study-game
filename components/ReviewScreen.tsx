@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer, WebSource, PersonalizedFeedback, QuizResult, ChatMessage, MatchingQuestion, SequenceQuestion } from '../types';
 import Markdown from './common/Markdown';
@@ -19,7 +17,7 @@ interface ReviewCardProps {
 }
 
 const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, isExamReview, webSources, onVisualize }) => {
-  const { question, userAnswer, isCorrect, pointsAwarded, maxPoints, aiFeedback, examFeedback } = log;
+  const { question, userAnswer, isCorrect, pointsAwarded, maxPoints, aiFeedback, examFeedback, confidence } = log;
   
   const getStatus = () => {
     if (userAnswer === 'SKIPPED') return 'skipped';
@@ -50,6 +48,24 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
         default: return 'text-incorrect';
       }
   }
+
+  const ConfidenceDisplay: React.FC<{ level?: number }> = ({ level }) => {
+    if (!level || level === 0) return null;
+    const confidenceMap: { [key: number]: { text: string; icon: string; color: string } } = {
+        1: { text: "Guessed", icon: "🤨", color: "text-red-400" },
+        2: { text: "Unsure", icon: "🤔", color: "text-yellow-400" },
+        3: { text: "Confident", icon: "😎", color: "text-green-400" },
+    };
+    const details = confidenceMap[level];
+    if (!details) return null;
+    
+    return (
+        <div className={`flex items-center gap-1.5 text-xs font-bold ${details.color}`}>
+            <span>{details.icon}</span>
+            <span>{details.text}</span>
+        </div>
+    );
+  };
 
   const renderUserAnswer = () => {
     if (userAnswer === 'SKIPPED') return <span className="font-bold text-yellow-400 italic">Skipped</span>;
@@ -167,7 +183,8 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ log, index, parsedAnswerText, i
     <div className="bg-surface-dark p-6 rounded-xl border border-gray-700">
       <div className="flex justify-between items-start mb-4">
         <p className="text-text-secondary font-semibold">Question {index + 1}</p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+            <ConfidenceDisplay level={confidence} />
             <span className={`font-bold text-lg ${getStatusColor()}`}>
                 {pointsAwarded}/{maxPoints} pts
             </span>

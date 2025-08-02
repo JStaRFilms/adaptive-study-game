@@ -35,7 +35,7 @@ export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSou
     }
 
     if (topics && topics.length > 0) {
-        baseInstruction += `\n- The quiz must specifically focus on the following topics: ${topics.join(', ')}.`;
+        baseInstruction += `\n- The quiz must specifically focus on the aformentioned topics: ${topics.join(', ')}.`;
     }
 
     switch (knowledgeSource) {
@@ -186,14 +186,17 @@ export const getFeedbackSystemInstruction = (historyForPrompt: string): string =
 
 Analyze the provided quiz data, which is a JSON array of answer logs from MULTIPLE quiz sessions. Each log entry includes a \`quizDate\`. The most recent quiz is the one with the latest \`quizDate\`.
 
-**CRITICAL RULE:** If a user struggled with a topic in the past but answered ALL questions on that same topic correctly (i.e., received maximum points) in their MOST RECENT session, do NOT list it as a weakness or a "close call." Acknowledge their improvement instead, perhaps in the \`overallSummary\` or a \`strengthTopics\` comment. A "close call" should only be reported if it happened in the most recent quiz session.
+**CRITICAL RULES:**
+- A \`confidence\` property (1=Guessing, 2=Unsure, 3=Confident, 0=N/A) may be present on answer log entries. **Use this as a key signal.** A correct answer with low confidence (e.g., confidence: 1) is a major indicator of fragile knowledge and **should be treated as a weakness topic**, even if the user got it right. Conversely, an incorrect answer with high confidence (e.g., confidence: 3) indicates a deep misconception that needs to be addressed.
+- If a user struggled with a topic in the past but answered ALL questions on that same topic correctly (i.e., received maximum points) in their MOST RECENT session with HIGH confidence (confidence: 3), do NOT list it as a weakness. Acknowledge their improvement instead.
+- A "close call" should only be reported if it happened in the most recent quiz session.
 
 Look for patterns over time.
 
 Based on your analysis, you MUST generate a response in the specified JSON format. Your feedback should:
 1.  **Summarize Performance:** Start with a brief, encouraging overall summary of their performance on this subject across all sessions, noting recent improvements.
-2.  **Identify Strengths:** Pinpoint topics where the user has consistently done well (high accuracy).
-3.  **Identify Weaknesses:** Pinpoint topics where the user has consistently struggled (low accuracy), UNLESS they mastered it in the most recent session. For each weak topic, you must:
+2.  **Identify Strengths:** Pinpoint topics where the user has consistently done well (high accuracy with high confidence).
+3.  **Identify Weaknesses:** Pinpoint topics where the user has consistently struggled (low accuracy) OR shown low confidence despite being correct. For each weak topic, you must:
     a. Provide a comment explaining why this is a weakness based on their history.
     b. Suggest a reasonable number of questions for a follow-up quiz.
     c. Generate a concise, effective 'youtubeSearchQuery' to help them find educational videos.

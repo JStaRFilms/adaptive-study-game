@@ -145,6 +145,7 @@ export interface AnswerLog {
   maxPoints: number;
   aiFeedback?: string; // For fill-in-the-blank AI validation comments
   examFeedback?: string; // For open-ended exam grading feedback
+  confidence?: number; // e.g., 1 (Guessing), 2 (Unsure), 3 (Confident), 0 (N/A)
 }
 
 export interface QuizResult {

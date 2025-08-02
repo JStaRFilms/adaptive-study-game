@@ -264,6 +264,7 @@ export const gradeExam = async (questions: Question[], submission: OpenEndedAnsw
             pointsAwarded: grade.score,
             maxPoints: 10,
             examFeedback: grade.feedback,
+            confidence: 0, // Not applicable for exams
         };
     });
 };
@@ -313,7 +314,8 @@ export const generatePersonalizedFeedback = async (history: QuizResult[]): Promi
             isCorrect: l.isCorrect,
             pointsAwarded: l.pointsAwarded,
             maxPoints: l.maxPoints,
-            aiFeedback: l.aiFeedback
+            aiFeedback: l.aiFeedback,
+            confidence: l.confidence, // Pass confidence score to AI
         }))
     })));
 

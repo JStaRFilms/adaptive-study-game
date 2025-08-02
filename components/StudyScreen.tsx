@@ -38,6 +38,23 @@ const SPEED_BONUS_POINTS = 5;
 const BASE_POINTS = 10;
 const STREAK_BONUS_MULTIPLIER = 2;
 
+const ConfidenceSelector: React.FC<{ onSelect: (confidence: number) => void }> = ({ onSelect }) => (
+    <div className="w-full text-center animate-fade-in space-y-4">
+        <h3 className="text-xl font-bold text-text-primary">How confident were you?</h3>
+        <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <button onClick={() => onSelect(1)} className="px-6 py-3 bg-red-800/80 text-white font-bold rounded-lg shadow-lg hover:bg-red-700 transition-all flex items-center justify-center gap-2">
+                <span className="text-2xl">🤨</span> Not Confident
+            </button>
+            <button onClick={() => onSelect(2)} className="px-6 py-3 bg-yellow-600/80 text-white font-bold rounded-lg shadow-lg hover:bg-yellow-500 transition-all flex items-center justify-center gap-2">
+                <span className="text-2xl">🤔</span> Unsure
+            </button>
+            <button onClick={() => onSelect(3)} className="px-6 py-3 bg-green-700/80 text-white font-bold rounded-lg shadow-lg hover:bg-green-600 transition-all flex items-center justify-center gap-2">
+                <span className="text-2xl">😎</span> Confident
+            </button>
+        </div>
+    </div>
+);
+
 const StudyScreen = ({ 
     quiz, onFinish, mode, updateSRSItem, quizConfig,
     chatMessages, isChatOpen, isAITyping, chatError, isChatEnabled,
@@ -56,6 +73,9 @@ const StudyScreen = ({
   const [isVerifyingAnswer, setIsVerifyingAnswer] = useState(false);
   const [isTimedOut, setIsTimedOut] = useState(false);
   const [explanationRequestedMap, setExplanationRequestedMap] = useState<Record<number, boolean>>({});
+  
+  // State for new confidence flow
+  const [pendingLog, setPendingLog] = useState<Omit<AnswerLog, 'confidence'> | null>(null);
 
   // State for different question types
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
@@ -108,52 +128,72 @@ const StudyScreen = ({
     }
   }, [currentQuestionIndex]);
 
-  const processAnswer = useCallback(async (
-    pointsDetails: { awarded: number; max: number; comment?: string },
-    userAnswer: UserAnswer
-  ) => {
-    if (answerStatus !== 'unanswered') return;
-
-    const { awarded, max, comment } = pointsDetails;
-    const isFullyCorrect = awarded === max;
+  const handleConfidenceSelect = useCallback(async (confidence: number) => {
+    if (!pendingLog) return;
+    
+    const finalLog: AnswerLog = { ...pendingLog, confidence };
 
     if (mode === StudyMode.PRACTICE || mode === StudyMode.SRS) {
-        await updateSRSItem(currentQuestion, isFullyCorrect);
+        await updateSRSItem(currentQuestion, finalLog.isCorrect);
     }
     
-    const newLogEntry: AnswerLog = {
-      question: currentQuestion,
-      userAnswer,
-      isCorrect: isFullyCorrect,
-      pointsAwarded: awarded,
-      maxPoints: max,
-      aiFeedback: comment,
-    };
-    setAnswerLog(prevLog => [...prevLog, newLogEntry]);
+    setAnswerLog(prevLog => [...prevLog, finalLog]);
+    setPendingLog(null);
+  }, [pendingLog, mode, updateSRSItem, currentQuestion]);
 
-    setAnswerExplanation(currentQuestion.explanation);
-    setCorrectionFeedback(comment || null);
-    
-    const isPartiallyCorrect = awarded > 0 && awarded < max;
+    const gradeAnswer = useCallback(async (
+        pointsDetails: { awarded: number; max: number; comment?: string },
+        userAnswer: UserAnswer,
+        bypassConfidence: boolean = false
+    ) => {
+        if (answerStatus !== 'unanswered') return;
 
-    if (isFullyCorrect || isPartiallyCorrect) {
-      const streakBonus = isFullyCorrect ? (streak * STREAK_BONUS_MULTIPLIER) : 0;
-      let currentSpeedBonus = 0;
-      if (!isUntimedMode && timeLeft >= SPEED_BONUS_THRESHOLD && isFullyCorrect) {
-        currentSpeedBonus = SPEED_BONUS_POINTS;
-        setBonusPointsAwarded(currentSpeedBonus);
-      }
-      setScore(s => s + awarded + streakBonus + currentSpeedBonus);
-      setStreak(s => isFullyCorrect ? s + 1 : 0);
-      setAnswerStatus(isFullyCorrect ? 'correct' : 'partial');
-    } else {
-      setStreak(0);
-      setAnswerStatus('incorrect');
-    }
-  }, [answerStatus, streak, timeLeft, isUntimedMode, currentQuestion, mode, updateSRSItem]);
+        const { awarded, max, comment } = pointsDetails;
+        const isFullyCorrect = awarded === max;
+
+        setAnswerExplanation(currentQuestion.explanation);
+        setCorrectionFeedback(comment || null);
+        
+        const isPartiallyCorrect = awarded > 0 && awarded < max;
+
+        if (isFullyCorrect || isPartiallyCorrect) {
+            const streakBonus = isFullyCorrect ? (streak * STREAK_BONUS_MULTIPLIER) : 0;
+            let currentSpeedBonus = 0;
+            if (!isUntimedMode && timeLeft >= SPEED_BONUS_THRESHOLD && isFullyCorrect) {
+                currentSpeedBonus = SPEED_BONUS_POINTS;
+                setBonusPointsAwarded(currentSpeedBonus);
+            }
+            setScore(s => s + awarded + streakBonus + currentSpeedBonus);
+            setStreak(s => isFullyCorrect ? s + 1 : 0);
+            setAnswerStatus(isFullyCorrect ? 'correct' : 'partial');
+        } else {
+            setStreak(0);
+            setAnswerStatus('incorrect');
+        }
+
+        const newLogEntry: Omit<AnswerLog, 'confidence'> = {
+            question: currentQuestion,
+            userAnswer,
+            isCorrect: isFullyCorrect,
+            pointsAwarded: awarded,
+            maxPoints: max,
+            aiFeedback: comment,
+        };
+
+        if (bypassConfidence) {
+            if (mode === StudyMode.PRACTICE || mode === StudyMode.SRS) {
+                await updateSRSItem(currentQuestion, isFullyCorrect);
+            }
+            setAnswerLog(prevLog => [...prevLog, { ...newLogEntry, confidence: 0 }]); // 0 for N/A
+        } else {
+            setPendingLog(newLogEntry);
+        }
+
+    }, [answerStatus, streak, timeLeft, isUntimedMode, currentQuestion, mode, updateSRSItem]);
 
     useEffect(() => {
         const logEntry = answerLog.find(log => log.question.questionText === quiz.questions[currentQuestionIndex].questionText);
+        setPendingLog(null);
 
         if (logEntry) { // REVIEWING a previously answered question
             const { pointsAwarded, maxPoints, aiFeedback, userAnswer } = logEntry;
@@ -245,25 +285,25 @@ const StudyScreen = ({
         } else if (currentQuestion.questionType === QuestionType.MATCHING || currentQuestion.questionType === QuestionType.SEQUENCE) {
             maxPts = BASE_POINTS;
         }
-        await processAnswer({ awarded: 0, max: maxPts }, null); 
+        await gradeAnswer({ awarded: 0, max: maxPts }, null, true); 
       };
       handleTimeout();
       return;
     }
     const countdownTimer = setTimeout(() => setTimeLeft(t => t - 1), 1000);
     return () => clearTimeout(countdownTimer);
-  }, [answerStatus, timeLeft, isUntimedMode, processAnswer, currentQuestion]);
+  }, [answerStatus, timeLeft, isUntimedMode, gradeAnswer, currentQuestion]);
 
   const handleMcSubmit = async () => {
     if (selectedOptionIndex === null || currentQuestion.questionType !== QuestionType.MULTIPLE_CHOICE) return;
     const isCorrect = selectedOptionIndex === currentQuestion.correctAnswerIndex;
-    await processAnswer({ awarded: isCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, selectedOptionIndex);
+    await gradeAnswer({ awarded: isCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, selectedOptionIndex);
   };
   
   const handleTfSubmit = async (answer: boolean) => {
     if (currentQuestion.questionType !== QuestionType.TRUE_FALSE) return;
     const isCorrect = answer === currentQuestion.correctAnswer;
-    await processAnswer({ awarded: isCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, answer);
+    await gradeAnswer({ awarded: isCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, answer);
   };
 
   const handleFibSubmit = async (e: React.FormEvent) => {
@@ -304,7 +344,7 @@ const StudyScreen = ({
         }
     }
 
-    await processAnswer({
+    await gradeAnswer({
         awarded: awardedPoints,
         max: maxPoints,
         comment: comments.join(' '),
@@ -333,7 +373,7 @@ const StudyScreen = ({
     setMatchResults(results);
 
     const awardedPoints = Math.round((correctCount / matchingQ.prompts.length) * maxPoints);
-    await processAnswer({ awarded: awardedPoints, max: maxPoints }, placedMatches);
+    await gradeAnswer({ awarded: awardedPoints, max: maxPoints }, placedMatches);
   };
 
     const handleSequenceSubmit = async () => {
@@ -350,7 +390,7 @@ const StudyScreen = ({
             }
         }
         setSequenceResults(results);
-        await processAnswer({ awarded: isFullyCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, userOrder);
+        await gradeAnswer({ awarded: isFullyCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, userOrder);
     };
   
     const handleSkip = useCallback(async () => {
@@ -363,11 +403,12 @@ const StudyScreen = ({
             maxPts = BASE_POINTS;
         }
 
-        await processAnswer(
+        await gradeAnswer(
             { awarded: 0, max: maxPts, comment: 'Question was skipped.' },
-            'SKIPPED'
+            'SKIPPED',
+            true // Bypass confidence
         );
-    }, [answerStatus, currentQuestion, processAnswer, mode]);
+    }, [answerStatus, currentQuestion, gradeAnswer, mode]);
 
     const handleOpenChat = () => {
         onToggleChat();
@@ -741,7 +782,7 @@ const StudyScreen = ({
   const renderFeedbackMessage = () => {
     if (answerStatus === 'unanswered') return null;
 
-    const relevantLog = answerLog.find(l => l.question.questionText === currentQuestion.questionText);
+    const relevantLog = answerLog.find(l => l.question.questionText === currentQuestion.questionText) || pendingLog;
 
     if (relevantLog?.userAnswer === 'SKIPPED') {
         return (
@@ -848,17 +889,23 @@ const StudyScreen = ({
       <div className="bg-surface-dark p-6 sm:p-8 rounded-xl shadow-2xl flex flex-col justify-center flex-grow">
         {currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK && currentQuestion.questionType !== QuestionType.MATCHING && currentQuestion.questionType !== QuestionType.SEQUENCE && <Markdown as="h2" content={currentQuestion.questionText} className="text-2xl sm:text-3xl font-bold mb-8 text-text-primary text-center prose" />}
         {renderQuestionBody()}
-        {answerStatus !== 'unanswered' && !isVerifyingAnswer && renderAnswerFeedback()}
+        {answerStatus !== 'unanswered' && !pendingLog && renderAnswerFeedback()}
       </div>
       
       <div className="mt-6 min-h-[8rem] flex items-center justify-center">
-        <div className="flex flex-col items-center justify-center gap-4 text-center">
-            {answerStatus !== 'unanswered' && !isVerifyingAnswer && renderFeedbackMessage()}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                {mode === StudyMode.REVIEW && currentQuestionIndex > 0 && <button onClick={goToPreviousQuestion} className="px-8 py-3 bg-gray-600 text-white font-bold rounded-lg shadow-md hover:bg-gray-500 transition-all text-lg animate-fade-in">← Previous</button>}
-                {answerStatus !== 'unanswered' && !isVerifyingAnswer && <button onClick={goToNextQuestion} className="px-8 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-brand-primary transition-all text-lg animate-fade-in">{currentQuestionIndex + 1 < totalQuestions ? 'Next Question →' : 'Finish Quiz'}</button>}
-            </div>
-        </div>
+        {answerStatus !== 'unanswered' && !isVerifyingAnswer ? (
+            pendingLog ? (
+                <ConfidenceSelector onSelect={handleConfidenceSelect} />
+            ) : (
+                <div className="flex flex-col items-center justify-center gap-4 text-center">
+                    {renderFeedbackMessage()}
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                        {mode === StudyMode.REVIEW && currentQuestionIndex > 0 && <button onClick={goToPreviousQuestion} className="px-8 py-3 bg-gray-600 text-white font-bold rounded-lg shadow-md hover:bg-gray-500 transition-all text-lg animate-fade-in">← Previous</button>}
+                        <button onClick={goToNextQuestion} className="px-8 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-brand-primary transition-all text-lg animate-fade-in">{currentQuestionIndex + 1 < totalQuestions ? 'Next Question →' : 'Finish Quiz'}</button>
+                    </div>
+                </div>
+            )
+        ) : null}
       </div>
 
       <ChatPanel 
