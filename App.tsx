@@ -359,14 +359,14 @@ const App: React.FC = () => {
         initialMessages.push({ role: 'model', text: `You are reviewing your quiz on "${reviewSet.name}". Feel free to ask me anything about your performance or the questions.` });
     }
 
-    let hasWeaknessSuggestion = false;
+    let hasWeaknessSuggestion = initialMessages.some(msg => msg.action && msg.action.text.includes('Create Focused Quiz'));
     const weaknessTopics = resultToReview.feedback?.weaknessTopics;
 
     // Re-hydrate existing suggestion buttons from saved history
     if (weaknessTopics && weaknessTopics.length > 0) {
         initialMessages.forEach(msg => {
-            if (msg.role === 'model' && msg.text.includes("Based on your results, I've identified some areas we can work on")) {
-                // Found a pre-existing suggestion. Re-attach the action.
+            const suggestionText = "Based on your results, I've identified some areas we can work on";
+            if (msg.role === 'model' && msg.text.includes(suggestionText)) {
                 msg.action = {
                     text: `Create Focused Quiz (${weaknessTopics.length} topic${weaknessTopics.length > 1 ? 's' : ''})`,
                     onClick: () => handleStartFocusedQuiz(weaknessTopics)
@@ -478,14 +478,16 @@ const App: React.FC = () => {
   }, [currentStudySet]);
 
   
-  const handleStartCustomQuiz = useCallback(async (topics: string[]) => {
+  const handleStartCustomQuiz = useCallback(async (topics: string[], numQuestions?: number) => {
     setIsChatOpen(false);
     if (!currentStudySet) return;
     
     const { parts } = await processFilesToParts(currentStudySet.content, [], () => {});
     
     const config: QuizConfig = {
-      numberOfQuestions: Math.min(25, Math.max(5, topics.length * 5)), // Heuristic: 5 questions per topic, up to 25
+      numberOfQuestions: numQuestions 
+        ? Math.min(50, Math.max(3, numQuestions)) // User-defined, capped
+        : Math.min(25, Math.max(5, topics.length * 5)), // Heuristic
       mode: StudyMode.REVIEW,
       knowledgeSource: KnowledgeSource.NOTES_ONLY,
       topics: topics,
@@ -588,18 +590,36 @@ const App: React.FC = () => {
       setChatMessages(prev => {
         const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'model') {
-            const match = lastMessage.text.match(/\[ACTION:CREATE_QUIZ:(.*?)\]/);
-            if (match && match[1]) {
-                const topics = match[1].split(',').map(t => t.trim()).filter(Boolean);
+            const actionMatch = lastMessage.text.match(/\[ACTION:CREATE_QUIZ:(.*?)\]/);
+            if (actionMatch && actionMatch[1]) {
+                const paramsStr = actionMatch[1];
+                const params = paramsStr.split('|').reduce((acc, part) => {
+                    const [key, value] = part.split('=');
+                    if (key && value) {
+                        acc[key.trim()] = value.trim();
+                    }
+                    return acc;
+                }, {} as Record<string, string>);
+
+                const topics = params.topics ? params.topics.split(',').map(t => t.trim()).filter(Boolean) : [];
+                const numQuestions = params.questions ? parseInt(params.questions, 10) : undefined;
+                
                 if (topics.length > 0) {
                     const cleanedText = lastMessage.text.replace(/\[ACTION:CREATE_QUIZ:.*?\]/, '').trim();
+                    
+                    let buttonText = `Create Focused Quiz (${topics.length} topic${topics.length > 1 ? 's' : ''}`;
+                    if (numQuestions) {
+                        buttonText += `, ${numQuestions} questions`;
+                    }
+                    buttonText += ')';
+                    
                     const newMessages = [...prev];
                     newMessages[prev.length - 1] = {
                         ...lastMessage,
                         text: cleanedText,
                         action: {
-                            text: `Create Focused Quiz (${topics.length} topic${topics.length > 1 ? 's' : ''})`,
-                            onClick: () => handleStartCustomQuiz(topics),
+                            text: buttonText,
+                            onClick: () => handleStartCustomQuiz(topics, numQuestions),
                         }
                     };
                     return newMessages;

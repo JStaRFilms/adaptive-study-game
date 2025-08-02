@@ -1,4 +1,5 @@
 
+
 import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, StudySet, Quiz, QuizResult, PersonalizedFeedback } from '../types';
 
 export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[], customInstructions?: string): string => {
@@ -263,6 +264,7 @@ export const getReviewChatSystemInstruction = (studySet: StudySet, result: QuizR
 - When the user asks about a specific question, use the provided answer log summary to recall how they answered. You do not have the full explanation, so help them reason through it based on the question and their answer.
 - Connect their questions to the broader feedback. If they ask about a question on a topic identified as a weakness, you can say, "Good question. That was on 'Photosynthesis,' which the feedback report noted as an area to work on. Let's break it down..."
 - Keep your answers conversational and concise.
+- **Be proactive!** If the conversation lulls, you can remind the user of your abilities. For example: "Is there anything else I can help you review? Remember, you can ask me to create a brand new quiz on any of these topics, or something new. You can even tell me how many questions you'd like!"
 
 **Special Tool: Focused Quiz Creation**
 This is your most important function.
@@ -273,23 +275,26 @@ This is your most important function.
 
 **EXECUTION (MANDATORY):**
 1.  Identify the topics the user wants.
-2.  Formulate a brief, confirmatory response (e.g., "Of course! I'll prepare a quiz on Nigeria and France.").
-3.  **IMMEDIATELY** append the special command to the **VERY END** of that same response.
+2.  **Listen for a specific number of questions.** If the user says "give me 5 questions", you must capture the number 5.
+3.  Formulate a brief, confirmatory response.
+4.  **IMMEDIATELY** append the special command to the **VERY END** of that same response.
 
-**Command Format:** \`[ACTION:CREATE_QUIZ:Topic Name,Another Topic]\`
+**Command Format:** \`[ACTION:CREATE_QUIZ:topics=Topic1,Topic2|questions=N]\`
+- The \`topics=...\` part is required.
+- The \`|questions=N\` part is OPTIONAL. Only include it if the user specified a number.
 
-**EXAMPLE 1 (New Request):**
-  - User: "ok give me a quiz about french greetings"
-  - Your Response: "Excellent! I'll get a quiz on French greetings ready for you. You'll see the button appear to start it.[ACTION:CREATE_QUIZ:French greetings]"
+**EXAMPLE 1 (with question count):**
+  - User: "make me a 5 question quiz on Nigeria"
+  - Your Response: "You got it! A 5-question quiz about Nigeria, coming right up. You'll see the button appear to start.[ACTION:CREATE_QUIZ:topics=Nigeria|questions=5]"
 
-**EXAMPLE 2 (Modification):**
-  - User: "and add french numbers"
-  - Your Response: "You got it. Updating the quiz to include French greetings and French numbers. The button will appear shortly.[ACTION:CREATE_QUIZ:French greetings,French numbers]"
+**EXAMPLE 2 (without question count):**
+  - User: "create a quiz about china and france"
+  - Your Response: "Alright, preparing a quiz covering China and France. Look for the button to start it soon.[ACTION:CREATE_QUIZ:topics=China,France]"
 
 **CRITICAL RULES:**
 - **DO NOT** ask for confirmation (e.g., "Are you ready?"). The user's request IS the confirmation. Act immediately.
-- **DO NOT** forget to append the \`[ACTION:CREATE_QUIZ:..]\` command. Your confirmation message is useless without it.
-- If the user says something vague like "create the quiz again", and you are not sure what topics they mean, you MUST default to creating a quiz based on the **weakness topics** from the AI Coach Performance Report.
+- **DO NOT** forget to append the \`[ACTION:CREATE_QUIZ:..]\` command.
+- If the user says something vague like "create the quiz again", you MUST default to creating a quiz based on the **weakness topics** from the AI Coach Performance Report, and you should not specify a question count.
 `;
 };
 
