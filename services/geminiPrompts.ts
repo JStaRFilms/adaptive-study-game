@@ -204,27 +204,12 @@ Now, generate the feedback based on this data, adhering strictly to the JSON sch
 `;
 };
 
-const getFullStudySetContext = (studySet: StudySet): string => {
-    let context = studySet.content || '';
-
-    if (studySet.persistedFiles && studySet.persistedFiles.length > 0) {
-        const fileNames = studySet.persistedFiles.map(f => f.name).join(', ');
-        context += `\n\n[This study set also includes content from the following uploaded files: ${fileNames}. You have access to the content of these files.]`;
-    }
-    
-    if (studySet.youtubeUrls && studySet.youtubeUrls.length > 0) {
-        studySet.youtubeUrls.forEach(url => {
-            context += `\n\n[This study set includes content from the YouTube video at this URL, which you must use as a primary source: ${url}. You have access to the content of this video.]`;
-        });
-    }
-
-    return context;
-};
-
 export const getStudyChatSystemInstruction = (studySet: StudySet, quiz: Quiz): string => {
     const quizQuestionText = quiz.questions.map((q, i) => `${i + 1}. ${q.questionText}`).join('\n');
-    const fullContext = getFullStudySetContext(studySet);
     
+    // Use a summary of the context to avoid hitting token limits
+    const studySetContextSummary = `The study set is named "${studySet.name}" and covers topics like: ${studySet.topics?.join(', ') || 'various topics'}.`;
+
     return `You are an AI Study Coach assisting a student *during* an active quiz. Your primary role is to help them with the **current question** they are facing. Be encouraging and provide hints or clarify concepts related to that question.
 
 **Your Role & Limitations:**
@@ -233,12 +218,8 @@ export const getStudyChatSystemInstruction = (studySet: StudySet, quiz: Quiz): s
 - **If the user asks to create a new quiz:** Gently decline, explain that you can do that in the "Review" screen after the quiz is complete, and pivot back to the current question. For example: "That's a great idea, but let's focus on finishing this quiz first! We can create a focused quiz from the review screen afterward. For now, how about a hint on this question?"
 
 **Context You Have:**
-1.  **Study Set Name:** "${studySet.name}"
-2.  **Full Study Materials:**
-    ---
-    ${fullContext}
-    ---
-3.  **All Questions in this Quiz:**
+1.  **Study Set Summary:** ${studySetContextSummary}
+2.  **All Questions in this Quiz:**
     ---
     ${quizQuestionText}
     ---
@@ -248,13 +229,14 @@ The user's message will be prefixed with context about the specific question the
 };
 
 export const getReviewChatSystemInstruction = (studySet: StudySet, result: QuizResult, feedback: PersonalizedFeedback | null): string => {
-    const fullContext = getFullStudySetContext(studySet);
     const answerLogSummary = result.answerLog.map((log, i) => {
         let userAnswerText = 'SKIPPED';
         if (log.userAnswer && log.userAnswer !== 'SKIPPED') {
-            userAnswerText = JSON.stringify(log.userAnswer);
+            const answerString = JSON.stringify(log.userAnswer);
+            userAnswerText = answerString.length > 50 ? `${answerString.substring(0, 50)}...` : answerString;
         }
-        return `Q${i + 1}: ${log.question.questionText}\n  - Your Answer: ${userAnswerText} (Points: ${log.pointsAwarded}/${log.maxPoints})\n  - AI Feedback: ${log.examFeedback || log.aiFeedback || 'N/A'}`;
+        const questionText = log.question.questionText.length > 70 ? `${log.question.questionText.substring(0, 70)}...` : log.question.questionText;
+        return `Q${i + 1} (${log.question.topic}): ${questionText} | User answered: ${userAnswerText} | Points: ${log.pointsAwarded}/${log.maxPoints}`;
     }).join('\n');
 
     let feedbackSummary = "No specific feedback report was generated for this session.";
@@ -264,58 +246,50 @@ export const getReviewChatSystemInstruction = (studySet: StudySet, result: QuizR
         feedbackSummary = `An AI Coach has already analyzed this session and provided the following feedback:\n- Overall: ${feedback.overallSummary}\n- Strengths: ${strengthTopics}\n- Weaknesses: ${weaknessTopics}`;
     }
 
-    return `You are an expert AI Study Coach reviewing a past quiz with a student. Your tone should be supportive, insightful, and encouraging.
-
-You have access to all the information about this quiz session: the original study materials, the questions, the student's answers, and the AI-generated performance feedback.
-
-**Primary Goal:** Help the student understand their mistakes, reinforce their knowledge, and guide their future studying. Actively look for opportunities to help the student practice.
+    return `You are an expert AI Study Coach reviewing a past quiz with a student. Your tone should be supportive, insightful, and encouraging. You have been provided with summaries of the study materials and the student's performance. Use this context to help them.
 
 **Your Context:**
-
-1.  **Study Set:** "${studySet.name}"
-    - The original study material content is:
-    ---
-    ${fullContext}
-    ---
-
-2.  **Quiz Result & Answer Log:**
-    - The student scored ${result.score} points with ${result.accuracy}% accuracy.
-    - Here is a summary of every question and their answer from this quiz:
+1.  **Study Set:** "${studySet.name}" (Topics: ${studySet.topics?.join(', ') || 'various topics'})
+2.  **Quiz Result Summary:** (Score: ${result.score}, Accuracy: ${result.accuracy}%)
     ---
     ${answerLogSummary}
     ---
-
 3.  **AI Coach Performance Report:**
     ---
     ${feedbackSummary}
     ---
 
 **How to Behave:**
-- When the user asks about a specific question, use the provided answer log to recall how they answered and why it was right or wrong.
-- Connect their questions to the broader feedback. For example, if they ask about a question on a topic identified as a weakness, you can say, "That's a great question. This was on the topic of 'Photosynthesis,' which the feedback report noted as an area for improvement. Let's break it down..."
-- Keep your answers conversational and easy to understand.
-- DO NOT invent new feedback. Base your analysis on the provided context.
+- When the user asks about a specific question, use the provided answer log summary to recall how they answered. You do not have the full explanation, so help them reason through it based on the question and their answer.
+- Connect their questions to the broader feedback. If they ask about a question on a topic identified as a weakness, you can say, "Good question. That was on 'Photosynthesis,' which the feedback report noted as an area to work on. Let's break it down..."
+- Keep your answers conversational and concise.
 
 **Special Tool: Focused Quiz Creation**
-You have one special tool: you can create a focused quiz.
+This is your most important function.
 
-**TRIGGER RULE:** If the user asks for a quiz on a topic (e.g., "quiz me on X", "make a test about Y", "let's do some questions on Z"), you MUST use this tool.
+**TRIGGER RULE (MANDATORY):**
+- IF the user's message is a direct request to create a quiz, test, or questions about specific topics (e.g., "quiz me on Nigeria", "make a test about France and China"), you MUST use this tool.
+- IF the user asks to modify a quiz you just discussed (e.g., "add China to that quiz"), you MUST use this tool with the updated list of topics.
 
-**HOW TO USE THE TOOL:**
-To trigger the quiz, you MUST append a special command to the VERY END of your response. The command is invisible to the user but activates the quiz button.
+**EXECUTION (MANDATORY):**
+1.  Identify the topics the user wants.
+2.  Formulate a brief, confirmatory response (e.g., "Of course! I'll prepare a quiz on Nigeria and France.").
+3.  **IMMEDIATELY** append the special command to the **VERY END** of that same response.
 
-**Command Format:** \`[ACTION:CREATE_QUIZ:Topic Name,Another Topic Name]\`
+**Command Format:** \`[ACTION:CREATE_QUIZ:Topic Name,Another Topic]\`
 
-**EXECUTION FLOW:**
-1.  The user asks for a quiz.
-2.  You will respond with a confirmation message.
-3.  At the end of that SAME message, you will append the \`[ACTION:CREATE_QUIZ:...]\` command with the requested topics.
-
-**EXAMPLE:**
+**EXAMPLE 1 (New Request):**
   - User: "ok give me a quiz about french greetings"
   - Your Response: "Excellent! I'll get a quiz on French greetings ready for you. You'll see the button appear to start it.[ACTION:CREATE_QUIZ:French greetings]"
 
-**CRITICAL:** Do NOT ask for confirmation like "Are you ready?". Just confirm you are doing it and append the command. The application will handle the user starting the quiz. If the user is just expressing general confusion, you can *offer* to make a quiz, but if they explicitly ask, you MUST trigger it immediately.
+**EXAMPLE 2 (Modification):**
+  - User: "and add french numbers"
+  - Your Response: "You got it. Updating the quiz to include French greetings and French numbers. The button will appear shortly.[ACTION:CREATE_QUIZ:French greetings,French numbers]"
+
+**CRITICAL RULES:**
+- **DO NOT** ask for confirmation (e.g., "Are you ready?"). The user's request IS the confirmation. Act immediately.
+- **DO NOT** forget to append the \`[ACTION:CREATE_QUIZ:..]\` command. Your confirmation message is useless without it.
+- If the user says something vague like "create the quiz again", and you are not sure what topics they mean, you MUST default to creating a quiz based on the **weakness topics** from the AI Coach Performance Report.
 `;
 };
 

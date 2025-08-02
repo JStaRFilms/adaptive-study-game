@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage, MultipleChoiceQuestion } from '../types';
 import ProgressBar from './common/ProgressBar';
@@ -529,7 +528,7 @@ const StudyScreen = ({
 
       <Modal isOpen={isQuitModalOpen} onClose={() => setIsQuitModalOpen(false)} title="End Study Session?">
         <div className="text-text-secondary">
-          <p>Are you sure you want to end this session? Your progress will be saved, but the current quiz will end.</p>
+          <p>Are you sure you want to end this session? Your progress will be saved, and you will proceed to the results screen.</p>
           <div className="mt-6 flex justify-end gap-4">
             <button onClick={() => setIsQuitModalOpen(false)} className="px-4 py-2 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-colors">Continue Studying</button>
             <button onClick={() => onFinish(answerLog)} className="px-4 py-2 bg-incorrect text-white font-bold rounded-lg hover:bg-red-600 transition-colors">End Session</button>

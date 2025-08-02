@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer } from './types';
 import { GoogleGenAI, Chat } from '@google/genai';
@@ -236,6 +237,9 @@ const App: React.FC = () => {
     
     // Immediately calculate and show results, then fetch feedback
     (async () => {
+        // Sanitize chat history by removing non-serializable 'action' property before saving
+        const cleanedChatHistory = chatMessages.map(({ action, ...rest }) => rest);
+
         const initialResultData: Omit<QuizResult, 'id'> = {
             studySetId: currentStudySet.id,
             date: new Date().toISOString(),
@@ -245,7 +249,7 @@ const App: React.FC = () => {
             webSources: quiz?.webSources,
             mode: studyMode,
             feedback: null,
-            chatHistory: chatMessages,
+            chatHistory: cleanedChatHistory,
         };
         
         const initialResult = await addQuizResult(initialResultData);
@@ -318,6 +322,7 @@ const App: React.FC = () => {
   }, [submissionForRetry, handleFinishExam]);
 
   const handleStartFocusedQuiz = useCallback(async (weaknessTopics: PersonalizedFeedback['weaknessTopics']) => {
+    setIsChatOpen(false);
     if (!currentStudySet) return;
     
     const { parts } = await processFilesToParts(currentStudySet.content, [], () => {});
@@ -329,7 +334,7 @@ const App: React.FC = () => {
       mode: StudyMode.REVIEW,
       knowledgeSource: KnowledgeSource.NOTES_ONLY,
       topics: topics,
-      customInstructions: `This is a focused review session. The user previously struggled with these topics: ${topics.join(', ')}. Generate questions that specifically test their understanding of these areas, focusing on concepts they likely misunderstood.`
+      customInstructions: `This is a focused review session. The user previously struggled with these topics: ${topics.join(', ')}. Generate questions that specifically test their understanding of these areas.`
     };
     
     await handleStartStudy(parts, config, currentStudySet.id);
@@ -345,14 +350,34 @@ const App: React.FC = () => {
     setCurrentResult(resultToReview);
     setAnswerLog(resultToReview.answerLog);
     
-    // Load or initialize chat for review
-    const initialMessages: ChatMessage[] = resultToReview.chatHistory && resultToReview.chatHistory.length > 0
-        ? resultToReview.chatHistory
-        : [{ role: 'model', text: `You are reviewing your quiz on "${reviewSet?.name}". Feel free to ask me anything about your performance or the questions.` }];
+    // Load chat for review, re-hydrating buttons and preventing duplicates
+    const initialMessages: ChatMessage[] = resultToReview.chatHistory 
+      ? JSON.parse(JSON.stringify(resultToReview.chatHistory))
+      : [];
     
-    // Inject the default focused quiz suggestion if applicable and not already part of a continued chat
-    if (resultToReview.feedback?.weaknessTopics && resultToReview.feedback.weaknessTopics.length > 0) {
-        const weaknessTopics = resultToReview.feedback.weaknessTopics;
+    if (initialMessages.length === 0 && reviewSet) {
+        initialMessages.push({ role: 'model', text: `You are reviewing your quiz on "${reviewSet.name}". Feel free to ask me anything about your performance or the questions.` });
+    }
+
+    let hasWeaknessSuggestion = false;
+    const weaknessTopics = resultToReview.feedback?.weaknessTopics;
+
+    // Re-hydrate existing suggestion buttons from saved history
+    if (weaknessTopics && weaknessTopics.length > 0) {
+        initialMessages.forEach(msg => {
+            if (msg.role === 'model' && msg.text.includes("Based on your results, I've identified some areas we can work on")) {
+                // Found a pre-existing suggestion. Re-attach the action.
+                msg.action = {
+                    text: `Create Focused Quiz (${weaknessTopics.length} topic${weaknessTopics.length > 1 ? 's' : ''})`,
+                    onClick: () => handleStartFocusedQuiz(weaknessTopics)
+                };
+                hasWeaknessSuggestion = true;
+            }
+        });
+    }
+    
+    // Add a new suggestion if no existing one was found and re-hydrated
+    if (weaknessTopics && weaknessTopics.length > 0 && !hasWeaknessSuggestion) {
         const suggestionMessage: ChatMessage = {
             role: 'model',
             text: "Based on your results, I've identified some areas we can work on. I can create a quiz to help you practice.",
@@ -389,6 +414,16 @@ const App: React.FC = () => {
   }, [studySets, handleStartFocusedQuiz]);
 
   const handleRestart = useCallback(() => {
+    // Before resetting, check if we're leaving a review session and need to save chat.
+    if (appState === AppState.REVIEWING && currentResult) {
+        const cleanedChatHistory = chatMessages.map(({ action, ...rest }) => rest);
+        // Only update if there's a change to prevent unnecessary writes
+        if (JSON.stringify(cleanedChatHistory) !== JSON.stringify(currentResult.chatHistory || [])) {
+             const updatedResult = { ...currentResult, chatHistory: cleanedChatHistory };
+             updateQuizResult(updatedResult);
+        }
+    }
+
     setAppState(AppState.SETUP);
     setQuiz(null);
     setError(null);
@@ -403,7 +438,7 @@ const App: React.FC = () => {
     setIsChatOpen(false);
     setIsAITyping(false);
     setChatError(null);
-  }, []);
+  }, [appState, currentResult, chatMessages, updateQuizResult]);
   
   const handlePredict = useCallback((studySetId: string) => {
     const set = studySets.find(s => s.id === studySetId) || null;
@@ -444,6 +479,7 @@ const App: React.FC = () => {
 
   
   const handleStartCustomQuiz = useCallback(async (topics: string[]) => {
+    setIsChatOpen(false);
     if (!currentStudySet) return;
     
     const { parts } = await processFilesToParts(currentStudySet.content, [], () => {});
