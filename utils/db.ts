@@ -1,6 +1,9 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { StudySet, QuizResult, PredictionResult, SRSItem } from '../types';
 
+export type StoreName = 'studySets' | 'quizHistory' | 'predictions' | 'srsItems';
+export const STORE_NAMES: StoreName[] = ['studySets', 'quizHistory', 'predictions', 'srsItems'];
+
 interface AppDB extends DBSchema {
   studySets: {
     key: string;
@@ -27,12 +30,9 @@ interface AppDB extends DBSchema {
 const DB_NAME = 'adaptive-study-game-db';
 const DB_VERSION = 2; // Incremented version to trigger the upgrade and migration
 
-// Create a more specific type for store names to ensure type safety.
-type StoreName = 'studySets' | 'quizHistory' | 'predictions' | 'srsItems';
-
 let dbPromise: Promise<IDBPDatabase<AppDB>> | null = null;
 
-const getDb = () => {
+export const getDb = (): Promise<IDBPDatabase<AppDB>> => {
   if (!dbPromise) {
     dbPromise = openDB<AppDB>(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion, newVersion, transaction) {

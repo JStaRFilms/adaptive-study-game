@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StudySet, PromptPart } from '../../types';
 import Modal from '../common/Modal';
 import Tooltip from '../common/Tooltip';
+import DataManagementModal from './DataManagementModal';
 
 
 interface StudySetListProps {
@@ -36,6 +37,7 @@ const StudySetList: React.FC<StudySetListProps> = ({
   reviewPoolCount,
 }) => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isDataModalOpen, setIsDataModalOpen] = useState(false);
   const [setForDetails, setSetForDetails] = useState<StudySet | null>(null);
 
   const handleShowDetails = (set: StudySet) => {
@@ -86,6 +88,11 @@ const StudySetList: React.FC<StudySetListProps> = ({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
         <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">Your Study Sets</h1>
         <div className="flex gap-2 items-center w-full sm:w-auto">
+            <Tooltip text="Data Management" position="top">
+                <button onClick={() => setIsDataModalOpen(true)} className="p-2.5 bg-gray-700 text-white font-bold rounded-lg shadow-lg hover:bg-gray-600 transition-all flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M11.828 2.25c-.916 0-1.699.663-1.85 1.567l-.091.549a.798.798 0 01-.517.608 7.5 7.5 0 00-.828.537.796.796 0 01-.629.193l-.575-.082a1.875 1.875 0 00-1.803 1.075l-.001.002-1.822 3.156a1.875 1.875 0 00.16 2.306l.433.469a.796.796 0 010 1.087l-.433.469a1.875 1.875 0 00-.16 2.306l1.822 3.156.001.002a1.875 1.875 0 001.803 1.075l.575-.082a.796.796 0 01.629.193 7.5 7.5 0 00.828.537.798.798 0 01.517.608l.091.549a1.875 1.875 0 001.85 1.567h.344c.916 0 1.699-.663 1.85-1.567l.091-.549a.798.798 0 01.517-.608 7.5 7.5 0 00.828-.537.796.796 0 01.629-.193l.575.082a1.875 1.875 0 001.803-1.075l.001-.002 1.822-3.156a1.875 1.875 0 00-.16-2.306l-.433-.469a.796.796 0 010-1.087l.433.469a1.875 1.875 0 00.16-2.306l-1.822-3.156-.001-.002a1.875 1.875 0 00-1.803-1.075l-.575.082a.796.796 0 01-.629-.193 7.5 7.5 0 00-.828-.537.798.798 0 01-.517-.608l-.091-.549a1.875 1.875 0 00-1.85-1.567h-.344zM12 15.75a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5z" clipRule="evenodd" /></svg>
+                </button>
+            </Tooltip>
             <Tooltip text="View Overall Stats" position="top">
               <button onClick={onShowStats} className="p-2.5 bg-gray-700 text-white font-bold rounded-lg shadow-lg hover:bg-gray-600 transition-all flex-shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
@@ -145,6 +152,7 @@ const StudySetList: React.FC<StudySetListProps> = ({
           ))}
         </div>
       )}
+      <DataManagementModal isOpen={isDataModalOpen} onClose={() => setIsDataModalOpen(false)} />
       <Modal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} title={`Details for "${setForDetails?.name}"`}>
         {setForDetails?.persistedFiles && setForDetails.persistedFiles.length > 0 && (
             <div>
