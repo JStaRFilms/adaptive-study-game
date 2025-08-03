@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-const ANNOUNCEMENT_ID = 'sequence-matching-srs-20240728'; // Change this ID for new announcements
+const ANNOUNCEMENT_ID = 'ai-coach-and-data-export-20240731'; // Change this ID for new announcements
 const ANNOUNCEMENT_MESSAGE = (
     <>
-        <strong>🚀 Major Update:</strong> New "Sequence" and "Matching" question types are here! Plus, a new Spaced Repetition System (SRS) to supercharge your memory.
+        <strong>🚀 New Features!</strong> Try the AI Coach for personalized feedback, and export/import your data from the settings menu!
     </>
 );
 

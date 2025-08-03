@@ -2,7 +2,7 @@
 
 ![App Screenshot](https://storage.googleapis.com/project-screenshots/adaptive-study-game/landing-page-preview.gif)
 
-An intelligent study tool that uses the Google Gemini API to transform your notes, documents, and even audio files into an interactive, gamified quiz. It provides a dynamic and engaging experience from the moment you land on the page, helping you learn faster and more effectively.
+An intelligent study tool that uses the Google Gemini API to transform your notes, documents, and even YouTube videos into an interactive, gamified quest for knowledge. With a personal AI tutor to guide you, diverse question types to challenge you, and a powerful analytics engine to track your progress, this app is designed to help you learn faster and more effectively.
 
 <p align="center">
   <img alt="React" src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB"/>
@@ -23,6 +23,11 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 
 ## ✨ Key Features
 
+- **Your Personal AI Tutor**: Go beyond simple quizzes with a suite of intelligent tools.
+  - **Interactive Study Coach**: Stuck on a question? Slide out the chat panel to get hints, explanations, or deeper insights. The AI has full context of your notes and the current quiz.
+  - **Personalized Feedback**: After each session, the AI analyzes your performance, identifies strengths & weaknesses, and provides actionable recommendations.
+  - **One-Click Focused Quizzes**: Instantly generate a new quiz that targets the topics you struggled with the most.
+  - **Comprehensive Stats**: Track your progress over time with a detailed analytics dashboard.
 - **AI-Powered Quiz Generation**: Automatically creates high-quality quizzes from your study materials.
 - **Multimodal Input**: Generate quizzes from a mix of sources:
   - Pasted text notes
@@ -31,29 +36,22 @@ An intelligent study tool that uses the Google Gemini API to transform your note
   - Images (`.png`, `.jpg`, `.webp`)
   - Audio Files (`.mp3`, `.m4a`, `.wav`, etc.)
   - **YouTube videos** via URL.
-- **Flexible Knowledge Sources**: Choose how the AI generates questions:
-  - **Notes Only**: Strictly uses the materials you provide.
-  - **Notes + AI Knowledge**: Supplements your notes with the AI's vast general knowledge.
-  - **Notes + Web Search**: Uses Google Search to find the latest information on your topic.
 - **Diverse Question Types**: Keep study sessions fresh with a variety of formats:
   - Multiple Choice
   - True/False
   - Fill-in-the-Blank (with AI-powered fuzzy matching)
-  - Open-Ended (for Exam Mode)
+  - Open-Ended
   - **Matching**: Drag and drop to match concepts with definitions.
   - **Sequence**: Drag and drop to arrange steps in chronological order.
-- **Spaced Repetition System (SRS)**: An intelligent review mode that schedules questions based on your past performance, helping you commit information to long-term memory.
-- **AI Study Coach Chat**: While taking a quiz or reviewing results, slide out a chat panel to ask the AI for hints or explanations. The AI has context on your notes and the specific quiz.
-- **AI-Powered Feedback & Analytics**:
-  - **Personalized Reports**: After each quiz, receive feedback from an AI coach that analyzes your performance to identify strengths and weaknesses.
-  - **Actionable Recommendations**: The AI coach provides clear next steps, including a one-click button to instantly generate a new, focused practice quiz.
-  - **Statistics Dashboard**: View your overall performance, track accuracy over time, and see your strongest and weakest topics across all study sets.
-- **Advanced Study Modes**:
-  - **Practice Mode**: Timed questions with points, streaks, and speed bonuses.
-  - **Review Mode**: Untimed, self-paced version of Practice Mode.
-  - **Exam Mode**: A simulated exam with open-ended questions requiring long-form answers. The AI grades your typed answers and **uploaded images of handwritten work**.
+- **Advanced Study Modes**: Choose your challenge.
+  - **Practice & Review**: Classic timed and untimed quiz modes with gamified scoring.
+  - **Exam Mode**: A simulated exam with open-ended questions. The AI grades your typed answers and even **uploaded images of handwritten work**.
+  - **Spaced Repetition (SRS)**: An intelligent review mode that schedules questions based on your past performance, helping you commit information to long-term memory.
 - **AI Exam Prediction**: A powerful "detective mode" where the AI acts as your teacher to predict likely exam questions based on your notes, past exams, and teacher's style.
-- **Persistent Local Storage**: Create, edit, and save study sets. Your notes and quiz history are saved securely in your browser's IndexedDB.
+- **Flexible Knowledge Sources**: Choose how the AI generates questions: from your notes only, supplemented by AI knowledge, or using Google Search for the latest information.
+- **Data Portability & Persistence**: Your data stays with you.
+  - **Full Data Export/Import**: Download all study sets, quiz history, and progress to a single JSON file for easy backup or transfer between devices.
+  - **Local-First Storage**: All data is stored privately and securely in your browser's IndexedDB, ensuring offline access to your materials.
 
 ## 🚀 Project Philosophy
 > This project is built on a few core principles:
