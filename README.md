@@ -57,7 +57,7 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 
 ## 🚀 Project Philosophy
 > This project is built on a few core principles:
-> 1.  **AI-First Experience**: Leveraging the powerful, multimodal `gemini-2.5-flash` model to provide intelligent features that feel like a magic.
+> 1.  **AI-First Experience**: Leveraging the powerful Gemini family of models, using `gemini-2.5-flash` for fast, real-time interactions and `gemini-2.5-pro` for high-quality analysis and generation tasks.
 > 2.  **Frictionless Development**: By using browser-native ES Modules and a CDN (`esm.sh`), the project avoids complex build steps. There's no `npm install`, no bundler configuration—just modern web technologies.
 > 3.  **User-Centric Design**: The entire experience, from the landing page to the quiz review screen, is designed to be intuitive, engaging, and effective for learning. Data is stored locally in the user's browser, ensuring privacy and persistence without a backend.
 
@@ -79,7 +79,7 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 This app is built with a modern, build-free stack, focusing on performance and developer experience.
 
 -   **Core Framework**: [React](https://react.dev/) (with Hooks) & [TypeScript](https://www.typescriptlang.org/) for a robust and type-safe UI.
--   **AI Engine**: [Google Gemini API](https://ai.google.dev/) (`gemini-2.5-flash`, `gemini-2.5-pro`) for all intelligent features.
+-   **AI Engine**: [Google Gemini API](https://ai.google.dev/) using a suite of models (`gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`) for intelligent features.
 -   **Styling**: [Tailwind CSS](https://tailwindcss.com/) for a utility-first, responsive design system.
 -   **Module System**: Browser-native ES Modules loaded directly from the [esm.sh](https://esm.sh/) CDN. This eliminates the need for local `node_modules` or a bundling step.
 -   **Client-Side File Processing**:
@@ -134,6 +134,8 @@ or
 1. Ensure one of the API key environment variables is set (`API_KEY_POOL`, `API_KEY`, or `GEMINI_API_KEY`).
 2. Serve the `index.html` file from the root of the project directory.
 3. Open the served URL in your web browser. The application will initialize and be ready to use.
+
+**Note**: This is a live web application under active development. If you are using a hosted version, please refresh the page periodically to access the latest features and improvements.
 
 # vite.config.ts
 import path from 'path';
