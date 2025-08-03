@@ -20,45 +20,70 @@ const DataManagementModal: React.FC<DataManagementModalProps> = ({ isOpen, onClo
     setIsLoading(true);
     setFeedbackMessage('Gathering all data...');
     setError('');
+    
     try {
-      const db = await getDb();
-      const exportData: { [key in StoreName]?: any[] } = {};
+        const db = await getDb();
+        const blobParts: string[] = ['{'];
+        let isFirstProperty = true;
 
-      for (const storeName of STORE_NAMES) {
-        setFeedbackMessage(`Exporting ${storeName}...`);
-        const allRecords = await db.getAll(storeName);
-        if (allRecords.length > 0) {
-          exportData[storeName] = allRecords;
+        for (const storeName of STORE_NAMES) {
+            setFeedbackMessage(`Exporting ${storeName}...`);
+            const cursor = await db.transaction(storeName).store.openCursor();
+            
+            if (cursor) {
+                if (!isFirstProperty) {
+                    blobParts.push(',');
+                }
+                blobParts.push(`"${storeName}":[`);
+                
+                let isFirstRecordInStore = true;
+                let currentCursor = cursor;
+                while (currentCursor) {
+                    if (!isFirstRecordInStore) {
+                        blobParts.push(',');
+                    }
+                    try {
+                        blobParts.push(JSON.stringify(currentCursor.value));
+                    } catch (e) {
+                         console.error(`Skipping a record in ${storeName} due to stringify error:`, e);
+                         blobParts.push('null'); // Add a placeholder for the failed record
+                    }
+                    isFirstRecordInStore = false;
+                    currentCursor = await currentCursor.continue();
+                }
+                blobParts.push(']');
+                isFirstProperty = false;
+            }
         }
-      }
+        
+        if (isFirstProperty) { // No data was found in any store
+            setFeedbackMessage('No data to export.');
+            setIsLoading(false);
+            setTimeout(() => setFeedbackMessage(''), 3000);
+            return;
+        }
 
-      if (Object.keys(exportData).length === 0) {
-        setFeedbackMessage('No data to export.');
-        setError('');
-        setTimeout(() => setFeedbackMessage(''), 3000);
-        setIsLoading(false);
-        return;
-      }
-
-      const jsonStr = JSON.stringify(exportData, null, 2);
-      const blob = new Blob([jsonStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-      link.href = url;
-      link.download = `adaptive-study-data-${timestamp}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      setFeedbackMessage('Export successful!');
-      setError('');
+        blobParts.push('}');
+        
+        setFeedbackMessage('Creating download file...');
+        const blob = new Blob(blobParts, { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        link.href = url;
+        link.download = `adaptive-study-data-${timestamp}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setFeedbackMessage('Export successful!');
+        
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred during export.');
-      console.error(err);
+        setError(err instanceof Error ? err.message : 'An unknown error occurred during export.');
+        console.error(err);
     } finally {
-      setIsLoading(false);
-      setTimeout(() => setFeedbackMessage(''), 3000);
+        setIsLoading(false);
+        setTimeout(() => setFeedbackMessage(''), 3000);
     }
   };
 
