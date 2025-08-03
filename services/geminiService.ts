@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, GenerateContentResponse, Type, Content } from "@google/genai";
-import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide } from '../types';
+import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion } from '../types';
 import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, personalizedFeedbackSchema, fibValidationSchema, studyGuideSchema } from './geminiSchemas';
 import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFeedbackSystemInstruction, getFibValidationSystemInstruction, getStudyGuideInstruction } from './geminiPrompts';
 import { ModelIdentifier, modelFor } from './aiConstants';
@@ -310,6 +310,59 @@ export const generateStudyGuideForPrediction = async (question: PredictedQuestio
     return parseJsonResponse(response.text);
 };
 
+const userAnswerToString = (log: AnswerLog): string => {
+    const { question, userAnswer } = log;
+    
+    if (userAnswer === 'SKIPPED') return 'Skipped';
+    if (userAnswer === null) return 'Not answered';
+
+    switch (question.questionType) {
+        case QuestionType.MULTIPLE_CHOICE:
+            if (typeof userAnswer === 'number') {
+                return (question as MultipleChoiceQuestion).options[userAnswer] || "Invalid Option";
+            }
+            break;
+        case QuestionType.TRUE_FALSE:
+            return userAnswer ? 'True' : 'False';
+        case QuestionType.FILL_IN_THE_BLANK:
+            if (Array.isArray(userAnswer)) {
+                return (userAnswer as string[]).map(a => `"${a || '...'}"`).join(', ');
+            }
+            break;
+        case QuestionType.MATCHING:
+            if (Array.isArray(userAnswer)) {
+                const matchingQ = question as MatchingQuestion;
+                const userAnswerArray = userAnswer as (number | null)[];
+                return userAnswerArray
+                    .map((promptIndex, answerIndex) => {
+                        if (promptIndex === null) return null; // Skip unmatched answers
+                        const promptText = `"${matchingQ.prompts[promptIndex]}"`;
+                        const answerText = `"${matchingQ.answers[answerIndex]}"`;
+                        return `${promptText} with ${answerText}`;
+                    })
+                    .filter(Boolean)
+                    .join('; ');
+            }
+            break;
+        case QuestionType.SEQUENCE:
+             if (Array.isArray(userAnswer)) {
+                const sequenceQ = question as SequenceQuestion;
+                const userOrderIndices = userAnswer as number[];
+                return userOrderIndices.map((originalIndex, displayIndex) => 
+                    `${displayIndex + 1}. ${sequenceQ.items[originalIndex]}`
+                ).join('; ');
+            }
+            break;
+        case QuestionType.OPEN_ENDED:
+            const openEndedAnswer = userAnswer as OpenEndedAnswer;
+            // Provide a snippet to avoid huge prompts
+            return openEndedAnswer.text.substring(0, 200) + (openEndedAnswer.text.length > 200 ? '...' : '');
+    }
+
+    // Fallback for any other case
+    return JSON.stringify(userAnswer);
+};
+
 
 export const generatePersonalizedFeedback = async (history: QuizResult[]): Promise<PersonalizedFeedback | null> => {
     if (!history || history.length === 0) return null;
@@ -319,11 +372,12 @@ export const generatePersonalizedFeedback = async (history: QuizResult[]): Promi
         answerLog: r.answerLog.map(l => ({
             topic: l.question.topic,
             questionText: l.question.questionText,
+            userAnswerText: userAnswerToString(l),
             isCorrect: l.isCorrect,
             pointsAwarded: l.pointsAwarded,
             maxPoints: l.maxPoints,
             aiFeedback: l.aiFeedback,
-            confidence: l.confidence, // Pass confidence score to AI
+            confidence: l.confidence,
         }))
     })));
 
