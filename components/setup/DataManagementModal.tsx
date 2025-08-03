@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import Modal from '../common/Modal';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -25,74 +26,83 @@ const DataManagementModal: React.FC<DataManagementModalProps> = ({ isOpen, onClo
     try {
         const db = await getDb();
         const blobParts: string[] = ['{'];
-        let isFirstProperty = true;
 
+        // First, determine which stores actually have data.
+        const storesWithData: StoreName[] = [];
         for (const storeName of STORE_NAMES) {
-            setFeedbackMessage(`Exporting ${storeName}...`);
             const cursor = await db.transaction(storeName).store.openCursor();
-            
             if (cursor) {
-                if (!isFirstProperty) {
-                    blobParts.push(',');
-                }
-                blobParts.push(`"${storeName}":[`);
-                
-                let isFirstRecordInStore = true;
-                let currentCursor = cursor;
-                while (currentCursor) {
-                    if (!isFirstRecordInStore) {
-                        blobParts.push(',');
-                    }
-                    
-                    // Special handling for quizHistory to prevent stringify errors on large records
-                    if (storeName === 'quizHistory') {
-                        const result = currentCursor.value as QuizResult;
-                        const { answerLog, ...restOfResult } = result;
-
-                        const restOfString = JSON.stringify(restOfResult).slice(1, -1);
-                        
-                        blobParts.push('{');
-                        if (restOfString) {
-                            blobParts.push(restOfString);
-                            blobParts.push(',');
-                        }
-                        
-                        blobParts.push('"answerLog":[');
-                        answerLog.forEach((log, index) => {
-                            try {
-                                blobParts.push(JSON.stringify(log));
-                            } catch (logError) {
-                                console.error(`Skipping an answerLog entry in QuizResult ${result.id} due to stringify error:`, logError);
-                                blobParts.push('null');
-                            }
-                            if (index < answerLog.length - 1) {
-                                blobParts.push(',');
-                            }
-                        });
-                        blobParts.push(']}');
-
-                    } else {
-                        try {
-                            blobParts.push(JSON.stringify(currentCursor.value));
-                        } catch (e) {
-                            console.error(`Skipping a record in ${storeName} due to stringify error:`, e);
-                            blobParts.push('null'); // Add a placeholder for the failed record
-                        }
-                    }
-
-                    isFirstRecordInStore = false;
-                    currentCursor = await currentCursor.continue();
-                }
-                blobParts.push(']');
-                isFirstProperty = false;
+                storesWithData.push(storeName);
             }
         }
-        
-        if (isFirstProperty) { // No data was found in any store
+
+        if (storesWithData.length === 0) {
             setFeedbackMessage('No data to export.');
             setIsLoading(false);
             setTimeout(() => setFeedbackMessage(''), 3000);
             return;
+        }
+
+        for (let i = 0; i < storesWithData.length; i++) {
+            const storeName = storesWithData[i];
+            setFeedbackMessage(`Exporting ${storeName}...`);
+            
+            blobParts.push(`"${storeName}":[`);
+            
+            const cursor = await db.transaction(storeName).store.openCursor();
+            let isFirstRecordInStore = true;
+            let currentCursor = cursor;
+
+            while (currentCursor) {
+                if (!isFirstRecordInStore) {
+                    blobParts.push(',');
+                }
+                
+                // Special handling for quizHistory to prevent stringify errors on large records
+                if (storeName === 'quizHistory') {
+                    const result = currentCursor.value as QuizResult;
+                    const { answerLog, ...restOfResult } = result;
+
+                    const restOfString = JSON.stringify(restOfResult).slice(1, -1);
+                    
+                    blobParts.push('{');
+                    if (restOfString) {
+                        blobParts.push(restOfString);
+                        blobParts.push(',');
+                    }
+                    
+                    blobParts.push('"answerLog":[');
+                    answerLog.forEach((log, index) => {
+                        try {
+                            blobParts.push(JSON.stringify(log));
+                        } catch (logError) {
+                            console.error(`Skipping an answerLog entry in QuizResult ${result.id} due to stringify error:`, logError);
+                            blobParts.push('null');
+                        }
+                        if (index < answerLog.length - 1) {
+                            blobParts.push(',');
+                        }
+                    });
+                    blobParts.push(']}');
+
+                } else {
+                    try {
+                        blobParts.push(JSON.stringify(currentCursor.value));
+                    } catch (e) {
+                        console.error(`Skipping a record in ${storeName} due to stringify error:`, e);
+                        blobParts.push('null'); // Add a placeholder for the failed record
+                    }
+                }
+
+                isFirstRecordInStore = false;
+                currentCursor = await currentCursor.continue();
+            }
+            blobParts.push(']');
+
+            // Add a comma if this is not the last store with data
+            if (i < storesWithData.length - 1) {
+                blobParts.push(',');
+            }
         }
 
         blobParts.push('}');
