@@ -58,40 +58,14 @@ const DataManagementModal: React.FC<DataManagementModalProps> = ({ isOpen, onClo
                     blobParts.push(',');
                 }
                 
-                // Special handling for quizHistory to prevent stringify errors on large records
-                if (storeName === 'quizHistory') {
-                    const result = currentCursor.value as QuizResult;
-                    const { answerLog, ...restOfResult } = result;
-
-                    const restOfString = JSON.stringify(restOfResult).slice(1, -1);
-                    
-                    blobParts.push('{');
-                    if (restOfString) {
-                        blobParts.push(restOfString);
-                        blobParts.push(',');
-                    }
-                    
-                    blobParts.push('"answerLog":[');
-                    answerLog.forEach((log, index) => {
-                        try {
-                            blobParts.push(JSON.stringify(log));
-                        } catch (logError) {
-                            console.error(`Skipping an answerLog entry in QuizResult ${result.id} due to stringify error:`, logError);
-                            blobParts.push('null');
-                        }
-                        if (index < answerLog.length - 1) {
-                            blobParts.push(',');
-                        }
-                    });
-                    blobParts.push(']}');
-
-                } else {
-                    try {
-                        blobParts.push(JSON.stringify(currentCursor.value));
-                    } catch (e) {
-                        console.error(`Skipping a record in ${storeName} due to stringify error:`, e);
-                        blobParts.push('null'); // Add a placeholder for the failed record
-                    }
+                try {
+                    // THE FIX: A simple, robust try-catch for each record.
+                    // This prevents one bad record from crashing the entire export.
+                    // It replaces the previous, overly complex special handling.
+                    blobParts.push(JSON.stringify(currentCursor.value));
+                } catch (e) {
+                    console.error(`Skipping a record in ${storeName} due to a serialization error. Record ID: ${currentCursor.primaryKey}`, e);
+                    blobParts.push('null'); // Add a placeholder for the failed record.
                 }
 
                 isFirstRecordInStore = false;
