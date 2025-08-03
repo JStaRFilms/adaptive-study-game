@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, GenerateContentResponse, Type, Content } from "@google/genai";
 import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide } from '../types';
 import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, personalizedFeedbackSchema, fibValidationSchema, studyGuideSchema } from './geminiSchemas';
@@ -227,7 +228,7 @@ export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Pro
 
 export const generateTopics = async (parts: PromptPart[]): Promise<string[]> => {
     const modelIdentifier = 'topicAnalysis';
-    const apiFunction = (client: GoogleGenAI, model: string) => client.models.generateContent({
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
         model,
         contents: { parts },
         config: {
@@ -248,7 +249,7 @@ export const gradeExam = async (questions: Question[], submission: OpenEndedAnsw
         submission.images.forEach(img => userPromptParts.push({ inlineData: { mimeType: img.mimeType, data: img.data }}));
     }
     
-    const apiFunction = (client: GoogleGenAI, model: string) => client.models.generateContent({
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
         model,
         contents: { parts: userPromptParts },
         config: {
@@ -280,7 +281,7 @@ export const generateExamPrediction = async (data: any): Promise<PredictedQuesti
     const modelIdentifier = 'examPrediction';
     const parts = getPredictionUserPromptParts(data);
 
-    const apiFunction = (client: GoogleGenAI, model: string) => client.models.generateContent({
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
         model,
         contents: { parts },
         config: {
@@ -296,7 +297,7 @@ export const generateExamPrediction = async (data: any): Promise<PredictedQuesti
 
 export const generateStudyGuideForPrediction = async (question: PredictedQuestion): Promise<StudyGuide> => {
     const modelIdentifier = 'studyGuideGeneration';
-    const apiFunction = (client: GoogleGenAI, model: string) => client.models.generateContent({
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
         model,
         contents: { parts: [{ text: "Please generate the study guide." }] },
         config: {
@@ -326,7 +327,7 @@ export const generatePersonalizedFeedback = async (history: QuizResult[]): Promi
         }))
     })));
 
-    const apiFunction = (client: GoogleGenAI, model: string) => client.models.generateContent({
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
         model,
         contents: { parts: [{ text: "Generate feedback based on the history in the system instruction."}] },
         config: {
@@ -344,7 +345,7 @@ export const validateFillInTheBlankAnswer = async (questionText: string, correct
     const modelIdentifier = 'fibValidation';
     const systemInstruction = getFibValidationSystemInstruction(questionText, correctAnswer, userAnswer);
 
-    const apiFunction = (client: GoogleGenAI, model: string) => client.models.generateContent({
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
         model,
         contents: { parts: [{text: "Validate the user's answer."}] },
         config: {

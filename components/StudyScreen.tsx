@@ -59,6 +59,20 @@ const ConfidenceSelector: React.FC<{ onSelect: (confidence: number) => void }> =
     </div>
 );
 
+// This interface holds all the data required to update the screen state after confidence is selected.
+interface PendingResult {
+    log: Omit<AnswerLog, 'confidence'>;
+    status: AnswerStatus;
+    scoreDelta: number;
+    newStreak: number;
+    bonusPoints: number;
+    improvementBonus: number;
+    explanation: string | null;
+    feedback: string | null;
+    matchResults?: ('correct' | 'incorrect' | null)[] | null;
+    sequenceResults?: ('correct' | 'incorrect')[] | null;
+}
+
 const StudyScreen = ({ 
     quiz, onFinish, mode, updateSRSItem, quizConfig, history,
     chatMessages, isChatOpen, isAITyping, chatError, isChatEnabled,
@@ -79,8 +93,8 @@ const StudyScreen = ({
   const [isTimedOut, setIsTimedOut] = useState(false);
   const [explanationRequestedMap, setExplanationRequestedMap] = useState<Record<number, boolean>>({});
   
-  // State for new confidence flow
-  const [pendingLog, setPendingLog] = useState<Omit<AnswerLog, 'confidence'> | null>(null);
+  // State for new confidence flow: holds the graded result before it's shown to the user.
+  const [pendingResult, setPendingResult] = useState<PendingResult | null>(null);
 
   // State for different question types
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
@@ -132,55 +146,87 @@ const StudyScreen = ({
         setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
   }, [currentQuestionIndex]);
+  
+  /**
+   * Commits the pending result to the screen after confidence is selected.
+   * This function applies all state changes to show feedback.
+   */
+  const commitResult = useCallback(async (result: PendingResult, confidence: number) => {
+    setAnswerStatus(result.status);
+    setScore(s => s + result.scoreDelta);
+    setStreak(result.newStreak);
+    setBonusPointsAwarded(result.bonusPoints);
+    setImprovementBonus(result.improvementBonus);
+    setAnswerExplanation(result.explanation);
+    setCorrectionFeedback(result.feedback);
 
-  const handleConfidenceSelect = useCallback(async (confidence: number) => {
-    if (!pendingLog) return;
+    if (result.matchResults) {
+        setMatchResults(result.matchResults);
+    }
+    if (result.sequenceResults) {
+        setSequenceResults(result.sequenceResults);
+    }
+
+    const finalLog: AnswerLog = { ...result.log, confidence };
     
-    const finalLog: AnswerLog = { ...pendingLog, confidence };
-
     if (mode === StudyMode.PRACTICE || mode === StudyMode.SRS) {
         await updateSRSItem(currentQuestion, finalLog.isCorrect);
     }
     
     setAnswerLog(prevLog => [...prevLog, finalLog]);
-    setPendingLog(null);
-  }, [pendingLog, mode, updateSRSItem, currentQuestion]);
+    setPendingResult(null); // Clear the pending result, which triggers UI to show feedback
+  }, [mode, updateSRSItem, currentQuestion]);
 
-    const gradeAnswer = useCallback(async (
+  /**
+   * Handles when the user selects their confidence level.
+   */
+  const handleConfidenceSelect = useCallback(async (confidence: number) => {
+    if (!pendingResult) return;
+    await commitResult(pendingResult, confidence);
+  }, [pendingResult, commitResult]);
+
+    /**
+     * Grades the user's answer and prepares it for the confidence selection step.
+     * It does NOT update the UI with the result directly.
+     */
+    const gradeAndFinalizeAnswer = useCallback(async (
         pointsDetails: { awarded: number; max: number; comment?: string },
         userAnswer: UserAnswer,
-        bypassConfidence: boolean = false
+        options: {
+            bypassConfidence?: boolean;
+            matchResults?: ('correct' | 'incorrect' | null)[] | null;
+            sequenceResults?: ('correct' | 'incorrect')[] | null;
+        } = {}
     ) => {
         if (answerStatus !== 'unanswered') return;
 
+        const { bypassConfidence = false, matchResults = null, sequenceResults = null } = options;
         const { awarded, max, comment } = pointsDetails;
         const isFullyCorrect = awarded === max;
         const isPartiallyCorrect = awarded > 0 && awarded < max;
 
-        setAnswerExplanation(currentQuestion.explanation);
-        setCorrectionFeedback(comment || null);
+        let status: AnswerStatus;
+        let scoreDelta = 0;
+        let currentNewStreak = streak;
+        let currentSpeedBonus = 0;
+        let currentImprovementBonus = 0;
         
         if (isFullyCorrect) {
+            status = 'correct';
             const streakBonus = streak * STREAK_BONUS_MULTIPLIER;
             
-            let currentSpeedBonus = 0;
             if (!isUntimedMode && timeLeft >= SPEED_BONUS_THRESHOLD) {
                 currentSpeedBonus = SPEED_BONUS_POINTS;
-                setBonusPointsAwarded(currentSpeedBonus);
             }
     
-            let currentImprovementBonus = 0;
-            // Check if this question concept was ever answered incorrectly in past quizzes
             if (currentQuestion.studySetId) {
                 const hasBeenAnsweredIncorrectlyBefore = history.some(quizResult =>
                     quizResult.studySetId === currentQuestion.studySetId &&
                     quizResult.answerLog.some(log => {
                         if (!log.isCorrect) {
-                            // Primary method: conceptId matching
                             if (currentQuestion.conceptId && log.question.conceptId) {
                                 return currentQuestion.conceptId === log.question.conceptId;
                             }
-                            // Fallback method: normalized text matching for older data
                             return normalizeText(log.question.questionText) === normalizeText(currentQuestion.questionText);
                         }
                         return false;
@@ -189,20 +235,19 @@ const StudyScreen = ({
 
                 if (hasBeenAnsweredIncorrectlyBefore) {
                     currentImprovementBonus = IMPROVEMENT_BONUS_POINTS;
-                    setImprovementBonus(currentImprovementBonus);
                 }
             }
     
-            setScore(s => s + awarded + streakBonus + currentSpeedBonus + currentImprovementBonus);
-            setStreak(s => s + 1);
-            setAnswerStatus('correct');
+            scoreDelta = awarded + streakBonus + currentSpeedBonus + currentImprovementBonus;
+            currentNewStreak = streak + 1;
         } else if (isPartiallyCorrect) {
-            setScore(s => s + awarded);
-            setStreak(0);
-            setAnswerStatus('partial');
+            status = 'partial';
+            scoreDelta = awarded;
+            currentNewStreak = 0;
         } else { // Incorrect
-            setStreak(0);
-            setAnswerStatus('incorrect');
+            status = 'incorrect';
+            scoreDelta = 0;
+            currentNewStreak = 0;
         }
 
         const newLogEntry: Omit<AnswerLog, 'confidence'> = {
@@ -213,20 +258,30 @@ const StudyScreen = ({
             maxPoints: max,
             aiFeedback: comment,
         };
+        
+        const resultToCommit: PendingResult = {
+            log: newLogEntry,
+            status: status,
+            scoreDelta: scoreDelta,
+            newStreak: currentNewStreak,
+            bonusPoints: currentSpeedBonus,
+            improvementBonus: currentImprovementBonus,
+            explanation: currentQuestion.explanation,
+            feedback: comment || null,
+            matchResults,
+            sequenceResults,
+        };
 
         if (bypassConfidence) {
-            if (mode === StudyMode.PRACTICE || mode === StudyMode.SRS) {
-                await updateSRSItem(currentQuestion, isFullyCorrect);
-            }
-            setAnswerLog(prevLog => [...prevLog, { ...newLogEntry, confidence: 0 }]);
+            await commitResult(resultToCommit, 0);
         } else {
-            setPendingLog(newLogEntry);
+            setPendingResult(resultToCommit);
         }
-    }, [answerStatus, streak, timeLeft, isUntimedMode, currentQuestion, mode, updateSRSItem, history]);
+    }, [answerStatus, streak, timeLeft, isUntimedMode, currentQuestion, history, commitResult]);
 
     useEffect(() => {
         const logEntry = answerLog.find(log => log.question.questionText === quiz.questions[currentQuestionIndex].questionText);
-        setPendingLog(null);
+        setPendingResult(null);
 
         if (logEntry) { // REVIEWING a previously answered question
             const { pointsAwarded, maxPoints, aiFeedback, userAnswer } = logEntry;
@@ -310,7 +365,9 @@ const StudyScreen = ({
 
 
   useEffect(() => {
-    if (isUntimedMode || answerStatus !== 'unanswered') return;
+    // Timer should stop while we are awaiting confidence selection
+    if (isUntimedMode || answerStatus !== 'unanswered' || pendingResult) return;
+
     if (timeLeft <= 0) {
       setIsTimedOut(true);
       const handleTimeout = async () => {
@@ -320,25 +377,25 @@ const StudyScreen = ({
         } else if (currentQuestion.questionType === QuestionType.MATCHING || currentQuestion.questionType === QuestionType.SEQUENCE) {
             maxPts = BASE_POINTS;
         }
-        await gradeAnswer({ awarded: 0, max: maxPts }, null, true); 
+        await gradeAndFinalizeAnswer({ awarded: 0, max: maxPts }, null, { bypassConfidence: true }); 
       };
       handleTimeout();
       return;
     }
     const countdownTimer = setTimeout(() => setTimeLeft(t => t - 1), 1000);
     return () => clearTimeout(countdownTimer);
-  }, [answerStatus, timeLeft, isUntimedMode, gradeAnswer, currentQuestion]);
+  }, [answerStatus, timeLeft, isUntimedMode, gradeAndFinalizeAnswer, currentQuestion, pendingResult]);
 
   const handleMcSubmit = async () => {
     if (selectedOptionIndex === null || currentQuestion.questionType !== QuestionType.MULTIPLE_CHOICE) return;
     const isCorrect = selectedOptionIndex === currentQuestion.correctAnswerIndex;
-    await gradeAnswer({ awarded: isCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, selectedOptionIndex);
+    await gradeAndFinalizeAnswer({ awarded: isCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, selectedOptionIndex);
   };
   
   const handleTfSubmit = async (answer: boolean) => {
     if (currentQuestion.questionType !== QuestionType.TRUE_FALSE) return;
     const isCorrect = answer === currentQuestion.correctAnswer;
-    await gradeAnswer({ awarded: isCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, answer);
+    await gradeAndFinalizeAnswer({ awarded: isCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, answer);
   };
 
   const handleFibSubmit = async (e: React.FormEvent) => {
@@ -379,7 +436,7 @@ const StudyScreen = ({
         }
     }
 
-    await gradeAnswer({
+    await gradeAndFinalizeAnswer({
         awarded: awardedPoints,
         max: maxPoints,
         comment: comments.join(' '),
@@ -405,10 +462,12 @@ const StudyScreen = ({
         }
     });
 
-    setMatchResults(results);
-
     const awardedPoints = Math.round((correctCount / matchingQ.prompts.length) * maxPoints);
-    await gradeAnswer({ awarded: awardedPoints, max: maxPoints }, placedMatches);
+    await gradeAndFinalizeAnswer(
+        { awarded: awardedPoints, max: maxPoints }, 
+        placedMatches, 
+        { matchResults: results }
+    );
   };
 
     const handleSequenceSubmit = async () => {
@@ -424,8 +483,11 @@ const StudyScreen = ({
                 results[i] = 'correct';
             }
         }
-        setSequenceResults(results);
-        await gradeAnswer({ awarded: isFullyCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, userOrder);
+        await gradeAndFinalizeAnswer(
+            { awarded: isFullyCorrect ? BASE_POINTS : 0, max: BASE_POINTS }, 
+            userOrder,
+            { sequenceResults: results }
+        );
     };
   
     const handleSkip = useCallback(async () => {
@@ -438,12 +500,12 @@ const StudyScreen = ({
             maxPts = BASE_POINTS;
         }
 
-        await gradeAnswer(
+        await gradeAndFinalizeAnswer(
             { awarded: 0, max: maxPts, comment: 'Question was skipped.' },
             'SKIPPED',
-            true // Bypass confidence
+            { bypassConfidence: true }
         );
-    }, [answerStatus, currentQuestion, gradeAnswer, mode]);
+    }, [answerStatus, currentQuestion, gradeAndFinalizeAnswer, mode]);
 
     const handleOpenChat = () => {
         onToggleChat();
@@ -817,7 +879,7 @@ const StudyScreen = ({
   const renderFeedbackMessage = () => {
     if (answerStatus === 'unanswered') return null;
 
-    const relevantLog = answerLog.find(l => l.question.questionText === currentQuestion.questionText) || pendingLog;
+    const relevantLog = answerLog.find(l => l.question.questionText === currentQuestion.questionText) || pendingResult?.log;
 
     if (relevantLog?.userAnswer === 'SKIPPED') {
         return (
@@ -933,12 +995,12 @@ const StudyScreen = ({
       <div className="bg-surface-dark p-6 sm:p-8 rounded-xl shadow-2xl flex flex-col justify-center flex-grow">
         {currentQuestion.questionType !== QuestionType.FILL_IN_THE_BLANK && currentQuestion.questionType !== QuestionType.MATCHING && currentQuestion.questionType !== QuestionType.SEQUENCE && <Markdown as="h2" content={currentQuestion.questionText} className="text-2xl sm:text-3xl font-bold mb-8 text-text-primary text-center prose" />}
         {renderQuestionBody()}
-        {answerStatus !== 'unanswered' && !pendingLog && renderAnswerFeedback()}
+        {answerStatus !== 'unanswered' && !pendingResult && renderAnswerFeedback()}
       </div>
       
       <div className="mt-6 min-h-[8rem] flex items-center justify-center">
-        {answerStatus !== 'unanswered' && !isVerifyingAnswer ? (
-            pendingLog ? (
+        {answerStatus === 'unanswered' && !pendingResult && !isVerifyingAnswer ? null : (
+            pendingResult ? (
                 <ConfidenceSelector onSelect={handleConfidenceSelect} />
             ) : (
                 <div className="flex flex-col items-center justify-center gap-4 text-center">
@@ -949,7 +1011,7 @@ const StudyScreen = ({
                     </div>
                 </div>
             )
-        ) : null}
+        )}
       </div>
 
       <ChatPanel 

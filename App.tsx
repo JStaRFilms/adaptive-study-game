@@ -4,6 +4,8 @@
 
 
 
+
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion } from './types';
 import { GoogleGenAI, Chat } from '@google/genai';
@@ -708,6 +710,7 @@ const App: React.FC = () => {
                     mode={studyMode} 
                     updateSRSItem={updateSRSItem} 
                     quizConfig={quizConfigForDisplay}
+                    history={history}
                     chatMessages={chatMessages}
                     isChatOpen={isChatOpen}
                     isAITyping={isAITyping}
