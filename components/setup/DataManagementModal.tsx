@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import Modal from '../common/Modal';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { getDb, STORE_NAMES, StoreName } from '../../utils/db';
+import { QuizResult } from '../../types';
 
 interface DataManagementModalProps {
   isOpen: boolean;
@@ -42,12 +43,43 @@ const DataManagementModal: React.FC<DataManagementModalProps> = ({ isOpen, onClo
                     if (!isFirstRecordInStore) {
                         blobParts.push(',');
                     }
-                    try {
-                        blobParts.push(JSON.stringify(currentCursor.value));
-                    } catch (e) {
-                         console.error(`Skipping a record in ${storeName} due to stringify error:`, e);
-                         blobParts.push('null'); // Add a placeholder for the failed record
+                    
+                    // Special handling for quizHistory to prevent stringify errors on large records
+                    if (storeName === 'quizHistory') {
+                        const result = currentCursor.value as QuizResult;
+                        const { answerLog, ...restOfResult } = result;
+
+                        const restOfString = JSON.stringify(restOfResult).slice(1, -1);
+                        
+                        blobParts.push('{');
+                        if (restOfString) {
+                            blobParts.push(restOfString);
+                            blobParts.push(',');
+                        }
+                        
+                        blobParts.push('"answerLog":[');
+                        answerLog.forEach((log, index) => {
+                            try {
+                                blobParts.push(JSON.stringify(log));
+                            } catch (logError) {
+                                console.error(`Skipping an answerLog entry in QuizResult ${result.id} due to stringify error:`, logError);
+                                blobParts.push('null');
+                            }
+                            if (index < answerLog.length - 1) {
+                                blobParts.push(',');
+                            }
+                        });
+                        blobParts.push(']}');
+
+                    } else {
+                        try {
+                            blobParts.push(JSON.stringify(currentCursor.value));
+                        } catch (e) {
+                            console.error(`Skipping a record in ${storeName} due to stringify error:`, e);
+                            blobParts.push('null'); // Add a placeholder for the failed record
+                        }
                     }
+
                     isFirstRecordInStore = false;
                     currentCursor = await currentCursor.continue();
                 }
@@ -124,10 +156,26 @@ const DataManagementModal: React.FC<DataManagementModalProps> = ({ isOpen, onClo
       await Promise.all(
         dataKeys.map(async (storeName) => {
           const store = tx.objectStore(storeName as StoreName);
-          const items = data[storeName];
-          if (items.length > 0) {
-            setFeedbackMessage(`Importing ${items.length} items to ${storeName}...`);
-            await Promise.all(items.map((item: any) => store.put(item)));
+          const items = data[storeName] as any[];
+          
+          // Filter out any invalid records (e.g., 'null' from export errors)
+          // or records missing the required 'id' key path.
+          const validItems = items.filter(item => {
+            if (!item || typeof item !== 'object') {
+              console.warn(`Skipping invalid non-object item in store '${storeName}' during import.`);
+              return false;
+            }
+            // All our stores use 'id' as the keyPath.
+            if (!item.id) {
+              console.warn(`Skipping item in store '${storeName}' because it is missing an 'id' property.`, item);
+              return false;
+            }
+            return true;
+          });
+
+          if (validItems.length > 0) {
+            setFeedbackMessage(`Importing ${validItems.length} items to ${storeName}...`);
+            await Promise.all(validItems.map((item: any) => store.put(item)));
           }
         })
       );
