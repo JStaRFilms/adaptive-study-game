@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { WebSource, AnswerLog, PersonalizedFeedback, QuizResult } from '../types';
 import LoadingSpinner from './common/LoadingSpinner';
@@ -7,20 +6,27 @@ interface ResultsScreenProps {
   result: QuizResult;
   onRestart: () => void;
   onReview: (result: QuizResult) => void;
+  feedback: Partial<PersonalizedFeedback> | null;
   isGeneratingFeedback: boolean;
   onStartFocusedQuiz: (weaknessTopics: PersonalizedFeedback['weaknessTopics']) => void;
 }
 
 interface PersonalizedFeedbackReportProps {
-    feedback: PersonalizedFeedback | null;
+    feedback: Partial<PersonalizedFeedback> | null;
     isGeneratingFeedback: boolean;
     onStartFocusedQuiz: (weaknessTopics: PersonalizedFeedback['weaknessTopics']) => void;
 }
 
+const SectionLoadingSpinner: React.FC = () => (
+    <div className="flex justify-center items-center py-4">
+        <div className="w-8 h-8 border-2 border-solid border-gray-600 rounded-full border-t-brand-primary animate-spin"></div>
+    </div>
+);
+
 const PersonalizedFeedbackReport: React.FC<PersonalizedFeedbackReportProps> = ({ feedback, isGeneratingFeedback, onStartFocusedQuiz }) => {
-    if (isGeneratingFeedback) {
+    if (isGeneratingFeedback && (!feedback || Object.keys(feedback).length === 0)) {
         return (
-            <div className="w-full max-w-md lg:max-w-3xl bg-surface-dark p-6 rounded-2xl shadow-2xl mt-8">
+            <div className="w-full max-w-md lg:max-w-5xl bg-surface-dark p-6 rounded-2xl shadow-2xl mt-8">
                 <div className="flex flex-col items-center justify-center text-center">
                     <LoadingSpinner />
                     <h3 className="text-xl font-bold text-text-primary mt-4">AI Coach Analyzing...</h3>
@@ -37,105 +43,121 @@ const PersonalizedFeedbackReport: React.FC<PersonalizedFeedbackReportProps> = ({
     const { overallSummary, strengthTopics, weaknessTopics, narrowPasses, recommendation } = feedback;
 
     const handleCreateQuizClick = () => {
-        if (weaknessTopics.length > 0) {
+        if (weaknessTopics && weaknessTopics.length > 0) {
             onStartFocusedQuiz(weaknessTopics);
         }
     };
 
     return (
-        <div className="w-full max-w-md lg:max-w-3xl bg-surface-dark p-6 sm:p-8 rounded-2xl shadow-2xl mt-8 text-left animate-fade-in">
+        <div className="w-full max-w-md lg:max-w-5xl bg-surface-dark p-6 sm:p-8 rounded-2xl shadow-2xl mt-8 text-left animate-fade-in">
             <h2 className="text-2xl font-bold text-text-primary mb-4 text-center">AI Study Coach Feedback</h2>
-            <p className="text-center text-text-secondary italic mb-6">"{overallSummary}"</p>
+            
+            {overallSummary ? (
+                <p className="text-center text-text-secondary italic mb-6 animate-fade-in">"{overallSummary}"</p>
+            ) : (
+                <div className="mb-6"><SectionLoadingSpinner /></div>
+            )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-6">
-                {strengthTopics.length > 0 && (
-                    <div>
-                        <h3 className="font-bold text-correct flex items-center gap-2 mb-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                            Your Strengths
-                        </h3>
-                        <ul className="space-y-2 pl-4">
-                            {strengthTopics.map(({ topic, comment }) => (
-                                <li key={topic} className="bg-gray-900/50 p-3 rounded-md">
-                                    <p className="font-semibold text-text-primary">{topic}</p>
-                                    <p className="text-sm text-text-secondary">{comment}</p>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
 
-                {weaknessTopics.length > 0 && (
-                    <div>
-                        <h3 className="font-bold text-yellow-400 flex items-center gap-2 mb-2">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-4a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
-                            Areas to Improve
-                        </h3>
-                        <ul className="space-y-2 pl-4">
-                            {weaknessTopics.map(({ topic, comment, youtubeSearchQuery }) => (
-                                <li key={topic} className="bg-gray-900/50 p-3 rounded-md">
-                                    <p className="font-semibold text-text-primary">{topic}</p>
-                                    <p className="text-sm text-text-secondary">{comment}</p>
-                                    <a 
-                                        href={`https://www.youtube.com/results?search_query=${encodeURIComponent(youtubeSearchQuery)}`}
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-2 mt-2 text-sm text-brand-primary hover:text-brand-secondary font-semibold hover:underline"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
-                                        Watch videos on this topic
-                                    </a>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-6 lg:items-start">
+                <div>
+                    <h3 className="font-bold text-correct flex items-center gap-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                        Your Strengths
+                    </h3>
+                    {strengthTopics ? (
+                        strengthTopics.length > 0 ? (
+                            <ul className="max-h-64 overflow-y-auto space-y-2 pl-4 pr-2 animate-fade-in">
+                                {strengthTopics.map(({ topic, comment }) => (
+                                    <li key={topic} className="bg-gray-900/50 p-3 rounded-md">
+                                        <p className="font-semibold text-text-primary">{topic}</p>
+                                        <p className="text-sm text-text-secondary">{comment}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : <p className="text-sm text-text-secondary pl-4">No specific strengths identified yet. Keep practicing!</p>
+                    ) : <SectionLoadingSpinner />}
+                </div>
+
+                <div>
+                    <h3 className="font-bold text-yellow-400 flex items-center gap-2 mb-2">
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-4a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
+                        Areas to Improve
+                    </h3>
+                     {weaknessTopics ? (
+                        weaknessTopics.length > 0 ? (
+                            <ul className="max-h-64 overflow-y-auto space-y-2 pl-4 pr-2 animate-fade-in">
+                                {weaknessTopics.map(({ topic, comment, youtubeSearchQuery }) => (
+                                    <li key={topic} className="bg-gray-900/50 p-3 rounded-md">
+                                        <p className="font-semibold text-text-primary">{topic}</p>
+                                        <p className="text-sm text-text-secondary">{comment}</p>
+                                        <a 
+                                            href={`https://www.youtube.com/results?search_query=${encodeURIComponent(youtubeSearchQuery)}`}
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-sm font-medium text-brand-primary hover:text-teal-400 transition-colors mt-2 inline-flex items-center gap-1.5 group"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                                            </svg>
+                                            <span className="group-hover:underline">Watch videos on this topic</span>
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : <p className="text-sm text-text-secondary pl-4">Great work! No specific weaknesses found in this session.</p>
+                    ) : <SectionLoadingSpinner />}
+                </div>
             </div>
             
-            {narrowPasses.length > 0 && (
-                <div className="mb-6">
-                    <h3 className="font-bold text-orange-400 flex items-center gap-2 mb-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
-                        Close Calls
-                    </h3>
-                    <ul className="space-y-2 pl-4">
-                        {narrowPasses.map(({ topic, questionText, userAnswerText, comment }, index) => (
-                            <li key={index} className="bg-gray-900/50 p-3 rounded-md">
-                                <p className="font-semibold text-text-primary">{topic}</p>
-                                <p className="text-sm text-text-secondary mt-1 truncate" title={questionText}>Q: {questionText}</p>
-                                <p className="text-sm text-text-secondary mt-1">You answered "{userAnswerText}"</p>
-                                <p className="text-sm text-orange-300 mt-1 italic">Coach's note: {comment}</p>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
+            <div className="my-6">
+                <h3 className="font-bold text-orange-400 flex items-center gap-2 mb-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                    Close Calls
+                </h3>
+                {narrowPasses ? (
+                    narrowPasses.length > 0 ? (
+                        <ul className="max-h-64 overflow-y-auto space-y-2 pl-4 pr-2 animate-fade-in">
+                            {narrowPasses.map(({ topic, questionText, userAnswerText, comment }, index) => (
+                                <li key={index} className="bg-gray-900/50 p-3 rounded-md">
+                                    <p className="font-semibold text-text-primary">{topic}</p>
+                                    <p className="text-sm text-text-secondary mt-1 truncate" title={questionText}>Q: {questionText}</p>
+                                    <p className="text-sm text-text-secondary mt-1">You answered "{userAnswerText}"</p>
+                                    <p className="text-sm text-orange-300 mt-1 italic">Coach's note: {comment}</p>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : <p className="text-sm text-text-secondary pl-4">No close calls this time. Answers were decisive!</p>
+                ) : <SectionLoadingSpinner />}
+            </div>
             
              <div className="border-t border-gray-700 pt-4">
-                 <h3 className="font-bold text-brand-primary text-center mb-2">Next Steps</h3>
-                 <p className="text-center text-text-primary mb-6">{recommendation}</p>
-                 
-                 {weaknessTopics.length > 0 && (
-                    <div className="text-center mb-4">
-                        <button
-                            onClick={handleCreateQuizClick}
-                            className="px-8 py-3 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all transform hover:scale-105 animate-pulse-glow"
-                            style={{ animationIterationCount: 3 }}
-                        >
-                            Create Focused Practice Quiz
-                        </button>
+                <h3 className="font-bold text-brand-primary text-center mb-2">Next Steps</h3>
+                {recommendation ? (
+                    <div className="animate-fade-in">
+                        <p className="text-center text-text-primary mb-6">{recommendation}</p>
+                        {weaknessTopics && weaknessTopics.length > 0 && (
+                            <div className="text-center mb-4">
+                                <button
+                                    onClick={handleCreateQuizClick}
+                                    className="px-8 py-3 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all transform hover:scale-105 animate-pulse-glow"
+                                    style={{ animationIterationCount: 3 }}
+                                >
+                                    Create Focused Practice Quiz
+                                </button>
+                            </div>
+                        )}
+                        <p className="text-xs text-text-secondary text-center mt-3">You can also create a new, custom quiz by going back to your study sets.</p>
                     </div>
-                 )}
-
-                 <p className="text-xs text-text-secondary text-center mt-3">You can also create a new, custom quiz by going back to your study sets.</p>
+                ) : <SectionLoadingSpinner />}
              </div>
         </div>
     );
 };
 
 
-const ResultsScreen: React.FC<ResultsScreenProps> = ({ result, onRestart, onReview, isGeneratingFeedback, onStartFocusedQuiz }) => {
-  const { score, accuracy, webSources, feedback } = result;
+const ResultsScreen: React.FC<ResultsScreenProps> = ({ result, onRestart, onReview, feedback, isGeneratingFeedback, onStartFocusedQuiz }) => {
+  const { score, accuracy, webSources } = result;
 
   let feedbackMessage = "";
   let feedbackEmoji = "";
@@ -152,6 +174,16 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ result, onRestart, onRevi
     feedbackMessage = "You've made a start! Keep reviewing and you'll improve.";
     feedbackEmoji = "🌱";
   }
+
+  const handleReviewClick = () => {
+    // Create an updated result object with the latest feedback, which may be streaming in.
+    // This ensures the Review screen gets the complete data.
+    const resultWithLatestFeedback: QuizResult = {
+        ...result,
+        feedback: feedback as PersonalizedFeedback | null,
+    };
+    onReview(resultWithLatestFeedback);
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] text-center animate-fade-in py-8">
@@ -176,7 +208,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ result, onRestart, onRevi
         
         <div className="flex flex-col gap-4">
           <button
-            onClick={() => onReview(result)}
+            onClick={handleReviewClick}
             className="w-full px-8 py-4 bg-brand-secondary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-primary transition-all duration-300 transform hover:scale-105"
           >
             Review Answers
@@ -212,7 +244,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({ result, onRestart, onRevi
         </div>
       )}
 
-      {(isGeneratingFeedback || feedback) && (
+      {(isGeneratingFeedback || (feedback && Object.keys(feedback).length > 0)) && (
         <PersonalizedFeedbackReport 
             feedback={feedback} 
             isGeneratingFeedback={isGeneratingFeedback} 

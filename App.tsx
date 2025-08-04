@@ -1,11 +1,4 @@
 
-
-
-
-
-
-
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion } from './types';
 import { GoogleGenAI, Chat } from '@google/genai';
@@ -22,7 +15,7 @@ import PredictionSetupScreen from './components/PredictionSetupScreen';
 import PredictionResultsScreen from './components/PredictionResultsScreen';
 import StatsScreen from './components/StatsScreen';
 import AnnouncementBanner from './components/common/AnnouncementBanner';
-import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedback } from './services/geminiService';
+import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedbackStreamed } from './services/geminiService';
 import { getStudyChatSystemInstruction, getReviewChatSystemInstruction } from './services/geminiPrompts';
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
@@ -58,7 +51,7 @@ const App: React.FC = () => {
   const [gradingError, setGradingError] = useState<string | null>(null);
   
   // Personalized Feedback State
-  const [feedback, setFeedback] = useState<PersonalizedFeedback | null>(null);
+  const [feedback, setFeedback] = useState<Partial<PersonalizedFeedback> | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
 
   // Migration State
@@ -263,16 +256,23 @@ const App: React.FC = () => {
 
         if (studyMode !== StudyMode.EXAM) {
             setIsGeneratingFeedback(true);
-            setFeedback(null);
+            setFeedback({}); // Initialize as empty object for streaming
+
+            let finalFeedback: PersonalizedFeedback | null = null;
+            const fullHistoryForAnalysis = [initialResult, ...history];
 
             try {
-                const fullHistoryForAnalysis = [initialResult, ...history];
-                const generatedFeedback = await generatePersonalizedFeedback(fullHistoryForAnalysis);
+                await generatePersonalizedFeedbackStreamed(fullHistoryForAnalysis, (partialFeedback) => {
+                    setFeedback(prev => {
+                        const newFeedback = { ...prev, ...partialFeedback };
+                        finalFeedback = newFeedback as PersonalizedFeedback; // Keep track of the complete object
+                        return newFeedback;
+                    });
+                });
                 
-                if (generatedFeedback) {
-                    const finalResult: QuizResult = { ...initialResult, feedback: generatedFeedback };
+                if (finalFeedback) {
+                    const finalResult: QuizResult = { ...initialResult, feedback: finalFeedback };
                     setCurrentResult(finalResult);
-                    setFeedback(generatedFeedback);
                     await updateQuizResult(finalResult);
                 }
             } catch (feedbackError) {
@@ -723,7 +723,7 @@ const App: React.FC = () => {
       
       case AppState.RESULTS:
         if (!currentResult) return null; // This now correctly handles the period before feedback is ready
-        return <ResultsScreen result={currentResult} onRestart={handleRestart} onReview={handleReview} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={(topics) => handleStartFocusedQuiz(topics, currentStudySet)} />;
+        return <ResultsScreen result={currentResult} onRestart={handleRestart} onReview={handleReview} feedback={feedback} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={(topics) => handleStartFocusedQuiz(topics, currentStudySet)} />;
       
       case AppState.REVIEWING:
         if (answerLog.length === 0 || !currentResult) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;

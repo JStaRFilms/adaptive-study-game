@@ -1,8 +1,8 @@
 
 import { GoogleGenAI, GenerateContentResponse, Type, Content } from "@google/genai";
 import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion } from '../types';
-import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, personalizedFeedbackSchema, fibValidationSchema, studyGuideSchema } from './geminiSchemas';
-import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFeedbackSystemInstruction, getFibValidationSystemInstruction, getStudyGuideInstruction } from './geminiPrompts';
+import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, fibValidationSchema, studyGuideSchema, topicAnalysisSchema, narrowPassesSchema, summaryRecommendationSchema } from './geminiSchemas';
+import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFibValidationSystemInstruction, getStudyGuideInstruction, getTopicAnalysisInstruction, getNarrowPassesInstruction, getSummaryRecommendationInstruction } from './geminiPrompts';
 import { ModelIdentifier, modelFor } from './aiConstants';
 import { apiKeyManager } from './apiKeyManager';
 
@@ -112,13 +112,73 @@ export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Pro
       return null;
     }
 
-    const rawQuestions = jsonResponse.questions;
+    const questionsFromAI = jsonResponse.questions;
+    const processedQuestions = [];
+
+    for (let i = 0; i < questionsFromAI.length; i++) {
+      const currentQ = questionsFromAI[i];
+
+      // Attempt to merge split MATCHING questions where prompts come first
+      if (
+        currentQ.questionType === QuestionType.MATCHING &&
+        currentQ.prompts && Array.isArray(currentQ.prompts) &&
+        !currentQ.answers &&
+        i + 1 < questionsFromAI.length
+      ) {
+        const nextQ = questionsFromAI[i + 1];
+        if (
+          nextQ.questionType === QuestionType.MATCHING &&
+          nextQ.answers && Array.isArray(nextQ.answers) &&
+          !nextQ.prompts &&
+          nextQ.conceptId === currentQ.conceptId
+        ) {
+          const mergedQ = {
+            ...currentQ,
+            ...nextQ,
+            prompts: currentQ.prompts,
+            answers: nextQ.answers,
+          };
+          processedQuestions.push(mergedQ);
+          i++; // Skip the next item
+          continue;
+        }
+      }
+
+      // Attempt to merge split MATCHING questions where answers come first
+      if (
+        currentQ.questionType === QuestionType.MATCHING &&
+        currentQ.answers && Array.isArray(currentQ.answers) &&
+        !currentQ.prompts &&
+        i + 1 < questionsFromAI.length
+      ) {
+        const nextQ = questionsFromAI[i + 1];
+        if (
+          nextQ.questionType === QuestionType.MATCHING &&
+          nextQ.prompts && Array.isArray(nextQ.prompts) &&
+          !nextQ.answers &&
+          nextQ.conceptId === currentQ.conceptId
+        ) {
+          const mergedQ = {
+            ...currentQ,
+            ...nextQ,
+            answers: currentQ.answers,
+            prompts: nextQ.prompts,
+          };
+          processedQuestions.push(mergedQ);
+          i++; // Skip the next item
+          continue;
+        }
+      }
+      
+      processedQuestions.push(currentQ);
+    }
+
     const validQuestions: Question[] = [];
     const webSources: WebSource[] | undefined = response.candidates?.[0]?.groundingMetadata?.groundingChunks
         ?.map((chunk: any) => chunk.web)
         .filter((web: any) => web?.uri);
 
-    for (const q of rawQuestions) {
+    for (const q of processedQuestions) {
       if (!q.questionType || !q.questionText || !q.explanation || !q.conceptId) {
         console.warn("Skipping invalid question from AI (missing required fields):", q);
         continue;
@@ -214,7 +274,7 @@ export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Pro
       }
     }
 
-    if (validQuestions.length === 0 && rawQuestions.length > 0) {
+    if (validQuestions.length === 0 && processedQuestions.length > 0) {
         throw new Error("The AI responded, but none of the generated questions were valid.");
     }
 
@@ -363,10 +423,60 @@ const userAnswerToString = (log: AnswerLog): string => {
     return JSON.stringify(userAnswer);
 };
 
+// --- Sub-functions for streaming feedback ---
 
-export const generatePersonalizedFeedback = async (history: QuizResult[]): Promise<PersonalizedFeedback | null> => {
-    if (!history || history.length === 0) return null;
+const generateTopicAnalysis = async (historyForPrompt: string): Promise<Pick<PersonalizedFeedback, 'strengthTopics' | 'weaknessTopics'> | null> => {
     const modelIdentifier = 'feedbackGeneration';
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
+        model,
+        contents: { parts: [{ text: "Analyze the history and provide strength and weakness topics."}] },
+        config: {
+            systemInstruction: getTopicAnalysisInstruction(historyForPrompt),
+            responseMimeType: "application/json",
+            responseSchema: topicAnalysisSchema
+        }
+    });
+    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+    return parseJsonResponse(response.text);
+}
+
+const generateNarrowPasses = async (latestResultForPrompt: string): Promise<Pick<PersonalizedFeedback, 'narrowPasses'> | null> => {
+    const modelIdentifier = 'feedbackGeneration';
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
+        model,
+        contents: { parts: [{ text: "Analyze the latest quiz result for narrow passes."}] },
+        config: {
+            systemInstruction: getNarrowPassesInstruction(latestResultForPrompt),
+            responseMimeType: "application/json",
+            responseSchema: narrowPassesSchema
+        }
+    });
+    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+    return parseJsonResponse(response.text);
+}
+
+const generateSummaryAndRecommendation = async (topicAnalysisResult: Pick<PersonalizedFeedback, 'strengthTopics' | 'weaknessTopics'>): Promise<Pick<PersonalizedFeedback, 'overallSummary' | 'recommendation'> | null> => {
+    const modelIdentifier = 'feedbackGeneration';
+    const topicAnalysisString = JSON.stringify(topicAnalysisResult);
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
+        model,
+        contents: { parts: [{ text: "Generate the summary and recommendation based on the provided analysis."}] },
+        config: {
+            systemInstruction: getSummaryRecommendationInstruction(topicAnalysisString),
+            responseMimeType: "application/json",
+            responseSchema: summaryRecommendationSchema
+        }
+    });
+    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+    return parseJsonResponse(response.text);
+}
+
+export const generatePersonalizedFeedbackStreamed = async (
+    history: QuizResult[],
+    onUpdate: (partialFeedback: Partial<PersonalizedFeedback>) => void
+): Promise<void> => {
+    if (!history || history.length === 0) return;
+
     const historyForPrompt = JSON.stringify(history.map(r => ({
         quizDate: r.date,
         answerLog: r.answerLog.map(l => ({
@@ -381,18 +491,30 @@ export const generatePersonalizedFeedback = async (history: QuizResult[]): Promi
         }))
     })));
 
-    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
-        model,
-        contents: { parts: [{ text: "Generate feedback based on the history in the system instruction."}] },
-        config: {
-            systemInstruction: getFeedbackSystemInstruction(historyForPrompt),
-            responseMimeType: "application/json",
-            responseSchema: personalizedFeedbackSchema
-        }
+    const latestResultForPrompt = JSON.stringify(history[0]);
+    
+    // Fire off parallel tasks and update UI as they complete
+    const topicAnalysisPromise = generateTopicAnalysis(historyForPrompt).then(res => {
+        if (res) onUpdate(res);
+        return res; // Pass result to the sequential task
+    });
+    
+    const narrowPassesPromise = generateNarrowPasses(latestResultForPrompt).then(res => {
+        if (res) onUpdate(res);
     });
 
-    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
-    return parseJsonResponse(response.text);
+    // When topic analysis is done, fire off the sequential summary task
+    const summaryPromise = topicAnalysisPromise.then(topicAnalysisResult => {
+        if (topicAnalysisResult) {
+            return generateSummaryAndRecommendation(topicAnalysisResult).then(res => {
+                if (res) onUpdate(res);
+            });
+        }
+        return Promise.resolve();
+    });
+
+    // Wait for all streams to finish
+    await Promise.all([narrowPassesPromise, summaryPromise]);
 };
 
 export const validateFillInTheBlankAnswer = async (questionText: string, correctAnswer: string, userAnswer: string): Promise<FibValidationResult> => {

@@ -1,6 +1,4 @@
 
-
-
 import { Type } from "@google/genai";
 
 export const questionSchema = {
@@ -187,6 +185,51 @@ export const studyGuideSchema = {
     required: ["answerOutline", "youtubeSearchQueries"]
 };
 
+// --- Feedback Schemas (Original and Deconstructed) ---
+
+const strengthTopicsProperty = {
+    type: Type.ARRAY,
+    description: "A list of topics where the user performed well (e.g., >75% accuracy) across all quizzes for this subject. If none, this can be empty.",
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            topic: { type: Type.STRING, description: "The name of the topic." },
+            comment: { type: Type.STRING, description: "A brief, encouraging comment about their performance on this topic."}
+        },
+        required: ["topic", "comment"]
+    }
+};
+
+const weaknessTopicsProperty = {
+    type: Type.ARRAY,
+    description: "A list of topics where the user struggled (e.g., <=50% accuracy) across all quizzes. If none, this can be empty.",
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            topic: { type: Type.STRING, description: "The name of the topic." },
+            comment: { type: Type.STRING, description: "A brief comment explaining why this is a weakness (e.g., 'You missed several questions about this across multiple sessions')."},
+            suggestedQuestionCount: { type: Type.INTEGER, description: "A suggested number of questions (e.g., 5 or 10) for a focused practice quiz on this topic." },
+            youtubeSearchQuery: { type: Type.STRING, description: "A concise, effective search query for finding educational YouTube videos about this topic (e.g., 'introduction to cellular respiration' or 'photosynthesis explained for beginners')." }
+        },
+        required: ["topic", "comment", "suggestedQuestionCount", "youtubeSearchQuery"]
+    }
+};
+
+const narrowPassesProperty = {
+    type: Type.ARRAY,
+    description: "A list of specific questions FROM THE MOST RECENT QUIZ where the user was partially correct or their answer was accepted but not ideal (e.g., partial points awarded, or AI feedback provided on a correct answer). Do not include items from past quizzes. This is for reviewing shaky knowledge from the last session.",
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            topic: { type: Type.STRING, description: "The topic of the question." },
+            questionText: { type: Type.STRING, description: "The text of the question they narrowly passed." },
+            userAnswerText: { type: Type.STRING, description: "The answer the user provided." },
+            comment: { type: Type.STRING, description: "The AI's original feedback comment on why it was a narrow pass." }
+        },
+        required: ["topic", "questionText", "userAnswerText", "comment"]
+    }
+};
+
 export const personalizedFeedbackSchema = {
     type: Type.OBJECT,
     properties: {
@@ -194,46 +237,9 @@ export const personalizedFeedbackSchema = {
             type: Type.STRING,
             description: "A friendly, one-sentence summary of the user's performance based on their entire history for this subject."
         },
-        strengthTopics: {
-            type: Type.ARRAY,
-            description: "A list of topics where the user performed well (e.g., >75% accuracy) across all quizzes for this subject. If none, this can be empty.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    topic: { type: Type.STRING, description: "The name of the topic." },
-                    comment: { type: Type.STRING, description: "A brief, encouraging comment about their performance on this topic."}
-                },
-                required: ["topic", "comment"]
-            }
-        },
-        weaknessTopics: {
-            type: Type.ARRAY,
-            description: "A list of topics where the user struggled (e.g., <=50% accuracy) across all quizzes. If none, this can be empty.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    topic: { type: Type.STRING, description: "The name of the topic." },
-                    comment: { type: Type.STRING, description: "A brief comment explaining why this is a weakness (e.g., 'You missed several questions about this across multiple sessions')."},
-                    suggestedQuestionCount: { type: Type.INTEGER, description: "A suggested number of questions (e.g., 5 or 10) for a focused practice quiz on this topic." },
-                    youtubeSearchQuery: { type: Type.STRING, description: "A concise, effective search query for finding educational YouTube videos about this topic (e.g., 'introduction to cellular respiration' or 'photosynthesis explained for beginners')." }
-                },
-                required: ["topic", "comment", "suggestedQuestionCount", "youtubeSearchQuery"]
-            }
-        },
-        narrowPasses: {
-            type: Type.ARRAY,
-            description: "A list of specific questions FROM THE MOST RECENT QUIZ where the user was partially correct or their answer was accepted but not ideal (e.g., partial points awarded, or AI feedback provided on a correct answer). Do not include items from past quizzes. This is for reviewing shaky knowledge from the last session.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    topic: { type: Type.STRING, description: "The topic of the question." },
-                    questionText: { type: Type.STRING, description: "The text of the question they narrowly passed." },
-                    userAnswerText: { type: Type.STRING, description: "The answer the user provided." },
-                    comment: { type: Type.STRING, description: "The AI's original feedback comment on why it was a narrow pass." }
-                },
-                required: ["topic", "questionText", "userAnswerText", "comment"]
-            }
-        },
+        strengthTopics: strengthTopicsProperty,
+        weaknessTopics: weaknessTopicsProperty,
+        narrowPasses: narrowPassesProperty,
         recommendation: {
             type: Type.STRING,
             description: "A final, actionable recommendation for the user. If there are weaknesses, suggest they create a new custom quiz focusing on those topics."
@@ -241,6 +247,39 @@ export const personalizedFeedbackSchema = {
     },
     required: ["overallSummary", "strengthTopics", "weaknessTopics", "narrowPasses", "recommendation"]
 };
+
+export const topicAnalysisSchema = {
+    type: Type.OBJECT,
+    properties: {
+        strengthTopics: strengthTopicsProperty,
+        weaknessTopics: weaknessTopicsProperty,
+    },
+    required: ["strengthTopics", "weaknessTopics"],
+};
+
+export const narrowPassesSchema = {
+    type: Type.OBJECT,
+    properties: {
+        narrowPasses: narrowPassesProperty,
+    },
+    required: ["narrowPasses"],
+};
+
+export const summaryRecommendationSchema = {
+    type: Type.OBJECT,
+    properties: {
+        overallSummary: {
+            type: Type.STRING,
+            description: "A friendly, one-sentence summary of the user's performance based on the provided analysis of their strengths and weaknesses."
+        },
+        recommendation: {
+            type: Type.STRING,
+            description: "A final, actionable recommendation for the user, based on the provided analysis."
+        }
+    },
+    required: ["overallSummary", "recommendation"],
+};
+
 
 export const fibValidationSchema = {
     type: Type.OBJECT,

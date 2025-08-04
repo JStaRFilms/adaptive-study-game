@@ -186,34 +186,53 @@ Based on this, you must generate two things:
 Your response MUST be a JSON object matching the required schema.`;
 };
 
-export const getFeedbackSystemInstruction = (historyForPrompt: string): string => {
-    return `You are a friendly and insightful study coach. Your goal is to provide personalized, actionable feedback to a student based on their quiz history for a particular subject.
+export const getTopicAnalysisInstruction = (historyForPrompt: string): string => {
+    return `You are a friendly and insightful study coach. Your goal is to analyze a student's quiz history to identify their strengths and weaknesses.
 
-Analyze the provided quiz data, which is a JSON array of answer logs from MULTIPLE quiz sessions. Each log entry includes a \`quizDate\` and a \`userAnswerText\` field that shows *what* the user submitted. The most recent quiz is the one with the latest \`quizDate\`.
+Analyze the provided quiz data, which is a JSON array of answer logs from MULTIPLE quiz sessions.
 
 **CRITICAL RULES:**
-- A \`confidence\` property (1=Guessing, 2=Unsure, 3=Confident, 0=N/A) may be present on answer log entries. **Use this as a key signal.** A correct answer with low confidence (e.g., confidence: 1) is a major indicator of fragile knowledge and **should be treated as a weakness topic**, even if the user got it right. Conversely, an incorrect answer with high confidence (e.g., confidence: 3) indicates a deep misconception that needs to be addressed.
-- The \`userAnswerText\` field is crucial. For partially correct answers, use this text to explain what part of their answer was good and what was missing.
-- If a user struggled with a topic in the past but answered ALL questions on that same topic correctly (i.e., received maximum points) in their MOST RECENT session with HIGH confidence (confidence: 3), do NOT list it as a weakness. Acknowledge their improvement instead.
-- A "close call" (\`narrowPasses\`) should only be reported if it happened in the most recent quiz session. Use the \`userAnswerText\` to populate the \`userAnswerText\` field in your response for these close calls.
+- A \`confidence\` property (1=Guessing, 2=Unsure, 3=Confident, 0=N/A) is a key signal. A correct answer with low confidence (e.g., confidence: 1) indicates fragile knowledge and **should be treated as a weakness topic**. An incorrect answer with high confidence (e.g., confidence: 3) indicates a deep misconception.
+- Look for patterns over time. If a user struggled with a topic in the past but answered ALL questions on that same topic correctly in their MOST RECENT session with HIGH confidence (confidence: 3), do NOT list it as a weakness. Acknowledge their improvement by listing it as a strength.
 
-Look for patterns over time.
+Based on your analysis, you MUST generate a response in the specified JSON format. Your response should contain:
+1.  **strengthTopics:** A list of topics where the user has consistently done well (high accuracy with high confidence).
+2.  **weaknessTopics:** A list of topics where the user has consistently struggled (low accuracy) OR shown low confidence despite being correct. For each weak topic, you must:
+    a. Provide a comment explaining why this is a weakness.
+    b. Suggest a number of questions for a follow-up quiz.
+    c. Generate a concise 'youtubeSearchQuery'.
 
-Based on your analysis, you MUST generate a response in the specified JSON format. Your feedback should:
-1.  **Summarize Performance:** Start with a brief, encouraging overall summary of their performance on this subject across all sessions, noting recent improvements.
-2.  **Identify Strengths:** Pinpoint topics where the user has consistently done well (high accuracy with high confidence).
-3.  **Identify Weaknesses:** Pinpoint topics where the user has consistently struggled (low accuracy) OR shown low confidence despite being correct. For each weak topic, you must:
-    a. Provide a comment explaining why this is a weakness based on their history.
-    b. Suggest a reasonable number of questions for a follow-up quiz.
-    c. Generate a concise, effective 'youtubeSearchQuery' to help them find educational videos.
-4.  **Identify "Narrow Passes":** Scrutinize the answer log for questions FROM THE MOST RECENT QUIZ where the user was awarded partial points or where \`aiFeedback\` exists. These are "close calls." You must use the provided \`userAnswerText\` from the input to fill the \`userAnswerText\` in the output.
-5.  **Provide Actionable Advice:** Give a clear, concise recommendation for the user's next step.
-
-Here is the user's performance data, which is provided in the system instruction:
+Here is the user's performance data:
 ${historyForPrompt}
 
-Now, generate the feedback based on this data, adhering strictly to the JSON schema. The user prompt will be a simple trigger to start.
-`;
+Now, generate the analysis, adhering strictly to the JSON schema.`;
+};
+
+export const getNarrowPassesInstruction = (latestResultForPrompt: string): string => {
+    return `You are a focused AI grading assistant. Your task is to analyze the results from a single, recent quiz to identify "narrow passes" or "close calls".
+
+**CRITICAL RULES:**
+- Only analyze the single quiz result provided.
+- Look for questions where the user was awarded partial points OR where \`aiFeedback\` exists, indicating a comment was made on their answer.
+- You MUST use the provided \`userAnswerText\` from the input to fill the \`userAnswerText\` field in the output for these close calls.
+
+Here is the user's most recent quiz result:
+${latestResultForPrompt}
+
+Now, generate a response containing only the 'narrowPasses' based on this data, adhering strictly to the JSON schema. If there are no narrow passes, return an empty array.`;
+};
+
+export const getSummaryRecommendationInstruction = (topicAnalysisString: string): string => {
+    return `You are a friendly and insightful study coach. You have been provided with an AI's analysis of a student's strengths and weaknesses.
+
+Your task is to:
+1.  Write a friendly, one-sentence **overallSummary** of their performance based on the analysis.
+2.  Write a final, actionable **recommendation** for the user. If there are weaknesses, suggest they create a new custom quiz focusing on those topics.
+
+Here is the topic analysis:
+${topicAnalysisString}
+
+Now, generate the summary and recommendation, adhering strictly to the JSON schema.`;
 };
 
 export const getFibValidationSystemInstruction = (questionText: string, correctAnswer: string, userAnswer: string): string => {
@@ -258,7 +277,7 @@ export const getStudyChatSystemInstruction = (studySet: StudySet, quiz: Quiz): s
 The user's message will be prefixed with context about the specific question they are currently viewing, including what they answered and whether it was correct. Use all of this context to give the best possible, tailored explanation or hint. If they got it wrong and are asking why, explain their specific mistake based on the answer they provided. Do not give the final answer away directly if they are asking for a hint. Answer concisely.`;
 };
 
-export const getReviewChatSystemInstruction = (studySet: StudySet, result: QuizResult, feedback: PersonalizedFeedback | null): string => {
+export const getReviewChatSystemInstruction = (studySet: StudySet, result: QuizResult, feedback: Partial<PersonalizedFeedback> | null): string => {
     const answerLogSummary = result.answerLog.map((log, i) => {
         let userAnswerText = 'SKIPPED';
         if (log.userAnswer && log.userAnswer !== 'SKIPPED') {
@@ -290,7 +309,7 @@ export const getReviewChatSystemInstruction = (studySet: StudySet, result: QuizR
     if (feedback) {
         const strengthTopics = feedback.strengthTopics?.map(t => t.topic).join(', ') || 'None identified';
         const weaknessTopics = feedback.weaknessTopics?.map(t => t.topic).join(', ') || 'None identified';
-        feedbackSummary = `An AI Coach has already analyzed this session and provided the following feedback:\n- Overall: ${feedback.overallSummary}\n- Strengths: ${strengthTopics}\n- Weaknesses: ${weaknessTopics}`;
+        feedbackSummary = `An AI Coach has already analyzed this session and provided the following feedback:\n- Overall: ${feedback.overallSummary || 'Analysis in progress...'}\n- Strengths: ${strengthTopics}\n- Weaknesses: ${weaknessTopics}`;
     }
 
     return `You are an expert AI Study Coach reviewing a past quiz with a student. Your tone should be supportive, insightful, and encouraging. You have been provided with summaries of the study materials and the student's performance. Use this context to help them.
