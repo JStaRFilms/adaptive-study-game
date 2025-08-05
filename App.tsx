@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion } from './types';
 import { GoogleGenAI, Chat } from '@google/genai';
@@ -327,10 +328,22 @@ const App: React.FC = () => {
     }
   }, [submissionForRetry, handleFinishExam]);
 
+  const saveReviewChatIfDirty = useCallback(async () => {
+    if (appState === AppState.REVIEWING && currentResult) {
+        const cleanedChatHistory = chatMessages.map(({ action, ...rest }) => rest);
+        // Only update if there's a change to prevent unnecessary writes
+        if (JSON.stringify(cleanedChatHistory) !== JSON.stringify(currentResult.chatHistory || [])) {
+             const updatedResult = { ...currentResult, chatHistory: cleanedChatHistory };
+             await updateQuizResult(updatedResult);
+        }
+    }
+  }, [appState, currentResult, chatMessages, updateQuizResult]);
+
   const handleStartFocusedQuiz = useCallback(async (
     weaknessTopics: PersonalizedFeedback['weaknessTopics'], 
     studySetForQuiz: StudySet | null
   ) => {
+    await saveReviewChatIfDirty();
     setIsChatOpen(false);
     if (!studySetForQuiz) {
         console.error("handleStartFocusedQuiz called without a study set.");
@@ -350,7 +363,7 @@ const App: React.FC = () => {
     };
     
     await handleStartStudy(parts, config, studySetForQuiz.id);
-  }, [handleStartStudy]);
+  }, [handleStartStudy, saveReviewChatIfDirty]);
 
   const handleReview = useCallback(async (resultToReview: QuizResult) => {
     const reviewSet = studySets.find(s => s.id === resultToReview.studySetId) || null;
@@ -425,16 +438,8 @@ const App: React.FC = () => {
     setAppState(AppState.REVIEWING);
   }, [studySets, handleStartFocusedQuiz]);
 
-  const handleRestart = useCallback(() => {
-    // Before resetting, check if we're leaving a review session and need to save chat.
-    if (appState === AppState.REVIEWING && currentResult) {
-        const cleanedChatHistory = chatMessages.map(({ action, ...rest }) => rest);
-        // Only update if there's a change to prevent unnecessary writes
-        if (JSON.stringify(cleanedChatHistory) !== JSON.stringify(currentResult.chatHistory || [])) {
-             const updatedResult = { ...currentResult, chatHistory: cleanedChatHistory };
-             updateQuizResult(updatedResult);
-        }
-    }
+  const handleRestart = useCallback(async () => {
+    await saveReviewChatIfDirty();
 
     setAppState(AppState.SETUP);
     setQuiz(null);
@@ -450,7 +455,7 @@ const App: React.FC = () => {
     setIsChatOpen(false);
     setIsAITyping(false);
     setChatError(null);
-  }, [appState, currentResult, chatMessages, updateQuizResult]);
+  }, [saveReviewChatIfDirty]);
   
   const handlePredict = useCallback((studySetId: string) => {
     const set = studySets.find(s => s.id === studySetId) || null;
@@ -495,6 +500,7 @@ const App: React.FC = () => {
     studySetForQuiz: StudySet | null, 
     numQuestions?: number
 ) => {
+    await saveReviewChatIfDirty();
     setIsChatOpen(false);
     if (!studySetForQuiz) {
       console.error("handleStartCustomQuiz called without a study set.");
@@ -514,13 +520,14 @@ const App: React.FC = () => {
     };
     
     await handleStartStudy(parts, config, studySetForQuiz.id);
-  }, [handleStartStudy]);
+  }, [handleStartStudy, saveReviewChatIfDirty]);
 
-  const handleRetakeQuiz = useCallback(() => {
+  const handleRetakeQuiz = useCallback(async () => {
+      await saveReviewChatIfDirty();
       setAppState(AppState.STUDYING);
       setAnswerLog([]);
       setFeedback(null);
-  }, []);
+  }, [saveReviewChatIfDirty]);
   
   const handleShowStats = useCallback(() => {
     setAppState(AppState.STATS);
