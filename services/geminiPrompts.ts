@@ -149,38 +149,34 @@ Your task is to generate sub-concepts for a given parent concept.
 
 export const getReadingLayoutReflowSystemInstruction = (currentLayout: ReadingLayout, blockIdToExpand: string, color?: string): string => {
     const layoutJson = JSON.stringify(currentLayout);
-    
-    let colorInstruction = "The parent block and new sub-concept blocks will be visually grouped. ";
-    if (color) {
-        colorInstruction += `They should all share the color "${color}". Assign this color hex code to the 'color' property of the expanded parent block and all new sub-concept blocks.`;
-    } else {
-        colorInstruction += "The parent block did not have a specific color, so the new sub-concept blocks should also not have a color."
-    }
-    
-    return `You are an expert information architect. Your task is to reflow an existing grid layout to accommodate an expanded concept, following a strict design system.
+
+    // Constants from the client-side logic in ReadingCanvas.tsx
+    const PARENT_EXPANSION_HEIGHT = 2;
+    const SUB_CONCEPT_COUNT = 3;
+    const SUB_CONCEPT_ROW_HEIGHT = 2;
+    const REQUIRED_EMPTY_SPACE_HEIGHT = SUB_CONCEPT_COUNT * SUB_CONCEPT_ROW_HEIGHT; // e.g., 6 rows
+
+    return `You are a specialist AI UI Layout Architect. Your task is to reflow an existing grid layout to make a specific amount of empty space. You do NOT generate content. Your ONLY job is to calculate new coordinates for existing elements.
 
 **Current State:**
 - The grid is 24 columns wide.
 - The user is expanding the block with ID: "${blockIdToExpand}".
-- The full current layout is provided here: ${layoutJson}
+- A parallel AI process is generating ${SUB_CONCEPT_COUNT} new sub-concept blocks.
+- The full current layout of all existing blocks is provided here: ${layoutJson}
+
+**Your Mission:**
+1.  **Identify Target Block:** Find the block with ID "${blockIdToExpand}" in the provided layout.
+2.  **Expand Target Block:** Modify the target block's coordinates to increase its height by **${PARENT_EXPANSION_HEIGHT} rows**. Its new \`gridRowEnd\` should be its original \`gridRowEnd\` + ${PARENT_EXPANSION_HEIGHT}.
+3.  **Create Empty Space:** Reflow all other blocks on the grid to create a perfectly clear, empty rectangular space directly below the newly expanded target block. This empty space MUST be exactly **${REQUIRED_EMPTY_SPACE_HEIGHT} rows high** and span the same columns as the target block. This space is for the new sub-concepts that are being generated elsewhere.
+4.  **Maintain Integrity:** ALL original blocks from the input JSON must be present in your output, just with new coordinates. DO NOT add, remove, or modify any blocks besides their coordinates and color. DO NOT change any titles or summaries.
+5.  **Assign Color:** If a color is provided, assign it to the 'color' property of the expanded block (ID: "${blockIdToExpand}"). The provided color is: ${color || 'none'}.
 
 **Design System Rules for the NEW Layout (MANDATORY):**
-1.  **Valid Block Widths:** All blocks in the final layout MUST have a width that is one of the following values: 6, 8, 12, or 24 columns.
-2.  **Valid Row Compositions:** Each row of the grid MUST be filled using one of these combinations: one 24-col, two 12-col, three 8-col, or four 6-col blocks.
-3.  **No Gaps:** The final layout must be a perfect, compact rectangle with NO horizontal or vertical gaps between blocks.
-4.  **Content-Aware Row Spans (Heuristic):** Use summary length to guide block height (1-3 rows). Prioritize grid compactness over showing all text.
+1.  **Valid Block Widths:** All blocks MUST have a width that is one of these values: 6, 8, 12, or 24.
+2.  **Valid Row Compositions:** Each row MUST be filled using one of these combinations: one 24-col, two 12-col, three 8-col, or four 6-col blocks.
+3.  **No Gaps:** The final layout must be a perfect, compact rectangle. The ONLY empty space allowed is the one you were instructed to create below the expanded block.
 
-**Your Task (in order):**
-1.  **Identify Parent Block:** Find the block with ID "${blockIdToExpand}".
-2.  **Generate Sub-Concepts:** Create 2-4 new, smaller "sub-concept" blocks that elaborate on the parent's topic. Each new block needs a unique \`id\`, a \`title\`, a brief \`summary\`, and its \`parentId\` must be "${blockIdToExpand}".
-3.  **Design the New Layout:** Create a completely new, compact grid layout that incorporates the original parent block (now larger), the new sub-concepts, and all other original blocks.
-    - The expanded parent block should be given more prominence (e.g., increase its row span).
-    - The new sub-concepts should be placed logically near the parent, often directly below it.
-    - All other blocks must be reflowed around this new content.
-    - The ENTIRE final arrangement MUST strictly follow the Design System Rules.
-4.  **Handle Coloring:** ${colorInstruction}
-
-**CRITICAL:** Your response MUST be a JSON object containing a single "blocks" key. This key's value must be an array containing ALL of the original blocks (with their new coordinates) AND all the new sub-concept blocks you created, arranged according to the design system. Every block must be present. No other text is allowed.
+**CRITICAL:** Your response MUST be a JSON object containing a single "blocks" key. This key's value must be an array containing ALL of the original blocks, each with its new, calculated grid coordinates. DO NOT invent new blocks.
 `;
 };
 

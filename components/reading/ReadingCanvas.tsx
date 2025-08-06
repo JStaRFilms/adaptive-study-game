@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { StudySet, ReadingLayout, ReadingBlock as ReadingBlockType } from '../../types';
 import ReadingBlock from './ReadingBlock';
@@ -25,61 +23,49 @@ const getNextColor = () => {
   return color;
 };
 
-const PROVISIONAL_EXPAND_HEIGHT = 2;
-const NUM_PLACEHOLDERS = 3;
-const PLACEHOLDER_HEIGHT = 2;
+const PARENT_EXPANSION_HEIGHT = 2;
+const SUB_CONCEPT_HEIGHT = 2;
 
-const createProvisionalLayout = (baseLayout: ReadingLayout, blockId: string): ReadingLayout => {
-    const blockToExpand = baseLayout.blocks.find(b => b.id === blockId);
-    if (!blockToExpand) return baseLayout;
-
+// Helper for creating the optimistic UI with placeholders
+const createProvisionalLayout = (baseLayout: ReadingLayout, parentBlock: ReadingBlockType): ReadingLayout => {
+    const totalAddedHeight = PARENT_EXPANSION_HEIGHT + (3 * SUB_CONCEPT_HEIGHT); // Assume 3 placeholders
+    
     const newBlocks: ReadingBlockType[] = [];
-    let maxRow = baseLayout.rows;
-    
-    const addedHeight = PROVISIONAL_EXPAND_HEIGHT + PLACEHOLDER_HEIGHT;
 
-    const expandedBlock = {
-        ...blockToExpand,
-        gridRowEnd: blockToExpand.gridRowEnd + PROVISIONAL_EXPAND_HEIGHT,
+    // Add the expanded parent
+    const expandedParent = {
+        ...parentBlock,
+        gridRowEnd: parentBlock.gridRowEnd + PARENT_EXPANSION_HEIGHT,
     };
-    newBlocks.push(expandedBlock);
+    newBlocks.push(expandedParent);
     
-    const totalWidth = blockToExpand.gridColumnEnd - blockToExpand.gridColumnStart;
-    const PLACEHOLDER_WIDTH = Math.max(3, Math.floor(totalWidth / NUM_PLACEHOLDERS));
-
-
-    for (let i = 0; i < NUM_PLACEHOLDERS; i++) {
-        const startCol = blockToExpand.gridColumnStart + (i * PLACEHOLDER_WIDTH);
-        // Ensure the last placeholder fills the remaining width
-        const endCol = i === NUM_PLACEHOLDERS - 1 ? blockToExpand.gridColumnEnd : startCol + PLACEHOLDER_WIDTH;
+    // Add placeholder sub-concepts
+    for (let i = 0; i < 3; i++) {
         newBlocks.push({
-            id: `placeholder-${i}`,
-            title: '', summary: '', isPlaceholder: true,
-            gridColumnStart: startCol,
-            gridColumnEnd: endCol,
-            gridRowStart: expandedBlock.gridRowEnd,
-            gridRowEnd: expandedBlock.gridRowEnd + PLACEHOLDER_HEIGHT,
+            id: `placeholder-${i}`, title: '', summary: '', isPlaceholder: true, parentId: parentBlock.id,
+            gridColumnStart: parentBlock.gridColumnStart, gridColumnEnd: parentBlock.gridColumnEnd,
+            gridRowStart: parentBlock.gridRowEnd + PARENT_EXPANSION_HEIGHT + (i * SUB_CONCEPT_HEIGHT),
+            gridRowEnd: parentBlock.gridRowEnd + PARENT_EXPANSION_HEIGHT + ((i + 1) * SUB_CONCEPT_HEIGHT),
         });
     }
 
-    // Shift other blocks down
+    // Shift all other blocks down
     baseLayout.blocks.forEach(block => {
-        if (block.id === blockId) return;
+        if (block.id === parentBlock.id || block.parentId === parentBlock.id) return;
 
-        // If a block is completely below the area being expanded
-        if (block.gridRowStart >= blockToExpand.gridRowEnd) {
+        if (block.gridRowStart >= parentBlock.gridRowEnd) {
             newBlocks.push({
                 ...block,
-                gridRowStart: block.gridRowStart + addedHeight,
-                gridRowEnd: block.gridRowEnd + addedHeight,
+                gridRowStart: block.gridRowStart + totalAddedHeight,
+                gridRowEnd: block.gridRowEnd + totalAddedHeight,
             });
-            maxRow = Math.max(maxRow, block.gridRowEnd + addedHeight);
         } else {
             newBlocks.push(block);
         }
     });
-
-    return { ...baseLayout, blocks: newBlocks, rows: baseLayout.rows + addedHeight };
+    
+    const finalRows = Math.max(...newBlocks.map(b => b.gridRowEnd), baseLayout.rows) + totalAddedHeight;
+    return { ...baseLayout, blocks: newBlocks, rows: finalRows };
 };
 
 
@@ -91,7 +77,6 @@ interface ReadingCanvasProps {
 }
 
 const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack, onRegenerate, updateSet }) => {
-  const [layoutBeforeExpansion, setLayoutBeforeExpansion] = useState<ReadingLayout | null>(studySet.readingLayout);
   const [currentLayout, setCurrentLayout] = useState<ReadingLayout | null>(studySet.readingLayout);
   const [expandedBlockId, setExpandedBlockId] = useState<string | null>(null);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
@@ -99,10 +84,12 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack, onRegen
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // If the study set changes (e.g., after regeneration), update the canvas state
-    setLayoutBeforeExpansion(studySet.readingLayout);
     setCurrentLayout(studySet.readingLayout);
-    setExpandedBlockId(null);
+    // Find if any block is expanded in the current layout to set the expandedBlockId
+    const expandedParent = studySet.readingLayout?.blocks.find(b => 
+        studySet.readingLayout?.blocks.some(sub => sub.parentId === b.id)
+    );
+    setExpandedBlockId(expandedParent?.id || null);
     setIsLoadingAI(false);
     setError(null);
   }, [studySet]);
@@ -112,93 +99,123 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack, onRegen
     setError(null);
     setExpandedBlockId(blockId);
 
-    // Store the layout state right before this expansion starts
-    setLayoutBeforeExpansion(currentLayout);
+    const parentBlock = currentLayout.blocks.find(b => b.id === blockId);
+    if (!parentBlock) return;
     
-    // Stage 1: Optimistic update
-    const provisionalLayout = createProvisionalLayout(currentLayout, blockId);
-    setCurrentLayout(provisionalLayout);
-    setIsLoadingAI(true);
-    
-    // Stage 2: Parallel AI Pipeline
-    try {
-        const parentBlock = currentLayout.blocks.find(b => b.id === blockId);
-        if (!parentBlock) throw new Error("Parent block not found for expansion.");
+    const cachedData = studySet.subConceptCache?.[blockId];
 
-        let expansionColor = parentBlock.color;
-        if (!expansionColor && !parentBlock.parentId) {
-            expansionColor = getNextColor();
-        }
+    if (cachedData) {
+        // --- CACHED RE-EXPANSION (INSTANT) ---
+        setCurrentLayout(cachedData.expandedLayout);
+        await updateSet({ ...studySet, readingLayout: cachedData.expandedLayout });
+        return;
+    }
+
+    // --- AI-POWERED FIRST-TIME EXPANSION ---
+    setIsLoadingAI(true);
+    const layoutBeforeExpansion = currentLayout; // Snapshot
+    
+    // Optimistic UI update for AI expansion
+    const provisionalLayout = createProvisionalLayout(currentLayout, parentBlock);
+    setCurrentLayout(provisionalLayout);
+    
+    try {
+        let expansionColor = parentBlock.color || (!parentBlock.parentId ? getNextColor() : undefined);
         
-        // Fire both API calls simultaneously
         const [subConcepts, reflowedOldBlocks] = await Promise.all([
             generateSubConcepts(parentBlock),
-            reflowLayoutForExpansion(currentLayout, blockId, expansionColor)
+            reflowLayoutForExpansion(layoutBeforeExpansion, blockId, expansionColor)
         ]);
 
-        // Stage 3: Stitch results on the client
         const expandedParent = reflowedOldBlocks.find(b => b.id === blockId);
         if (!expandedParent) throw new Error("Expanded parent block is missing from AI layout response.");
 
-        // Add color to the expanded parent if it was newly assigned
-        if (expansionColor) {
-            expandedParent.color = expansionColor;
-        }
+        if (expansionColor) expandedParent.color = expansionColor;
 
-        const newSubBlocks: ReadingBlockType[] = [];
+        const newSubBlocks: ReadingBlockType[] = subConcepts.map((sc, index) => ({
+            ...sc,
+            id: `${blockId}-sub-${index}`, parentId: blockId, color: expansionColor,
+            gridColumnStart: expandedParent.gridColumnStart, gridColumnEnd: expandedParent.gridColumnEnd,
+            gridRowStart: expandedParent.gridRowEnd, gridRowEnd: expandedParent.gridRowEnd + SUB_CONCEPT_HEIGHT,
+        }));
+        
+        const finalBlocks = [...reflowedOldBlocks];
         let currentY = expandedParent.gridRowEnd;
-        const SUB_CONCEPT_HEIGHT = 2; // Each sub-concept block will be 2 rows high
-
-        subConcepts.forEach((sc, index) => {
-            newSubBlocks.push({
-                ...sc,
-                id: `${blockId}-sub-${index}`,
-                parentId: blockId,
-                color: expansionColor,
-                gridColumnStart: expandedParent.gridColumnStart,
-                gridColumnEnd: expandedParent.gridColumnEnd,
-                gridRowStart: currentY,
-                gridRowEnd: currentY + SUB_CONCEPT_HEIGHT,
-            });
+        newSubBlocks.forEach(sub => {
+            sub.gridRowStart = currentY;
+            sub.gridRowEnd = currentY + SUB_CONCEPT_HEIGHT;
+            finalBlocks.push(sub);
             currentY += SUB_CONCEPT_HEIGHT;
         });
 
-        const finalBlocks = [...reflowedOldBlocks, ...newSubBlocks];
         const finalRows = Math.max(...finalBlocks.map(b => b.gridRowEnd), currentLayout.rows);
-
-        const newLayout = {
-            ...currentLayout,
-            blocks: finalBlocks,
-            rows: finalRows,
-        };
-        setCurrentLayout(newLayout);
-        setLayoutBeforeExpansion(newLayout); // Update the base layout for future collapses
+        const finalLayout = { ...currentLayout, blocks: finalBlocks, rows: finalRows };
         
-        await updateSet({ ...studySet, readingLayout: newLayout });
+        const newCacheEntry = {
+            subConcepts: newSubBlocks,
+            expandedLayout: finalLayout,
+            layoutBeforeExpansion: layoutBeforeExpansion
+        };
+        const newCache = { ...studySet.subConceptCache, [blockId]: newCacheEntry };
+
+        setCurrentLayout(finalLayout);
+        await updateSet({ ...studySet, readingLayout: finalLayout, subConceptCache: newCache });
 
     } catch (err) {
-        console.error("Failed to expand block with parallel AI pipeline:", err);
+        console.error("Failed to expand block with AI:", err);
         setError(err instanceof Error ? err.message : "An AI error occurred. Reverting layout.");
-        // Revert on error
-        setCurrentLayout(layoutBeforeExpansion); 
+        setCurrentLayout(layoutBeforeExpansion); // Restore snapshot on error
         setExpandedBlockId(null);
     } finally {
         setIsLoadingAI(false);
     }
-  }, [currentLayout, isLoadingAI, layoutBeforeExpansion, studySet, updateSet]);
+  }, [currentLayout, isLoadingAI, studySet, updateSet]);
 
-  const handleCollapse = useCallback(async () => {
-    if (isLoadingAI) return;
-    setCurrentLayout(layoutBeforeExpansion);
-    setExpandedBlockId(null);
-    setError(null);
-    if (layoutBeforeExpansion) {
-        await updateSet({ ...studySet, readingLayout: layoutBeforeExpansion });
+  const handleCollapse = useCallback(async (blockId: string) => {
+    if (isLoadingAI || !currentLayout) return;
+    
+    const cachedData = studySet.subConceptCache?.[blockId];
+    if (cachedData) {
+        // --- "UNDO" using the cached snapshot ---
+        setCurrentLayout(cachedData.layoutBeforeExpansion);
+        setExpandedBlockId(null);
+        setError(null);
+        await updateSet({ ...studySet, readingLayout: cachedData.layoutBeforeExpansion });
+    } else {
+        // Fallback if cache is somehow missing, though this shouldn't happen in the new flow.
+        console.warn(`Cache miss on collapse for blockId: ${blockId}. Cannot perform clean collapse.`);
+        setError("Could not find previous state to collapse to.");
     }
-  }, [layoutBeforeExpansion, isLoadingAI, studySet, updateSet]);
+  }, [currentLayout, isLoadingAI, studySet, updateSet]);
+
+  const handleRegenerateBlock = useCallback(async (blockId: string) => {
+      if (isLoadingAI || !currentLayout) return;
+
+      const cache = { ...studySet.subConceptCache };
+      const layoutBefore = cache[blockId]?.layoutBeforeExpansion;
+
+      // Clear the cache entry to force regeneration
+      delete cache[blockId];
+      
+      // If we have a snapshot, collapse to that state first.
+      if (layoutBefore) {
+          const setWithClearedCache = { ...studySet, readingLayout: layoutBefore, subConceptCache: cache };
+          // Update the database with the collapsed state and cleared cache
+          await updateSet(setWithClearedCache);
+          // Now trigger the expansion, which will miss the cache and run the AI.
+          // The useEffect will handle setting the new local layout state.
+          // A small timeout helps ensure React has processed the state change before the next action.
+          setTimeout(() => handleExpand(blockId), 50);
+      } else {
+          // If for some reason there's no snapshot, just clear the cache and re-expand.
+          const setWithClearedCache = { ...studySet, subConceptCache: cache };
+          await updateSet(setWithClearedCache);
+          setTimeout(() => handleExpand(blockId), 50);
+      }
+  }, [currentLayout, isLoadingAI, studySet, updateSet, handleExpand]);
 
   const handleRegenerateClick = async () => {
-    if (window.confirm("Are you sure you want to regenerate the entire canvas? This will create a new layout.")) {
+    if (window.confirm("Are you sure you want to regenerate the entire canvas? This will create a new layout and clear your expansion cache.")) {
         setIsRegenerating(true);
         setError(null);
         try {
@@ -280,6 +297,7 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack, onRegen
                   isLoadingAI={isLoadingAI && block.id === expandedBlockId}
                   onExpand={handleExpand}
                   onCollapse={handleCollapse}
+                  onRegenerate={handleRegenerateBlock}
               />
             ))}
           </AnimatePresence>

@@ -63,6 +63,12 @@ export interface SubConcept {
   summary: string;
 }
 
+export interface ReadingExpansionCache {
+  subConcepts: ReadingBlock[];
+  expandedLayout: ReadingLayout;
+  layoutBeforeExpansion: ReadingLayout;
+}
+
 export interface StudySet {
   id: string;
   name: string;
@@ -72,6 +78,9 @@ export interface StudySet {
   topics?: string[];
   youtubeUrls?: string[];
   readingLayout?: ReadingLayout | null;
+  subConceptCache?: {
+    [parentId: string]: ReadingExpansionCache;
+  };
 }
 
 export interface QuizConfig {
