@@ -1,4 +1,5 @@
 
+
 import { Type } from "@google/genai";
 
 export const questionSchema = {
@@ -120,7 +121,7 @@ export const readingBlockSchema = {
         id: { type: Type.STRING, description: "A unique identifier for the block, e.g., 'concept-1'." },
         title: { type: Type.STRING, description: "A concise, clear title for the key concept." },
         summary: { type: Type.STRING, description: "A brief, one-to-three sentence summary of the concept." },
-        gridColumnStart: { type: Type.INTEGER, description: "The starting column for this block on a 12-column grid (value from 1 to 12)." },
+        gridColumnStart: { type: Type.INTEGER, description: "The starting column for this block on a 24-column grid (value from 1 to 24)." },
         gridColumnEnd: { type: Type.INTEGER, description: "The ending column for this block. Must be greater than gridColumnStart." },
         gridRowStart: { type: Type.INTEGER, description: "The starting row for this block." },
         gridRowEnd: { type: Type.INTEGER, description: "The ending row for this block. Must be greater than gridRowStart." },
@@ -138,7 +139,7 @@ export const readingLayoutSchema = {
         },
         columns: {
             type: Type.INTEGER,
-            description: "The number of columns in the grid. This must always be 12."
+            description: "The number of columns in the grid. This must always be 24."
         },
         rows: {
             type: Type.INTEGER,

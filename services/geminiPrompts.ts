@@ -1,5 +1,4 @@
 
-
 import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, StudySet, Quiz, QuizResult, PersonalizedFeedback, QuestionType, MatchingQuestion, SequenceQuestion } from '../types';
 
 export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[], customInstructions?: string): string => {
@@ -86,30 +85,33 @@ export const getTopicsInstruction = (): string => {
 };
 
 export const getReadingLayoutSystemInstruction = (): string => {
-    return `You are an expert information architect and visual designer. Your task is to analyze the user's study materials and transform them into a "Synapse Grid," a visually organized mosaic of key concepts.
+    return `You are an expert information architect and visual designer. Your task is to analyze the user's study materials and transform them into a "Synapse Grid," a visually organized, compact mosaic of key concepts.
 
 **Your Goal:**
-Create a packed, non-overlapping grid layout of the most important concepts from the provided text. Think of it like creating a dynamic, informative dashboard or a well-organized digital whiteboard.
+Create a densely packed, non-overlapping grid layout of the most important concepts. The final output should feel like a well-organized digital whiteboard with no wasted space. The total canvas height must be minimized.
 
 **Grid System:**
-- The grid is always **12 columns** wide.
+- The grid is **24 columns** wide.
 - You will determine the necessary number of rows.
-- Each concept block will be placed on this grid using start and end coordinates for both columns and rows.
+- Each concept block is placed on this grid using start and end coordinates for columns and rows.
 
-**Layout Principles (VERY IMPORTANT):**
-- **Maximize Density:** Your primary goal is to create a compact, dense layout. Minimize all empty space. The final mosaic should feel full and well-organized, like a carefully packed suitcase.
-- **No Gaps:** Avoid leaving empty rows or columns between blocks unless absolutely necessary for visual hierarchy. Try to have blocks touch or be very close to their neighbors.
-- **Vary Block Sizes:** Use a mix of block sizes. A large block for a main idea, surrounded by smaller blocks for supporting details, often creates a good layout. For example, one block might span columns 1-7, while others fill in columns 8-12 on the same rows.
-- **Logical Flow:** Arrange related concepts near each other to create a logical flow for the reader.
-- **Full Width Utilization:** The layout should utilize most of the 12-column width at its widest point. Avoid layouts that are narrow and tall.
+**Layout Principles (MANDATORY):**
+- **PRIORITIZE HORIZONTAL LAYOUT:** Your primary goal is to create a wide, compact layout. Minimize the total number of rows. Do not create tall, narrow layouts.
+- **MAXIMIZE DENSITY:** The layout must be tightly packed. Fill all available space efficiently.
+- **NO VERTICAL GAPS:** The layout must be packed vertically. If a block in a column ends at \`gridRowEnd: 4\`, the very next block below it in those same columns MUST start at \`gridRowStart: 4\`.
+- **CONTENT-AWARE ROW SPANS (Heuristic):** The vertical size of a block (\`gridRowEnd\` - \`gridRowStart\`) must be proportional to its summary length.
+    - Summary < 150 chars: 1 row span.
+    - Summary 150-300 chars: 2 row spans.
+    - Summary > 300 chars: 3 row spans.
+    - **It is acceptable for long summaries to be scrollable within their block.** Prioritize a compact grid over making every block tall enough to show all content.
+- **MINIMUM BLOCK WIDTH:** To ensure readability, a block should span at least **3 columns** (\`gridColumnEnd\` must be at least \`gridColumnStart + 3\`). Avoid creating overly narrow "sliver" blocks.
+- **VARY BLOCK SIZES:** Use a mix of block widths and heights to create a dynamic, masonry-like feel.
+- **FULL WIDTH UTILIZATION:** The layout MUST use the entire 24-column width.
 
 **Process:**
-1.  **Identify Core Concepts:** Read through the user's materials and identify the most important, distinct concepts, topics, or ideas. Aim for 5 to 15 concepts.
-2.  **Summarize Each Concept:** For each concept, write a concise title and a brief summary (1-3 sentences).
-3.  **Design the Layout:**
-    -   Assign each concept block a position and size on the 12-column grid, following the Layout Principles.
-    -   Define \`gridColumnStart\`, \`gridColumnEnd\`, \`gridRowStart\`, and \`gridRowEnd\` for each block. Blocks MUST NOT overlap.
-    -   Calculate the total number of rows needed for your layout.
+1.  **Identify 5-15 Core Concepts:** Extract the most important, distinct concepts from the user's materials.
+2.  **Summarize Each Concept:** For each concept, write a concise title and a brief summary.
+3.  **Design the Compact Layout:** Assign each concept block a position and size on the 24-column grid, strictly following all Layout Principles.
 4.  **Format Output:** Your entire response MUST be a single JSON object that strictly adheres to the provided schema. No other text or explanation is allowed.
 `;
 };
@@ -332,7 +334,7 @@ export const getReviewChatSystemInstruction = (studySet: StudySet, result: QuizR
             }
         }
         const questionText = log.question.questionText.length > 70 ? `${log.question.questionText.substring(0, 70)}...` : log.question.questionText;
-        return `Q${i + 1} (${log.question.topic}): ${questionText} | User answered: ${userAnswerText} | Points: ${log.pointsAwarded}/${log.maxPoints}`;
+        return `Q${i + 1} (${log.question.topic}): ${questionText} | User answered: ${userAnswerText} | Points: ${log.pointsAwarded}/${log.pointsAwarded}`;
     }).join('\n');
 
     let feedbackSummary = "No specific feedback report was generated for this session.";

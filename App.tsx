@@ -825,9 +825,17 @@ const App: React.FC = () => {
     }
   };
 
-  const mainContainerClasses = isPredictionFlow
-    ? 'flex-grow flex flex-col items-center justify-start p-4 sm:p-6 lg:p-8'
-    : 'w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 flex-grow flex flex-col justify-center';
+  const mainContainerClasses = (() => {
+    if (isPredictionFlow) {
+        return 'flex-grow flex flex-col items-center justify-start p-4 sm:p-6 lg:p-8';
+    }
+    if (appState === AppState.READING_CANVAS) {
+        // Full width for the canvas view
+        return 'w-full p-4 sm:p-6 lg:p-8 flex-grow flex flex-col';
+    }
+    // Default centered layout for other screens like Setup, Study, Results
+    return 'w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 flex-grow flex flex-col justify-center';
+  })();
 
   return (
     <div className="flex flex-col min-h-screen">

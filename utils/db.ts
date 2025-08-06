@@ -28,71 +28,72 @@ interface AppDB extends DBSchema {
 }
 
 const DB_NAME = 'adaptive-study-game-db';
-const DB_VERSION = 2; // Incremented version to trigger the upgrade and migration
+const DB_VERSION = 3; // Bump version to 3 to resolve the "version less than existing" error.
 
 let dbPromise: Promise<IDBPDatabase<AppDB>> | null = null;
 
 export const getDb = (): Promise<IDBPDatabase<AppDB>> => {
   if (!dbPromise) {
     dbPromise = openDB<AppDB>(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion, newVersion, transaction) {
+      upgrade: async (db, oldVersion, newVersion, transaction) => {
         console.log(`Upgrading database from version ${oldVersion} to ${newVersion}`);
         
-        // This block handles initial schema creation for new users
-        if (oldVersion < 1) {
-          if (!db.objectStoreNames.contains('studySets')) {
-            const store = db.createObjectStore('studySets', { keyPath: 'id' });
-            store.createIndex('createdAt', 'createdAt');
-          }
-          if (!db.objectStoreNames.contains('quizHistory')) {
-            const store = db.createObjectStore('quizHistory', { keyPath: 'id' });
-            store.createIndex('date', 'date');
-            store.createIndex('studySetId', 'studySetId');
-          }
-          if (!db.objectStoreNames.contains('predictions')) {
-            const store = db.createObjectStore('predictions', { keyPath: 'id' });
-            store.createIndex('studySetId', 'studySetId');
-            store.createIndex('updatedAt', 'updatedAt');
-          }
-          if (!db.objectStoreNames.contains('srsItems')) {
-            const store = db.createObjectStore('srsItems', { keyPath: 'id' });
-            store.createIndex('nextReviewDate', 'nextReviewDate');
-          }
-        }
-
-        // This block handles the migration from localStorage to IndexedDB
+        // Migration from localStorage to IndexedDB.
+        // This runs for anyone on a version before 2 (new users, or users from before the db existed).
         if (oldVersion < 2) {
-            console.log("Starting migration from localStorage to IndexedDB...");
-            // Use an async IIFE to perform the migration within the transaction
-            (async () => {
-                try {
-                    const storeMap: { [key: string]: StoreName } = {
-                        'adaptive-study-game-sets': 'studySets',
-                        'adaptive-study-game-history': 'quizHistory',
-                        'adaptive-study-game-predictions': 'predictions',
-                        'adaptive-study-game-srs': 'srsItems',
-                    };
+            console.log("Attempting migration from localStorage to IndexedDB...");
+            try {
+                const storeMap: { [key: string]: StoreName } = {
+                    'adaptive-study-game-sets': 'studySets',
+                    'adaptive-study-game-history': 'quizHistory',
+                    'adaptive-study-game-predictions': 'predictions',
+                    'adaptive-study-game-srs': 'srsItems',
+                };
 
-                    for (const [localStorageKey, storeName] of Object.entries(storeMap)) {
-                        const dataStr = localStorage.getItem(localStorageKey);
-                        if (dataStr) {
-                            console.log(`Found data in localStorage for key: ${localStorageKey}`);
-                            const data = JSON.parse(dataStr);
-                            if (Array.isArray(data) && data.length > 0) {
-                                const store = transaction.objectStore(storeName);
-                                console.log(`Migrating ${data.length} items to '${storeName}'...`);
-                                await Promise.all(data.map(item => store.put(item)));
-                                localStorage.removeItem(localStorageKey);
-                                console.log(`Migration for '${storeName}' complete. Removed from localStorage.`);
-                            }
+                for (const [localStorageKey, storeName] of Object.entries(storeMap)) {
+                    const dataStr = localStorage.getItem(localStorageKey);
+                    if (dataStr) {
+                        console.log(`Found data in localStorage for key: ${localStorageKey}`);
+                        const data = JSON.parse(dataStr);
+                        if (Array.isArray(data) && data.length > 0) {
+                            const store = transaction.objectStore(storeName);
+                            console.log(`Migrating ${data.length} items to '${storeName}'...`);
+                            await Promise.all(data.map(item => store.put(item)));
+                            localStorage.removeItem(localStorageKey);
+                            console.log(`Migration for '${storeName}' complete. Removed from localStorage.`);
                         }
                     }
-                    console.log("Migration finished successfully.");
-                } catch (error) {
-                    console.error("Migration failed, transaction will abort.", error);
-                    transaction.abort(); // Explicitly abort transaction on failure
                 }
-            })();
+                console.log("Migration finished successfully.");
+            } catch (error) {
+                console.error("Migration failed, transaction will abort.", error);
+                transaction.abort();
+            }
+        }
+
+        // Schema creation and sanity check.
+        // This runs for anyone on a version before 3. It creates stores if they are missing.
+        // This is the main fix to ensure the database schema is correct for all users.
+        if (oldVersion < 3) {
+            console.log("Ensuring database schema is up to date for v3...");
+            if (!db.objectStoreNames.contains('studySets')) {
+                const store = db.createObjectStore('studySets', { keyPath: 'id' });
+                store.createIndex('createdAt', 'createdAt');
+            }
+            if (!db.objectStoreNames.contains('quizHistory')) {
+                const store = db.createObjectStore('quizHistory', { keyPath: 'id' });
+                store.createIndex('date', 'date');
+                store.createIndex('studySetId', 'studySetId');
+            }
+            if (!db.objectStoreNames.contains('predictions')) {
+                const store = db.createObjectStore('predictions', { keyPath: 'id' });
+                store.createIndex('studySetId', 'studySetId');
+                store.createIndex('updatedAt', 'updatedAt');
+            }
+            if (!db.objectStoreNames.contains('srsItems')) {
+                const store = db.createObjectStore('srsItems', { keyPath: 'id' });
+                store.createIndex('nextReviewDate', 'nextReviewDate');
+            }
         }
       },
     });

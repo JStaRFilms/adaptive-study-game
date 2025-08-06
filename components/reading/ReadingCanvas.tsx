@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { StudySet } from '../../types';
 import ReadingBlock from './ReadingBlock';
@@ -20,13 +21,14 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack }) => {
     );
   }
 
-  const { blocks, columns } = studySet.readingLayout;
+  const { blocks, columns, rows } = studySet.readingLayout;
 
   const gridStyle = {
-    // The display property is now handled by Tailwind's responsive classes (`md:grid`)
     gridTemplateColumns: `repeat(${columns}, 1fr)`,
-    // Use grid-auto-rows for more flexible row heights that adapt to content.
-    gridAutoRows: 'minmax(80px, auto)',
+    // This defines `rows` number of tracks, each having a minimum height but allowed to grow.
+    // This directly addresses the "height is too much" feedback by preventing `1fr` from
+    // making all rows equally tall and creating wasted space.
+    gridTemplateRows: `repeat(${rows}, minmax(9rem, auto))`,
   };
 
   return (
@@ -46,7 +48,7 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack }) => {
         <div 
           className="absolute inset-0 z-0 pointer-events-none"
           style={{
-            backgroundSize: `calc(100% / ${columns}) 80px`, // Match column count and min row height
+            backgroundSize: `calc(100% / ${columns}) 40px`,
             backgroundImage: 'linear-gradient(to right, rgba(107, 114, 128, 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(107, 114, 128, 0.1) 1px, transparent 1px)'
           }}
         ></div>
@@ -56,7 +58,7 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack }) => {
           - On medium screens and up, `md:grid` activates the grid layout.
           - The inline `gridStyle` then applies column/row templates only when display is grid.
         */}
-        <div style={gridStyle} className="flex flex-col md:grid gap-4 relative z-10">
+        <div style={gridStyle} className="flex flex-col md:grid gap-3 relative z-10">
           {blocks.map((block, index) => (
             <ReadingBlock key={block.id} block={block} animationDelay={`${index * 50}ms`} />
           ))}
