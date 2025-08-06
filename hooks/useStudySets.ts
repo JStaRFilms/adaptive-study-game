@@ -34,6 +34,7 @@ export const useStudySets = (): [
       persistedFiles: newSet.persistedFiles || [],
       topics: newSet.topics || [],
       youtubeUrls: newSet.youtubeUrls || [],
+      readingLayout: newSet.readingLayout || null,
     };
     await add(STORE_NAME, setWithId);
     await refreshSets();
@@ -46,6 +47,7 @@ export const useStudySets = (): [
       persistedFiles: updatedSet.persistedFiles || [],
       topics: updatedSet.topics || [],
       youtubeUrls: updatedSet.youtubeUrls || [],
+      readingLayout: updatedSet.readingLayout || null,
     };
     await put(STORE_NAME, setToSave);
     await refreshSets();

@@ -1,8 +1,9 @@
 
+
 import { GoogleGenAI, GenerateContentResponse, Type, Content } from "@google/genai";
-import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion } from '../types';
-import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, fibValidationSchema, studyGuideSchema, topicAnalysisSchema, narrowPassesSchema, summaryRecommendationSchema } from './geminiSchemas';
-import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFibValidationSystemInstruction, getStudyGuideInstruction, getTopicAnalysisInstruction, getNarrowPassesInstruction, getSummaryRecommendationInstruction } from './geminiPrompts';
+import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion, ReadingLayout } from '../types';
+import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, fibValidationSchema, studyGuideSchema, topicAnalysisSchema, narrowPassesSchema, summaryRecommendationSchema, readingLayoutSchema } from './geminiSchemas';
+import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFibValidationSystemInstruction, getStudyGuideInstruction, getTopicAnalysisInstruction, getNarrowPassesInstruction, getSummaryRecommendationInstruction, getReadingLayoutSystemInstruction } from './geminiPrompts';
 import { ModelIdentifier, modelFor } from './aiConstants';
 import { apiKeyManager } from './apiKeyManager';
 
@@ -300,6 +301,21 @@ export const generateTopics = async (parts: PromptPart[]): Promise<string[]> => 
     const response = await apiCallWithRetry(apiFunction, modelIdentifier);
     const jsonResponse = parseJsonResponse(response.text);
     return jsonResponse.topics || [];
+};
+
+export const generateReadingLayout = async (parts: PromptPart[]): Promise<ReadingLayout> => {
+    const modelIdentifier = 'readingLayoutGeneration';
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
+        model,
+        contents: { parts },
+        config: {
+            systemInstruction: getReadingLayoutSystemInstruction(),
+            responseMimeType: "application/json",
+            responseSchema: readingLayoutSchema
+        }
+    });
+    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+    return parseJsonResponse(response.text);
 };
 
 export const gradeExam = async (questions: Question[], submission: OpenEndedAnswer): Promise<AnswerLog[]> => {

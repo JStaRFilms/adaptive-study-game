@@ -114,6 +114,39 @@ export const topicsSchema = {
     required: ["topics"]
 };
 
+export const readingBlockSchema = {
+    type: Type.OBJECT,
+    properties: {
+        id: { type: Type.STRING, description: "A unique identifier for the block, e.g., 'concept-1'." },
+        title: { type: Type.STRING, description: "A concise, clear title for the key concept." },
+        summary: { type: Type.STRING, description: "A brief, one-to-three sentence summary of the concept." },
+        gridColumnStart: { type: Type.INTEGER, description: "The starting column for this block on a 12-column grid (value from 1 to 12)." },
+        gridColumnEnd: { type: Type.INTEGER, description: "The ending column for this block. Must be greater than gridColumnStart." },
+        gridRowStart: { type: Type.INTEGER, description: "The starting row for this block." },
+        gridRowEnd: { type: Type.INTEGER, description: "The ending row for this block. Must be greater than gridRowStart." },
+    },
+    required: ["id", "title", "summary", "gridColumnStart", "gridColumnEnd", "gridRowStart", "gridRowEnd"]
+};
+
+export const readingLayoutSchema = {
+    type: Type.OBJECT,
+    properties: {
+        blocks: {
+            type: Type.ARRAY,
+            description: "An array of content blocks to be displayed on the grid.",
+            items: readingBlockSchema
+        },
+        columns: {
+            type: Type.INTEGER,
+            description: "The number of columns in the grid. This must always be 12."
+        },
+        rows: {
+            type: Type.INTEGER,
+            description: "The total number of rows required to fit all the blocks without overlap."
+        }
+    },
+    required: ["blocks", "columns", "rows"]
+};
 
 export const batchGradingSchema = {
     type: Type.OBJECT,

@@ -19,6 +19,7 @@ interface StudySetListProps {
   onShowStats: () => void;
   onStartSrsQuiz: () => void;
   reviewPoolCount: number;
+  onStartReading: (set: StudySet) => void;
 }
 
 const StudySetList: React.FC<StudySetListProps> = ({
@@ -35,6 +36,7 @@ const StudySetList: React.FC<StudySetListProps> = ({
   onShowStats,
   onStartSrsQuiz,
   reviewPoolCount,
+  onStartReading,
 }) => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDataModalOpen, setIsDataModalOpen] = useState(false);
@@ -127,6 +129,9 @@ const StudySetList: React.FC<StudySetListProps> = ({
                 </div>
               </div>
               <div className="flex gap-2 flex-shrink-0 self-end sm:self-center flex-wrap justify-end">
+                <Tooltip text="Visual Reading Canvas" position="top">
+                  <button onClick={() => onStartReading(set)} className="px-3 py-2 text-sm bg-blue-600 text-white font-bold rounded-md hover:bg-blue-500 transition-all">Read</button>
+                </Tooltip>
                 <Tooltip text="AI Exam Predictor" position="top">
                   <button onClick={() => onPredict(set.id)} className="px-3 py-2 text-sm bg-purple-600 text-white font-bold rounded-md hover:bg-purple-500 transition-all">Predict</button>
                 </Tooltip>

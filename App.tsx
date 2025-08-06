@@ -1,7 +1,7 @@
 
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion } from './types';
+import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion, ReadingLayout } from './types';
 import { GoogleGenAI, Chat } from '@google/genai';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -15,8 +15,9 @@ import ExamScreen from './components/ExamScreen';
 import PredictionSetupScreen from './components/PredictionSetupScreen';
 import PredictionResultsScreen from './components/PredictionResultsScreen';
 import StatsScreen from './components/StatsScreen';
+import ReadingCanvas from './components/reading/ReadingCanvas';
 import AnnouncementBanner from './components/common/AnnouncementBanner';
-import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedbackStreamed } from './services/geminiService';
+import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedbackStreamed, generateReadingLayout } from './services/geminiService';
 import { getStudyChatSystemInstruction, getReviewChatSystemInstruction } from './services/geminiPrompts';
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
@@ -50,6 +51,9 @@ const App: React.FC = () => {
   const [gradingMessage, setGradingMessage] = useState<string>('Grading your exam answers...');
   const [submissionForRetry, setSubmissionForRetry] = useState<OpenEndedAnswer | null>(null);
   const [gradingError, setGradingError] = useState<string | null>(null);
+
+  // Processing State
+  const [processingTask, setProcessingTask] = useState<'quiz' | 'canvas' | null>(null);
   
   // Personalized Feedback State
   const [feedback, setFeedback] = useState<Partial<PersonalizedFeedback> | null>(null);
@@ -119,6 +123,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleStartStudy = useCallback(async (parts: PromptPart[], config: QuizConfig, studySetId: string) => {
+    setProcessingTask('quiz');
     setAppState(AppState.PROCESSING);
     setStudyMode(config.mode);
     setError(null);
@@ -170,6 +175,8 @@ const App: React.FC = () => {
       console.error(err);
       setError(err instanceof Error ? err.message : "An unknown error occurred. Please check your API key and try again.");
       setAppState(AppState.SETUP);
+    } finally {
+        setProcessingTask(null);
     }
   }, [studySets]);
   
@@ -455,6 +462,7 @@ const App: React.FC = () => {
     setIsChatOpen(false);
     setIsAITyping(false);
     setChatError(null);
+    setProcessingTask(null);
   }, [saveReviewChatIfDirty]);
   
   const handlePredict = useCallback((studySetId: string) => {
@@ -532,6 +540,48 @@ const App: React.FC = () => {
   const handleShowStats = useCallback(() => {
     setAppState(AppState.STATS);
   }, []);
+
+  const handleStartReading = useCallback(async (studySet: StudySet) => {
+    setCurrentStudySet(studySet);
+    setError(null);
+
+    if (studySet.readingLayout) {
+        setAppState(AppState.READING_CANVAS);
+    } else {
+        setProcessingTask('canvas');
+        setAppState(AppState.PROCESSING);
+        try {
+            const allParts: PromptPart[] = [];
+            if (studySet.content?.trim()) {
+                allParts.push({ text: studySet.content.trim() });
+            }
+            if (studySet.persistedFiles) {
+                for (const pFile of studySet.persistedFiles) {
+                    if (pFile.type.startsWith('image/') || pFile.type.startsWith('audio/')) {
+                        allParts.push({ inlineData: { mimeType: pFile.type, data: pFile.data }});
+                    }
+                }
+            }
+            if (studySet.youtubeUrls) {
+                studySet.youtubeUrls.forEach(url => {
+                    allParts.push({text: `\n\n[Content from YouTube video: ${url}]\nThis content should be analyzed by watching the video or reading its transcript.`});
+                });
+            }
+
+            const layout = await generateReadingLayout(allParts);
+            const updatedSet = { ...studySet, readingLayout: layout };
+            await updateSet(updatedSet);
+            setCurrentStudySet(updatedSet);
+            setAppState(AppState.READING_CANVAS);
+        } catch (err) {
+            console.error(err);
+            setError(err instanceof Error ? err.message : "An unknown error occurred while building the canvas. Please try again.");
+            setAppState(AppState.SETUP);
+        } finally {
+            setProcessingTask(null);
+        }
+    }
+  }, [updateSet]);
 
   const handleSendMessage = useCallback(async (userMessage: string, contextQuestion?: Question, contextLog?: AnswerLog) => {
     if (!chat || isAITyping) return;
@@ -697,7 +747,7 @@ const App: React.FC = () => {
       case AppState.GRADING:
       case AppState.PREDICTING:
         const message =
-          appState === AppState.PROCESSING ? 'Generating your quiz...' :
+          appState === AppState.PROCESSING ? (processingTask === 'canvas' ? 'Building your reading canvas...' : 'Generating your quiz...') :
           appState === AppState.GRADING ? gradingMessage :
           'The AI detective is on the case...';
         return (
@@ -710,7 +760,7 @@ const App: React.FC = () => {
         );
       
       case AppState.STUDYING:
-        if (!quiz) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        if (!quiz) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <StudyScreen 
                     quiz={quiz} 
                     onFinish={handleFinishStudy} 
@@ -733,7 +783,7 @@ const App: React.FC = () => {
         return <ResultsScreen result={currentResult} onRestart={handleRestart} onReview={handleReview} feedback={feedback} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={(topics) => handleStartFocusedQuiz(topics, currentStudySet)} />;
       
       case AppState.REVIEWING:
-        if (answerLog.length === 0 || !currentResult) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        if (answerLog.length === 0 || !currentResult) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <ReviewScreen 
                   result={currentResult} 
                   onRetakeSameQuiz={handleRetakeQuiz} 
@@ -755,7 +805,7 @@ const App: React.FC = () => {
         return <ExamScreen quiz={quiz} onFinish={handleFinishExam} onCancel={handleRestart} />;
 
       case AppState.PREDICTION_SETUP:
-        if (!currentStudySet) return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        if (!currentStudySet) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <PredictionSetupScreen studySet={currentStudySet} onGenerate={handleGeneratePrediction} onCancel={handleRestart} error={error}/>;
 
       case AppState.PREDICTION_RESULTS:
@@ -765,15 +815,19 @@ const App: React.FC = () => {
       case AppState.STATS:
         return <StatsScreen history={history} studySets={studySets} onBack={handleRestart} />;
 
+      case AppState.READING_CANVAS:
+        if (!currentStudySet) return null;
+        return <ReadingCanvas studySet={currentStudySet} onBack={handleRestart} />;
+
       case AppState.SETUP:
       default:
-        return <SetupScreen onStart={handleStartStudy} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
     }
   };
 
   const mainContainerClasses = isPredictionFlow
     ? 'flex-grow flex flex-col items-center justify-start p-4 sm:p-6 lg:p-8'
-    : 'w-full max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 flex-grow flex flex-col justify-center';
+    : 'w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 flex-grow flex flex-col justify-center';
 
   return (
     <div className="flex flex-col min-h-screen">

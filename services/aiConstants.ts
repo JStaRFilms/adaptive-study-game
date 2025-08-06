@@ -5,6 +5,7 @@
 // For now, they are mostly the same, but this structure allows for future flexibility.
 export const modelFor = {
   topicAnalysis: 'gemini-2.5-flash',
+  readingLayoutGeneration: 'gemini-2.5-flash',
   quizGeneration: 'gemini-2.5-flash',
   examGrading: 'gemini-2.5-pro',
   examPrediction: 'gemini-2.5-pro',

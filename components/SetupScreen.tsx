@@ -28,6 +28,7 @@ const ProcessingModal: React.FC<{ title: string; message: string; progress: numb
 
 interface SetupScreenProps {
   onStart: (parts: PromptPart[], config: QuizConfig, studySetId: string) => void;
+  onStartReading: (set: StudySet) => void;
   error: string | null;
   initialContent?: string | null;
   onReviewHistory: (result: QuizResult) => void;
@@ -46,6 +47,7 @@ type Action = 'LIST' | 'CREATE_EDIT' | 'HISTORY' | 'TOPIC_SELECTION';
 
 const SetupScreen: React.FC<SetupScreenProps> = ({ 
     onStart, 
+    onStartReading,
     error, 
     initialContent, 
     onReviewHistory, 
@@ -388,6 +390,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                 onShowStats={onShowStats}
                 onStartSrsQuiz={onStartSrsQuiz}
                 reviewPoolCount={reviewPoolCount}
+                onStartReading={onStartReading}
             />;
     }
 };

@@ -1,4 +1,5 @@
 
+
 import * as pdfjsLib from 'pdfjs-dist';
 import * as mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
@@ -74,7 +75,8 @@ export const processFilesToParts = async (
                     if (!context) continue;
                     const renderContext = {
                         canvasContext: context,
-                        viewport: viewport
+                        viewport: viewport,
+                        canvas: canvas,
                     };
                     await page.render(renderContext).promise;
                     const base64Image = canvas.toDataURL('image/jpeg', 0.9);

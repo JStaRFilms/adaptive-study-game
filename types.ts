@@ -28,6 +28,22 @@ export enum KnowledgeSource {
   WEB_SEARCH = 'WEB_SEARCH',
 }
 
+export interface ReadingBlock {
+  id: string; // e.g., concept-1
+  title: string;
+  summary: string;
+  gridColumnStart: number;
+  gridColumnEnd: number;
+  gridRowStart: number;
+  gridRowEnd: number;
+}
+
+export interface ReadingLayout {
+  blocks: ReadingBlock[];
+  columns: number; // e.g., 12
+  rows: number; // total rows needed
+}
+
 export interface StudySet {
   id: string;
   name: string;
@@ -36,6 +52,7 @@ export interface StudySet {
   persistedFiles?: PersistedFile[];
   topics?: string[];
   youtubeUrls?: string[];
+  readingLayout?: ReadingLayout | null;
 }
 
 export interface QuizConfig {
@@ -134,6 +151,7 @@ export enum AppState {
   PREDICTING,
   PREDICTION_RESULTS,
   STATS,
+  READING_CANVAS,
 }
 
 export interface OpenEndedAnswer {
