@@ -1,5 +1,4 @@
 
-
 import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, StudySet, Quiz, QuizResult, PersonalizedFeedback, QuestionType, MatchingQuestion, SequenceQuestion, ReadingLayout, ReadingBlock, BlockContent } from '../types';
 
 export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[], customInstructions?: string): string => {
@@ -98,32 +97,33 @@ export const getConceptSummaryInstruction = (conceptTitle: string): string => {
 
 export const getGridLayoutDesignInstruction = (concepts: BlockContent[]): string => {
     const conceptsJson = JSON.stringify(concepts);
-    return `You are an expert information architect and visual designer. Your task is to take a given set of summarized concepts and design a "Synapse Grid," a visually organized, compact mosaic.
+    return `You are an expert information architect and visual designer. Your task is to take a given set of summarized concepts and design a "Synapse Grid," a visually organized, compact mosaic, following a strict design system.
 
 **Your Goal:**
-Create a densely packed, non-overlapping grid layout of the provided concepts. The final output should feel like a well-organized digital whiteboard with no wasted space. The total canvas height must be minimized.
+Create a densely packed, non-overlapping grid layout of the provided concepts. The final output must be aesthetically pleasing and perfectly structured according to the rules below.
 
 **Grid System:**
 - The grid is **24 columns** wide.
 - You will determine the necessary number of rows.
-- Each concept block is placed on this grid using start and end coordinates for columns and rows.
 
-**Layout Principles (MANDATORY):**
-- **PRIORITIZE HORIZONTAL LAYOUT:** Your primary goal is to create a wide, compact layout. Minimize the total number of rows. Do not create tall, narrow layouts.
-- **MAXIMIZE DENSITY:** The layout must be tightly packed. Fill all available space efficiently.
-- **NO VERTICAL GAPS:** The layout must be packed vertically. If a block in a column ends at \`gridRowEnd: 4\`, the very next block below it in those same columns MUST start at \`gridRowStart: 4\`.
-- **CONTENT-AWARE ROW SPANS (Heuristic):** The vertical size of a block (\`gridRowEnd\` - \`gridRowStart\`) must be proportional to its summary length.
+**Design System Rules (MANDATORY):**
+1.  **Valid Block Widths:** All blocks MUST have a width that is one of the following values: 6, 8, 12, or 24 columns. No other widths are permitted.
+2.  **Valid Row Compositions:** Each row of the grid MUST be filled using one of these combinations, totaling 24 columns:
+    - One 24-column block.
+    - Two 12-column blocks.
+    - Three 8-column blocks.
+    - Four 6-column blocks.
+3.  **No Gaps:** The final layout must be a perfect, compact rectangle with NO horizontal or vertical gaps between blocks.
+4.  **Content-Aware Row Spans (Heuristic):** The vertical size of a block (\`gridRowEnd\` - \`gridRowStart\`) should generally be proportional to its summary length.
     - Summary < 150 chars: 1 row span.
     - Summary 150-300 chars: 2 row spans.
     - Summary > 300 chars: 3 row spans.
-    - **It is acceptable for long summaries to be scrollable within their block.** Prioritize a compact grid over making every block tall enough to show all content.
-- **MINIMUM BLOCK WIDTH:** To ensure readability, a block should span at least **3 columns** (\`gridColumnEnd\` must be at least \`gridColumnStart + 3\`). Avoid creating overly narrow "sliver" blocks.
-- **VARY BLOCK SIZES:** Use a mix of block widths and heights to create a dynamic, masonry-like feel.
-- **FULL WIDTH UTILIZATION:** The layout MUST use the entire 24-column width.
+    - Prioritize a compact grid; it's acceptable for long summaries to be scrollable within their block.
+5.  **Prioritize Wider Blocks:** Prefer using wider blocks (12 and 24 columns) for the most important concepts to create a visually anchored layout. Avoid making too many small (6 or 8 column) blocks if possible.
 
 **Process:**
-1.  **Analyze the provided concepts:** You are given a JSON array of concepts with their titles and summaries.
-2.  **Design the Compact Layout:** Assign each concept block a position and size on the 24-column grid, strictly following all Layout Principles.
+1.  **Analyze Concepts:** Review the provided JSON array of concepts.
+2.  **Design Layout:** Assign each concept block a position and size on the 24-column grid, strictly following all Design System Rules.
 3.  **Format Output:** Your entire response MUST be a single JSON object that strictly adheres to the provided schema. No other text or explanation is allowed.
 
 **Concepts to Arrange:**
@@ -157,23 +157,30 @@ export const getReadingLayoutReflowSystemInstruction = (currentLayout: ReadingLa
         colorInstruction += "The parent block did not have a specific color, so the new sub-concept blocks should also not have a color."
     }
     
-    return `You are an expert information architect. Your task is to reflow an existing grid layout to accommodate an expanded concept and its new, generated sub-concepts.
+    return `You are an expert information architect. Your task is to reflow an existing grid layout to accommodate an expanded concept, following a strict design system.
 
 **Current State:**
 - The grid is 24 columns wide.
 - The user is expanding the block with ID: "${blockIdToExpand}".
 - The full current layout is provided here: ${layoutJson}
 
-**Your Task (in order):**
-1.  **Identify Parent Block:** Find the block with ID "${blockIdToExpand}". This is the parent.
-2.  **Generate Sub-Concepts:** Create 2-4 new, smaller "sub-concept" blocks that elaborate on the parent's topic. Each new block needs a unique \`id\`, a \`title\`, a brief \`summary\`, and its \`parentId\` must be "${blockIdToExpand}".
-3.  **Increase Parent Size:** Increase the parent block's height (its \`gridRowEnd\`) to make it more prominent. A 2-row increase is usually sufficient.
-4.  **Place Sub-Concepts:** Position the new sub-concept blocks in the grid directly below the expanded parent block. They can be stacked vertically or arranged side-by-side, but they must be contiguous and directly follow the parent.
-5.  **Reflow All Other Blocks:** Intelligently move all other original blocks to new grid positions to make space for the expanded parent and the new sub-concepts.
-6.  **Maintain Compactness:** The final layout MUST be as compact as possible with no wasted space and no overlaps. The relative order of the original blocks should be preserved as much as possible.
-7.  **Handle Coloring:** ${colorInstruction}
+**Design System Rules for the NEW Layout (MANDATORY):**
+1.  **Valid Block Widths:** All blocks in the final layout MUST have a width that is one of the following values: 6, 8, 12, or 24 columns.
+2.  **Valid Row Compositions:** Each row of the grid MUST be filled using one of these combinations: one 24-col, two 12-col, three 8-col, or four 6-col blocks.
+3.  **No Gaps:** The final layout must be a perfect, compact rectangle with NO horizontal or vertical gaps between blocks.
+4.  **Content-Aware Row Spans (Heuristic):** Use summary length to guide block height (1-3 rows). Prioritize grid compactness over showing all text.
 
-**CRITICAL:** Your response MUST be a JSON object containing a single "blocks" key. This key's value must be an array containing ALL of the original blocks (with their new coordinates) AND all the new sub-concept blocks you created. Every block must be present. No other text is allowed.
+**Your Task (in order):**
+1.  **Identify Parent Block:** Find the block with ID "${blockIdToExpand}".
+2.  **Generate Sub-Concepts:** Create 2-4 new, smaller "sub-concept" blocks that elaborate on the parent's topic. Each new block needs a unique \`id\`, a \`title\`, a brief \`summary\`, and its \`parentId\` must be "${blockIdToExpand}".
+3.  **Design the New Layout:** Create a completely new, compact grid layout that incorporates the original parent block (now larger), the new sub-concepts, and all other original blocks.
+    - The expanded parent block should be given more prominence (e.g., increase its row span).
+    - The new sub-concepts should be placed logically near the parent, often directly below it.
+    - All other blocks must be reflowed around this new content.
+    - The ENTIRE final arrangement MUST strictly follow the Design System Rules.
+4.  **Handle Coloring:** ${colorInstruction}
+
+**CRITICAL:** Your response MUST be a JSON object containing a single "blocks" key. This key's value must be an array containing ALL of the original blocks (with their new coordinates) AND all the new sub-concept blocks you created, arranged according to the design system. Every block must be present. No other text is allowed.
 `;
 };
 
