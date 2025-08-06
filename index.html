@@ -352,21 +352,25 @@
   }
 
   /* Custom scrollbar for webkit browsers */
-  .overflow-y-auto::-webkit-scrollbar {
+  .overflow-y-auto::-webkit-scrollbar,
+  .pretty-scrollbar::-webkit-scrollbar {
     width: 8px;
   }
 
-  .overflow-y-auto::-webkit-scrollbar-track {
+  .overflow-y-auto::-webkit-scrollbar-track,
+  .pretty-scrollbar::-webkit-scrollbar-track {
     background: #1f2937; /* surface-dark */
     border-radius: 10px;
   }
 
-  .overflow-y-auto::-webkit-scrollbar-thumb {
+  .overflow-y-auto::-webkit-scrollbar-thumb,
+  .pretty-scrollbar::-webkit-scrollbar-thumb {
     background: #4b5563; /* gray-600 */
     border-radius: 10px;
   }
 
-  .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  .overflow-y-auto::-webkit-scrollbar-thumb:hover,
+  .pretty-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #6b7280; /* gray-500 */
   }
   

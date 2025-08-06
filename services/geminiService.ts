@@ -1,9 +1,9 @@
 
 
 import { GoogleGenAI, GenerateContentResponse, Type, Content } from "@google/genai";
-import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion, ReadingLayout } from '../types';
-import { getQuizSchema, topicsSchema, batchGradingSchema, predictionSchema, fibValidationSchema, studyGuideSchema, topicAnalysisSchema, narrowPassesSchema, summaryRecommendationSchema, readingLayoutSchema } from './geminiSchemas';
-import { getQuizSystemInstruction, getTopicsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFibValidationSystemInstruction, getStudyGuideInstruction, getTopicAnalysisInstruction, getNarrowPassesInstruction, getSummaryRecommendationInstruction, getReadingLayoutSystemInstruction } from './geminiPrompts';
+import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion, ReadingLayout, ReadingBlock, SubConcept, BlockContent, CanvasGenerationProgress } from '../types';
+import { getQuizSchema, coreConceptsSchema, batchGradingSchema, predictionSchema, fibValidationSchema, studyGuideSchema, topicAnalysisSchema, narrowPassesSchema, summaryRecommendationSchema, readingLayoutSchema, subConceptsSchema, reflowedLayoutSchema, conceptSummarySchema } from './geminiSchemas';
+import { getQuizSystemInstruction, getCoreConceptsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFibValidationSystemInstruction, getStudyGuideInstruction, getTopicAnalysisInstruction, getNarrowPassesInstruction, getSummaryRecommendationInstruction, getGridLayoutDesignInstruction, getReadingSubConceptGenerationSystemInstruction, getReadingLayoutReflowSystemInstruction, getConceptSummaryInstruction } from './geminiPrompts';
 import { ModelIdentifier, modelFor } from './aiConstants';
 import { apiKeyManager } from './apiKeyManager';
 
@@ -287,35 +287,113 @@ export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Pro
   }
 };
 
-export const generateTopics = async (parts: PromptPart[]): Promise<string[]> => {
+export const identifyCoreConcepts = async (parts: PromptPart[]): Promise<string[]> => {
     const modelIdentifier = 'topicAnalysis';
     const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
         model,
         contents: { parts },
         config: {
-            systemInstruction: getTopicsInstruction(),
+            systemInstruction: getCoreConceptsInstruction(),
             responseMimeType: "application/json",
-            responseSchema: topicsSchema
+            responseSchema: coreConceptsSchema
         }
     });
     const response = await apiCallWithRetry(apiFunction, modelIdentifier);
     const jsonResponse = parseJsonResponse(response.text);
-    return jsonResponse.topics || [];
+    return jsonResponse.concepts || [];
 };
 
-export const generateReadingLayout = async (parts: PromptPart[]): Promise<ReadingLayout> => {
+const summarizeConcept = async (fullContextParts: PromptPart[], conceptTitle: string): Promise<BlockContent> => {
     const modelIdentifier = 'readingLayoutGeneration';
     const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
         model,
-        contents: { parts },
+        contents: { parts: fullContextParts },
         config: {
-            systemInstruction: getReadingLayoutSystemInstruction(),
+            systemInstruction: getConceptSummaryInstruction(conceptTitle),
+            responseMimeType: "application/json",
+            responseSchema: conceptSummarySchema
+        }
+    });
+    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+    return parseJsonResponse(response.text);
+};
+
+const designGridLayout = async (concepts: BlockContent[]): Promise<ReadingLayout> => {
+    const modelIdentifier = 'readingLayoutGeneration';
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
+        model,
+        contents: { parts: [{ text: "Design the layout for the following summarized concepts." }] },
+        config: {
+            systemInstruction: getGridLayoutDesignInstruction(concepts),
             responseMimeType: "application/json",
             responseSchema: readingLayoutSchema
         }
     });
     const response = await apiCallWithRetry(apiFunction, modelIdentifier);
     return parseJsonResponse(response.text);
+};
+
+export const buildReadingLayoutInParallel = async (
+    parts: PromptPart[], 
+    onProgress: (progress: CanvasGenerationProgress) => void
+): Promise<ReadingLayout> => {
+    // Stage 1: Identify core concepts
+    onProgress({ stage: 'Identifying core concepts...', progress: 10 });
+    const concepts = await identifyCoreConcepts(parts);
+    const totalConcepts = concepts.length;
+    if (totalConcepts === 0) {
+        throw new Error("No concepts could be identified from the provided materials.");
+    }
+
+    // Stage 2: Summarize concepts in parallel
+    onProgress({ stage: `Summarizing concepts (0/${totalConcepts})...`, progress: 25 });
+    const summarizationPromises = concepts.map((concept, index) => 
+        summarizeConcept(parts, concept).then(summary => {
+            onProgress({ stage: `Summarizing concepts (${index + 1}/${totalConcepts})...`, progress: 25 + Math.round(((index + 1) / totalConcepts) * 60) });
+            return { ...summary, id: `concept-${index}` };
+        })
+    );
+    const summarizedConcepts = await Promise.all(summarizationPromises);
+
+    // Stage 3: Design final grid layout
+    onProgress({ stage: 'Designing grid layout...', progress: 90 });
+    const layout = await designGridLayout(summarizedConcepts);
+    onProgress({ stage: 'Done!', progress: 100 });
+    
+    return layout;
+};
+
+
+export const generateSubConcepts = async (parentBlock: ReadingBlock): Promise<SubConcept[]> => {
+    const modelIdentifier = 'readingLayoutGeneration'; // Uses a fast model
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
+        model,
+        contents: { parts: [{ text: "Generate sub-concepts for the provided parent concept." }] },
+        config: {
+            systemInstruction: getReadingSubConceptGenerationSystemInstruction(parentBlock),
+            responseMimeType: "application/json",
+            responseSchema: subConceptsSchema
+        }
+    });
+    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+    const json = parseJsonResponse(response.text);
+    return json.subConcepts;
+};
+
+export const reflowLayoutForExpansion = async (currentLayout: ReadingLayout, blockIdToExpand: string, color?: string): Promise<ReadingBlock[]> => {
+    const modelIdentifier = 'readingLayoutGeneration'; // Uses a fast model
+    const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
+        model,
+        contents: { parts: [{ text: "Reflow the layout as instructed." }] },
+        config: {
+            systemInstruction: getReadingLayoutReflowSystemInstruction(currentLayout, blockIdToExpand, color),
+            responseMimeType: "application/json",
+            responseSchema: reflowedLayoutSchema
+        }
+    });
+    const response = await apiCallWithRetry(apiFunction, modelIdentifier);
+    const json = parseJsonResponse(response.text);
+    return json.blocks;
 };
 
 export const gradeExam = async (questions: Question[], submission: OpenEndedAnswer): Promise<AnswerLog[]> => {

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { StudySet, QuizConfig, PromptPart, QuizResult } from '../types';
-import { generateTopics } from '../services/geminiService';
+import { identifyCoreConcepts } from '../services/geminiService';
 import { processFilesToParts } from '../utils/fileProcessor';
 import StudySetList from './setup/StudySetList';
 import StudySetForm from './setup/StudySetForm';
@@ -126,7 +126,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                 setTopics(currentSet.topics);
             } else {
                 onTopicProgress('Analyzing for topics...', 75);
-                const generatedTopics = await generateTopics(parts);
+                const generatedTopics = await identifyCoreConcepts(parts);
                 
                 const updatedSetWithTopics: StudySet = { ...currentSet, topics: generatedTopics };
                 await updateSet(updatedSetWithTopics);
@@ -187,7 +187,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
             
             setIsProcessing(false);
             setIsAnalyzingTopics(true);
-            const generatedTopics = await generateTopics(parts);
+            const generatedTopics = await identifyCoreConcepts(parts);
             setTopics(generatedTopics);
             
             // Save the new topics to the study set
@@ -252,7 +252,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
         if (!activeSet) return;
         setIsAnalyzingTopics(true);
         try {
-            const generatedTopics = await generateTopics(preparedParts);
+            const generatedTopics = await identifyCoreConcepts(preparedParts);
             const updatedSetWithTopics: StudySet = { ...activeSet, topics: generatedTopics };
             await updateSet(updatedSetWithTopics);
             setActiveSet(updatedSetWithTopics);
@@ -292,7 +292,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
             
             setIsProcessing(false);
             setIsAnalyzingTopics(true);
-            const generatedTopics = await generateTopics(parts);
+            const generatedTopics = await identifyCoreConcepts(parts);
             setTopics(generatedTopics);
 
             const finalSetWithTopics = { ...updatedSetData, topics: generatedTopics };

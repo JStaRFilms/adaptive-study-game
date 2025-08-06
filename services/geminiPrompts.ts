@@ -1,5 +1,6 @@
 
-import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, StudySet, Quiz, QuizResult, PersonalizedFeedback, QuestionType, MatchingQuestion, SequenceQuestion } from '../types';
+
+import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, StudySet, Quiz, QuizResult, PersonalizedFeedback, QuestionType, MatchingQuestion, SequenceQuestion, ReadingLayout, ReadingBlock, BlockContent } from '../types';
 
 export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[], customInstructions?: string): string => {
     let baseInstruction = '';
@@ -80,15 +81,27 @@ ${schemaDescription}
 };
 
 
-export const getTopicsInstruction = (): string => {
-    return "You are an expert at analyzing text and identifying key themes. Based on the provided study materials (which can include text, images, and content from YouTube URLs), identify the main topics or subjects discussed. If a YouTube URL is provided, you must access its content to inform the topics. Your response must be a JSON object containing a single key 'topics' which is an array of strings. Each string should be a concise topic name (e.g., 'Cellular Respiration', 'The Krebs Cycle', 'World War II Causes').";
+export const getCoreConceptsInstruction = (): string => {
+    return "You are an expert at analyzing text and identifying key themes. Based on the provided study materials (which can include text, images, and content from YouTube URLs), identify the 10-15 main concepts or subjects discussed. If a YouTube URL is provided, you must access its content to inform the topics. Your response must be a JSON object containing a single key 'concepts' which is an array of strings. Each string should be a concise concept name (e.g., 'Cellular Respiration', 'The Krebs Cycle', 'World War II Causes').";
 };
 
-export const getReadingLayoutSystemInstruction = (): string => {
-    return `You are an expert information architect and visual designer. Your task is to analyze the user's study materials and transform them into a "Synapse Grid," a visually organized, compact mosaic of key concepts.
+export const getConceptSummaryInstruction = (conceptTitle: string): string => {
+    return `You are a specialized AI assistant that summarizes specific concepts. You will be given a full set of study materials and a single concept title. Your task is to locate information about that specific concept within the materials and write a concise, one-to-three sentence summary for it.
+
+**Concept to Summarize:** "${conceptTitle}"
+
+**Instructions:**
+1.  Read all the provided study materials to find context related to the concept title above.
+2.  Write a brief summary for this concept.
+3.  Your response MUST be a JSON object with two keys: "title" (which must be the exact concept title you were given) and "summary". No other text is allowed.`;
+};
+
+export const getGridLayoutDesignInstruction = (concepts: BlockContent[]): string => {
+    const conceptsJson = JSON.stringify(concepts);
+    return `You are an expert information architect and visual designer. Your task is to take a given set of summarized concepts and design a "Synapse Grid," a visually organized, compact mosaic.
 
 **Your Goal:**
-Create a densely packed, non-overlapping grid layout of the most important concepts. The final output should feel like a well-organized digital whiteboard with no wasted space. The total canvas height must be minimized.
+Create a densely packed, non-overlapping grid layout of the provided concepts. The final output should feel like a well-organized digital whiteboard with no wasted space. The total canvas height must be minimized.
 
 **Grid System:**
 - The grid is **24 columns** wide.
@@ -109,10 +122,58 @@ Create a densely packed, non-overlapping grid layout of the most important conce
 - **FULL WIDTH UTILIZATION:** The layout MUST use the entire 24-column width.
 
 **Process:**
-1.  **Identify 5-15 Core Concepts:** Extract the most important, distinct concepts from the user's materials.
-2.  **Summarize Each Concept:** For each concept, write a concise title and a brief summary.
-3.  **Design the Compact Layout:** Assign each concept block a position and size on the 24-column grid, strictly following all Layout Principles.
-4.  **Format Output:** Your entire response MUST be a single JSON object that strictly adheres to the provided schema. No other text or explanation is allowed.
+1.  **Analyze the provided concepts:** You are given a JSON array of concepts with their titles and summaries.
+2.  **Design the Compact Layout:** Assign each concept block a position and size on the 24-column grid, strictly following all Layout Principles.
+3.  **Format Output:** Your entire response MUST be a single JSON object that strictly adheres to the provided schema. No other text or explanation is allowed.
+
+**Concepts to Arrange:**
+${conceptsJson}
+`;
+};
+
+export const getReadingSubConceptGenerationSystemInstruction = (parentBlock: ReadingBlock): string => {
+    return `You are a subject matter expert with the ability to break down complex topics into smaller, digestible pieces.
+Your task is to generate sub-concepts for a given parent concept.
+
+**Parent Concept:**
+- **Title:** "${parentBlock.title}"
+- **Summary:** "${parentBlock.summary}"
+
+**Instructions:**
+1.  Based on the parent concept's title and summary, generate exactly 3 distinct and relevant sub-concepts.
+2.  For each sub-concept, provide a concise title and a brief summary.
+3.  The sub-concepts should elaborate on or break down the parent concept.
+4.  Your response MUST be a JSON object containing a single key "subConcepts", which is an array of the 3 generated sub-concept objects. No other text or explanation is allowed.
+`;
+};
+
+export const getReadingLayoutReflowSystemInstruction = (currentLayout: ReadingLayout, blockIdToExpand: string, color?: string): string => {
+    const layoutJson = JSON.stringify(currentLayout);
+    
+    let colorInstruction = "The parent block and new sub-concept blocks will be visually grouped. ";
+    if (color) {
+        colorInstruction += `They should all share the color "${color}". Assign this color hex code to the 'color' property of the expanded parent block and all new sub-concept blocks.`;
+    } else {
+        colorInstruction += "The parent block did not have a specific color, so the new sub-concept blocks should also not have a color."
+    }
+    
+    return `You are an expert information architect. Your task is to reflow an existing grid layout to accommodate an expanded concept and its new, generated sub-concepts.
+
+**Current State:**
+- The grid is 24 columns wide.
+- The user is expanding the block with ID: "${blockIdToExpand}".
+- The full current layout is provided here: ${layoutJson}
+
+**Your Task (in order):**
+1.  **Identify Parent Block:** Find the block with ID "${blockIdToExpand}". This is the parent.
+2.  **Generate Sub-Concepts:** Create 2-4 new, smaller "sub-concept" blocks that elaborate on the parent's topic. Each new block needs a unique \`id\`, a \`title\`, a brief \`summary\`, and its \`parentId\` must be "${blockIdToExpand}".
+3.  **Increase Parent Size:** Increase the parent block's height (its \`gridRowEnd\`) to make it more prominent. A 2-row increase is usually sufficient.
+4.  **Place Sub-Concepts:** Position the new sub-concept blocks in the grid directly below the expanded parent block. They can be stacked vertically or arranged side-by-side, but they must be contiguous and directly follow the parent.
+5.  **Reflow All Other Blocks:** Intelligently move all other original blocks to new grid positions to make space for the expanded parent and the new sub-concepts.
+6.  **Maintain Compactness:** The final layout MUST be as compact as possible with no wasted space and no overlaps. The relative order of the original blocks should be preserved as much as possible.
+7.  **Handle Coloring:** ${colorInstruction}
+
+**CRITICAL:** Your response MUST be a JSON object containing a single "blocks" key. This key's value must be an array containing ALL of the original blocks (with their new coordinates) AND all the new sub-concept blocks you created. Every block must be present. No other text is allowed.
 `;
 };
 

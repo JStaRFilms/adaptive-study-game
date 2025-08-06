@@ -36,12 +36,31 @@ export interface ReadingBlock {
   gridColumnEnd: number;
   gridRowStart: number;
   gridRowEnd: number;
+  isPlaceholder?: boolean;
+  color?: string; // e.g., '#4ade80' for green-400
+  parentId?: string; // e.g., 'concept-1'
 }
 
 export interface ReadingLayout {
   blocks: ReadingBlock[];
   columns: number; // e.g., 12
   rows: number; // total rows needed
+}
+
+export interface BlockContent {
+  id: string; // e.g., concept-1
+  title: string;
+  summary: string;
+}
+
+export type CanvasGenerationProgress = {
+  stage: string;
+  progress: number; // 0-100
+};
+
+export interface SubConcept {
+  title: string;
+  summary: string;
 }
 
 export interface StudySet {

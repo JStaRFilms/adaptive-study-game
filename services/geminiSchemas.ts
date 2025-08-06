@@ -103,16 +103,25 @@ export const getQuizSchema = (numberOfQuestions: number) => ({
     required: ["questions"]
 });
 
-export const topicsSchema = {
+export const coreConceptsSchema = {
     type: Type.OBJECT,
     properties: {
-        topics: {
+        concepts: {
             type: Type.ARRAY,
-            description: "A list of main topics, concepts, or subjects found in the text. Each topic should be a concise string, no more than 5 words.",
+            description: "A list of 10-15 main concepts, key terms, or subjects found in the text. Each concept should be a concise string, no more than 5 words.",
             items: { type: Type.STRING }
         }
     },
-    required: ["topics"]
+    required: ["concepts"]
+};
+
+export const conceptSummarySchema = {
+    type: Type.OBJECT,
+    properties: {
+        title: { type: Type.STRING, description: "The title of the concept, which should exactly match the one provided in the prompt." },
+        summary: { type: Type.STRING, description: "A brief, one-to-three sentence summary of the concept based on the full provided context." },
+    },
+    required: ["title", "summary"]
 };
 
 export const readingBlockSchema = {
@@ -125,6 +134,8 @@ export const readingBlockSchema = {
         gridColumnEnd: { type: Type.INTEGER, description: "The ending column for this block. Must be greater than gridColumnStart." },
         gridRowStart: { type: Type.INTEGER, description: "The starting row for this block." },
         gridRowEnd: { type: Type.INTEGER, description: "The ending row for this block. Must be greater than gridRowStart." },
+        color: { type: Type.STRING, description: "The hex color code for the block, inherited from its parent if it's a sub-concept.", nullable: true },
+        parentId: { type: Type.STRING, description: "If this is a sub-concept, the ID of the parent block.", nullable: true },
     },
     required: ["id", "title", "summary", "gridColumnStart", "gridColumnEnd", "gridRowStart", "gridRowEnd"]
 };
@@ -147,6 +158,37 @@ export const readingLayoutSchema = {
         }
     },
     required: ["blocks", "columns", "rows"]
+};
+
+export const subConceptsSchema = {
+    type: Type.OBJECT,
+    properties: {
+        subConcepts: {
+            type: Type.ARRAY,
+            description: "An array of 2-4 generated sub-concepts.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    title: { type: Type.STRING, description: "A concise title for the sub-concept." },
+                    summary: { type: Type.STRING, description: "A brief summary of the sub-concept." },
+                },
+                required: ["title", "summary"]
+            }
+        }
+    },
+    required: ["subConcepts"]
+};
+
+export const reflowedLayoutSchema = {
+    type: Type.OBJECT,
+    properties: {
+        blocks: {
+            type: Type.ARRAY,
+            description: "An array of the original content blocks with their new grid coordinates.",
+            items: readingBlockSchema
+        }
+    },
+    required: ["blocks"]
 };
 
 export const batchGradingSchema = {

@@ -1,7 +1,7 @@
 
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion, ReadingLayout } from './types';
+import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion, ReadingLayout, CanvasGenerationProgress } from './types';
 import { GoogleGenAI, Chat } from '@google/genai';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -17,7 +17,7 @@ import PredictionResultsScreen from './components/PredictionResultsScreen';
 import StatsScreen from './components/StatsScreen';
 import ReadingCanvas from './components/reading/ReadingCanvas';
 import AnnouncementBanner from './components/common/AnnouncementBanner';
-import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedbackStreamed, generateReadingLayout } from './services/geminiService';
+import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedbackStreamed, buildReadingLayoutInParallel } from './services/geminiService';
 import { getStudyChatSystemInstruction, getReviewChatSystemInstruction } from './services/geminiPrompts';
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
@@ -26,6 +26,7 @@ import { useSRS } from './hooks/useSRS';
 import { processFilesToParts } from './utils/fileProcessor';
 import { initializeDb } from './utils/db';
 import MigrationScreen from './components/MigrationScreen';
+import ProgressBar from './components/common/ProgressBar';
 
 const LEGACY_STORAGE_KEYS = [
   'adaptive-study-game-sets',
@@ -54,6 +55,7 @@ const App: React.FC = () => {
 
   // Processing State
   const [processingTask, setProcessingTask] = useState<'quiz' | 'canvas' | null>(null);
+  const [canvasProgress, setCanvasProgress] = useState<CanvasGenerationProgress | null>(null);
   
   // Personalized Feedback State
   const [feedback, setFeedback] = useState<Partial<PersonalizedFeedback> | null>(null);
@@ -541,47 +543,59 @@ const App: React.FC = () => {
     setAppState(AppState.STATS);
   }, []);
 
+  const generateCanvas = async (studySet: StudySet) => {
+    setProcessingTask('canvas');
+    setAppState(AppState.PROCESSING);
+    setCanvasProgress(null);
+    try {
+        const allParts: PromptPart[] = [];
+        if (studySet.content?.trim()) {
+            allParts.push({ text: studySet.content.trim() });
+        }
+        if (studySet.persistedFiles) {
+            for (const pFile of studySet.persistedFiles) {
+                if (pFile.type.startsWith('image/') || pFile.type.startsWith('audio/')) {
+                    allParts.push({ inlineData: { mimeType: pFile.type, data: pFile.data }});
+                }
+            }
+        }
+        if (studySet.youtubeUrls) {
+            studySet.youtubeUrls.forEach(url => {
+                allParts.push({text: `\n\n[Content from YouTube video: ${url}]\nThis content should be analyzed by watching the video or reading its transcript.`});
+            });
+        }
+
+        const layout = await buildReadingLayoutInParallel(allParts, (progressUpdate) => {
+            setCanvasProgress(progressUpdate);
+        });
+        const updatedSet = { ...studySet, readingLayout: layout };
+        await updateSet(updatedSet);
+        setCurrentStudySet(updatedSet);
+        setAppState(AppState.READING_CANVAS);
+    } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : "An unknown error occurred while building the canvas. Please try again.");
+        setAppState(AppState.SETUP);
+    } finally {
+        setProcessingTask(null);
+        setCanvasProgress(null);
+    }
+  };
+
   const handleStartReading = useCallback(async (studySet: StudySet) => {
     setCurrentStudySet(studySet);
     setError(null);
-
     if (studySet.readingLayout) {
         setAppState(AppState.READING_CANVAS);
     } else {
-        setProcessingTask('canvas');
-        setAppState(AppState.PROCESSING);
-        try {
-            const allParts: PromptPart[] = [];
-            if (studySet.content?.trim()) {
-                allParts.push({ text: studySet.content.trim() });
-            }
-            if (studySet.persistedFiles) {
-                for (const pFile of studySet.persistedFiles) {
-                    if (pFile.type.startsWith('image/') || pFile.type.startsWith('audio/')) {
-                        allParts.push({ inlineData: { mimeType: pFile.type, data: pFile.data }});
-                    }
-                }
-            }
-            if (studySet.youtubeUrls) {
-                studySet.youtubeUrls.forEach(url => {
-                    allParts.push({text: `\n\n[Content from YouTube video: ${url}]\nThis content should be analyzed by watching the video or reading its transcript.`});
-                });
-            }
-
-            const layout = await generateReadingLayout(allParts);
-            const updatedSet = { ...studySet, readingLayout: layout };
-            await updateSet(updatedSet);
-            setCurrentStudySet(updatedSet);
-            setAppState(AppState.READING_CANVAS);
-        } catch (err) {
-            console.error(err);
-            setError(err instanceof Error ? err.message : "An unknown error occurred while building the canvas. Please try again.");
-            setAppState(AppState.SETUP);
-        } finally {
-            setProcessingTask(null);
-        }
+        await generateCanvas(studySet);
     }
   }, [updateSet]);
+  
+  const handleRegenerateCanvas = useCallback(async () => {
+      if (!currentStudySet) return;
+      await generateCanvas(currentStudySet);
+  }, [currentStudySet]);
 
   const handleSendMessage = useCallback(async (userMessage: string, contextQuestion?: Question, contextLog?: AnswerLog) => {
     if (!chat || isAITyping) return;
@@ -746,14 +760,17 @@ const App: React.FC = () => {
       case AppState.PROCESSING:
       case AppState.GRADING:
       case AppState.PREDICTING:
+        const isCanvasTask = processingTask === 'canvas' && canvasProgress;
         const message =
-          appState === AppState.PROCESSING ? (processingTask === 'canvas' ? 'Building your reading canvas...' : 'Generating your quiz...') :
+          isCanvasTask ? canvasProgress.stage :
+          appState === AppState.PROCESSING ? 'Generating your quiz...' :
           appState === AppState.GRADING ? gradingMessage :
           'The AI detective is on the case...';
         return (
           <div className="flex flex-col items-center justify-center min-h-[80vh]">
             <LoadingSpinner />
             <p className="mt-4 text-lg text-text-secondary">{message}</p>
+            {isCanvasTask && <div className="w-full max-w-xs mt-2"><ProgressBar progress={canvasProgress.progress} /></div>}
             <p className="mt-2 text-sm text-yellow-400">Please keep this page open. Leaving the app may interrupt the process.</p>
             {appState === AppState.GRADING && gradingError && <button onClick={handleRetryGrading} className="mt-4 px-4 py-2 bg-brand-primary text-white font-bold rounded-lg hover:bg-brand-secondary">Retry Grading</button>}
           </div>
@@ -817,7 +834,7 @@ const App: React.FC = () => {
 
       case AppState.READING_CANVAS:
         if (!currentStudySet) return null;
-        return <ReadingCanvas studySet={currentStudySet} onBack={handleRestart} />;
+        return <ReadingCanvas studySet={currentStudySet} onBack={handleRestart} onRegenerate={handleRegenerateCanvas} updateSet={updateSet} />;
 
       case AppState.SETUP:
       default:
