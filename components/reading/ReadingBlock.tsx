@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { ReadingBlock as ReadingBlockType } from '../../types';
 import Markdown from '../common/Markdown';
@@ -27,18 +26,15 @@ const ReadingBlock: React.FC<ReadingBlockProps> = ({ block, isExpanded, isLoadin
     return (
       <motion.div
         layout
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         style={gridStyle}
-        className="bg-surface-dark/50 p-3 rounded-lg border border-gray-700 shadow-md flex flex-col animate-pulse"
+        className="bg-surface-dark/50 p-4 rounded-lg border border-gray-700 shadow-md flex flex-col items-center justify-center backdrop-blur-sm"
       >
-        <div className="h-5 bg-gray-600 rounded w-3/4 mb-3"></div>
-        <div className="space-y-2 flex-grow">
-          <div className="h-3 bg-gray-700 rounded w-full"></div>
-          <div className="h-3 bg-gray-700 rounded w-5/6"></div>
-        </div>
+        <div className="w-8 h-8 border-2 border-solid border-gray-600 rounded-full border-t-brand-primary animate-spin"></div>
+        {block.title && <p className="mt-3 text-sm font-semibold text-text-secondary">{block.title}</p>}
       </motion.div>
     );
   }
@@ -82,7 +78,7 @@ const ReadingBlock: React.FC<ReadingBlockProps> = ({ block, isExpanded, isLoadin
             aria-label="Expand concept"
             title="Expand"
         >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
             </svg>
         </button>

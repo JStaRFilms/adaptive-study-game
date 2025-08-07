@@ -72,6 +72,7 @@ const App: React.FC = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isAITyping, setIsAITyping] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [pendingUIAction, setPendingUIAction] = useState<{ type: string; payload: any } | null>(null);
 
 
   const [history, addQuizResult, updateQuizResult] = useQuizHistory();
@@ -673,20 +674,47 @@ const App: React.FC = () => {
   const handleUpdateCanvas = useCallback(async (newTopics: string[]) => {
     if (!currentStudySet || !currentStudySet.readingLayout) return;
 
-    setIsUpdatingCanvas(true);
     setError(null);
 
-    try {
-        const currentLayout = currentStudySet.readingLayout;
-        const existingTopics = new Set(currentLayout.blocks.map(b => b.title.toLowerCase().trim()));
-        const topicsToAdd = newTopics.filter(t => !existingTopics.has(t.toLowerCase().trim()));
+    const currentLayout = currentStudySet.readingLayout;
+    const existingBlocksByTitle: Map<string, ReadingBlockType> = new Map(
+        currentLayout.blocks.map(b => [b.title.toLowerCase().trim(), b])
+    );
+    
+    const topicsToExpand: ReadingBlockType[] = [];
+    const topicsToAdd: string[] = [];
 
-        if (topicsToAdd.length === 0) {
-            setIsUpdatingCanvas(false);
-            return; // Silently ignore if topics already exist
+    newTopics.forEach(topicStr => {
+        const topicKey = topicStr.toLowerCase().trim();
+        if (existingBlocksByTitle.has(topicKey)) {
+            topicsToExpand.push(existingBlocksByTitle.get(topicKey)!);
+        } else {
+            topicsToAdd.push(topicStr);
         }
+    });
 
-        // Recreate parts for context
+    // Handle expansions for existing topics
+    if (topicsToExpand.length > 0) {
+        const blockToExp = topicsToExpand[0]; // Handle one at a time for simplicity
+        
+        const isAlreadyExpanded = currentLayout.blocks.some(b => b.parentId === blockToExp.id);
+        
+        if (!isAlreadyExpanded) {
+            setPendingUIAction({ type: 'EXPAND_BLOCK', payload: { blockId: blockToExp.id } });
+        } else {
+            // Inform the user it's already expanded.
+            setChatMessages(prev => [...prev, { role: 'model', text: `It looks like "${blockToExp.title}" is already expanded with more details.` }]);
+        }
+    }
+
+    // Handle adding new blocks for new topics
+    if (topicsToAdd.length === 0) {
+        return; // No new topics to add, exit.
+    }
+
+    setIsUpdatingCanvas(true);
+
+    try {
         const parts: PromptPart[] = [];
         if (currentStudySet.content?.trim()) {
             parts.push({ text: currentStudySet.content.trim() });
@@ -711,6 +739,7 @@ const App: React.FC = () => {
         const DYNAMIC_BLOCK_ROW_HEIGHT = 2; // Each new block will take 2 rows height
 
         const newBlocks: ReadingBlockType[] = newSummaries.map((summary) => {
+            if (!summary.title || !summary.summary) return null; // Guard against bad AI response
             const block: ReadingBlockType = {
                 id: `dynamic-${Date.now()}-${summary.title.replace(/\s+/g, '-')}`,
                 title: summary.title,
@@ -722,7 +751,7 @@ const App: React.FC = () => {
             };
             nextRowStart += DYNAMIC_BLOCK_ROW_HEIGHT;
             return block;
-        });
+        }).filter((b): b is ReadingBlockType => b !== null); // Filter out nulls
         
         const updatedBlocks = [...currentLayout.blocks, ...newBlocks];
         const updatedRows = nextRowStart - 1;
@@ -735,7 +764,7 @@ const App: React.FC = () => {
 
         const updatedSet = { ...currentStudySet, readingLayout: newLayout };
         await updateSet(updatedSet);
-        setCurrentStudySet(updatedSet); // Ensure local state is updated for immediate re-render
+        setCurrentStudySet(updatedSet);
 
     } catch (err) {
         console.error("Failed to update canvas:", err);
@@ -1016,6 +1045,8 @@ const App: React.FC = () => {
                     onCloseChat={() => setIsChatOpen(false)}
                     onClearChat={handleClearChat}
                     onStartCustomQuiz={handleStartCustomQuiz}
+                    pendingUIAction={pendingUIAction}
+                    onActionConsumed={() => setPendingUIAction(null)}
                 />;
 
       case AppState.SETUP:

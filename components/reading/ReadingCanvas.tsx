@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { StudySet, ReadingLayout, ReadingBlock as ReadingBlockType, ChatMessage, AppState } from '../../types';
 import ReadingBlock from './ReadingBlock';
@@ -178,12 +177,15 @@ interface ReadingCanvasProps {
   onCloseChat: () => void;
   onClearChat: () => void;
   onStartCustomQuiz: (topics: string[], studySet: StudySet | null, numQuestions?: number) => void;
+  pendingUIAction: { type: string; payload: any } | null;
+  onActionConsumed: () => void;
 }
 
 const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ 
     studySet, appState, isUpdatingCanvas, onBack, onRegenerate, onGenerate, updateSet,
     chatMessages, isChatOpen, isAITyping, chatError, isChatEnabled,
-    onSendMessage, onToggleChat, onCloseChat, onClearChat, onStartCustomQuiz
+    onSendMessage, onToggleChat, onCloseChat, onClearChat, onStartCustomQuiz,
+    pendingUIAction, onActionConsumed
 }) => {
   const [currentLayout, setCurrentLayout] = useState<ReadingLayout | null>(studySet.readingLayout);
   const [expandedBlockId, setExpandedBlockId] = useState<string | null>(null);
@@ -336,29 +338,59 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
         }
     }
   };
+  
+  const blocksToRender = useMemo(() => {
+    let blocks = currentLayout?.blocks ? [...currentLayout.blocks] : [];
 
-  const sortedBlocksForMobile = useMemo(() => {
-    if (isMobile && currentLayout?.blocks) {
-        return [...currentLayout.blocks].sort((a, b) => {
+    if (isUpdatingCanvas && currentLayout) {
+        const placeholder: ReadingBlockType = {
+            id: 'updating-placeholder',
+            title: 'Adding new concepts...',
+            summary: '',
+            isPlaceholder: true,
+            gridColumnStart: 1,
+            gridColumnEnd: currentLayout.columns + 1,
+            gridRowStart: (currentLayout.rows || 0) + 1,
+            gridRowEnd: (currentLayout.rows || 0) + 3,
+        };
+        blocks.push(placeholder);
+    }
+
+    if (isMobile) {
+        return blocks.sort((a, b) => {
             if (a.gridRowStart !== b.gridRowStart) {
                 return a.gridRowStart - b.gridRowStart;
             }
             return a.gridColumnStart - b.gridColumnStart;
         });
     }
-    return currentLayout?.blocks || [];
-  }, [currentLayout?.blocks, isMobile]);
+
+    return blocks;
+  }, [currentLayout, isUpdatingCanvas, isMobile]);
+
+
+  useEffect(() => {
+    if (pendingUIAction?.type === 'EXPAND_BLOCK') {
+        const { blockId } = pendingUIAction.payload;
+        // Check if the block exists and is not already expanded to prevent loops or redundant actions
+        if (blockId && blockId !== expandedBlockId && currentLayout?.blocks.some(b => b.id === blockId)) {
+            handleExpand(blockId);
+        }
+        onActionConsumed(); // Always consume the action
+    }
+  }, [pendingUIAction, onActionConsumed, handleExpand, expandedBlockId, currentLayout]);
 
 
   if (appState === AppState.READING_SETUP || !currentLayout) {
     return <CanvasSetupScreen studySet={studySet} onGenerate={onGenerate} onBack={onBack} />;
   }
 
-  const { columns, rows } = currentLayout;
+  const { columns } = currentLayout;
+  const newRows = (isUpdatingCanvas && currentLayout) ? (currentLayout.rows || 0) + 3 : currentLayout.rows;
 
   const gridStyle = {
     gridTemplateColumns: `repeat(${columns}, 1fr)`,
-    gridTemplateRows: `repeat(${rows}, minmax(0, auto))`,
+    gridTemplateRows: `repeat(${newRows}, minmax(0, auto))`,
     gridAutoRows: 'minmax(9rem, auto)',
   };
 
@@ -387,19 +419,6 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
       )}
 
       <div className="flex-grow overflow-auto p-2 sm:p-4 bg-background-dark rounded-lg relative border border-gray-800">
-        <AnimatePresence>
-          {isUpdatingCanvas && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center"
-            >
-              <LoadingSpinner />
-              <p className="mt-4 font-semibold text-text-secondary">Adding new concepts to canvas...</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
         {isRegenerating && (
             <div className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
                 <LoadingSpinner />
@@ -422,7 +441,7 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
           className={isMobile ? "flex flex-col gap-3 relative z-10" : "grid gap-3 relative z-10"}
         >
           <AnimatePresence>
-            {sortedBlocksForMobile.map((block) => (
+            {blocksToRender.map((block) => (
               <ReadingBlock 
                   key={block.id} 
                   block={block} 
