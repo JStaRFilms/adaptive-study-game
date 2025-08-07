@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-const ANNOUNCEMENT_ID = 'ai-coach-and-data-export-20240731'; // Change this ID for new announcements
+const ANNOUNCEMENT_ID = 'reading-canvas-interactive-questions-20240801'; // Change this ID for new announcements
 const ANNOUNCEMENT_MESSAGE = (
     <>
-        <strong>🚀 New Features!</strong> Try the AI Coach for personalized feedback, and export/import your data from the settings menu!
+        <strong>✨ Major Update!</strong> Explore your notes with the new visual Reading Canvas and master concepts with interactive Matching & Sequence questions!
     </>
 );
 
