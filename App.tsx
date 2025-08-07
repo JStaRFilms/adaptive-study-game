@@ -672,11 +672,11 @@ const App: React.FC = () => {
   }, [currentStudySet]);
 
   const handleUpdateCanvas = useCallback(async (newTopics: string[]) => {
-    if (!currentStudySet || !currentStudySet.readingLayout) return;
+    if (!currentStudySet) return;
 
     setError(null);
 
-    const currentLayout = currentStudySet.readingLayout;
+    const currentLayout = currentStudySet.readingLayout || { blocks: [], columns: 24, rows: 0 };
     const existingBlocksByTitle: Map<string, ReadingBlockType> = new Map(
         currentLayout.blocks.map(b => [b.title.toLowerCase().trim(), b])
     );

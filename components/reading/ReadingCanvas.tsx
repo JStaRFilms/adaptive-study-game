@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { StudySet, ReadingLayout, ReadingBlock as ReadingBlockType, ChatMessage, AppState } from '../../types';
 import ReadingBlock from './ReadingBlock';
@@ -338,6 +339,32 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
         }
     }
   };
+
+  const handleClearCanvasClick = async () => {
+    if (window.confirm("Are you sure you want to clear the entire canvas? This cannot be undone. You can then build a new canvas from scratch using the AI chat.")) {
+        setError(null);
+        setExpandedBlockId(null);
+        
+        // This clears the persistent state. The next time the user enters this screen,
+        // they will see the setup/topic selection screen.
+        await updateSet({
+            ...studySet,
+            readingLayout: null,
+            subConceptCache: {}
+        });
+
+        // This clears the visual state for the current session, showing a blank canvas
+        // without navigating away, allowing the user to build a new one with the AI.
+        setCurrentLayout({
+            blocks: [],
+            columns: 24,
+            rows: 0
+        });
+
+        // Clear the chat to provide a fresh start for building the new canvas.
+        onClearChat();
+    }
+  };
   
   const blocksToRender = useMemo(() => {
     let blocks = currentLayout?.blocks ? [...currentLayout.blocks] : [];
@@ -401,7 +428,11 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
             <h1 className="text-3xl font-bold text-text-primary">Reading Canvas</h1>
             <p className="text-text-secondary">"{studySet.name}"</p>
         </div>
-        <div className="flex gap-2 self-start sm:self-center">
+        <div className="flex gap-2 self-start sm:self-center flex-wrap justify-start sm:justify-end">
+            <button onClick={handleClearCanvasClick} disabled={isRegenerating || isLoadingAI} className="px-4 py-2 bg-incorrect text-white font-bold rounded-lg hover:bg-red-600 transition-all flex items-center gap-2 disabled:bg-gray-500 disabled:cursor-not-allowed">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                Clear Canvas
+            </button>
             <button onClick={handleRegenerateClick} disabled={isRegenerating} className="px-4 py-2 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-500 transition-all flex items-center gap-2 disabled:bg-gray-500 disabled:cursor-wait">
                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isRegenerating ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
                 Reconfigure
@@ -441,18 +472,26 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
           className={isMobile ? "flex flex-col gap-3 relative z-10" : "grid gap-3 relative z-10"}
         >
           <AnimatePresence>
-            {blocksToRender.map((block) => (
-              <ReadingBlock 
-                  key={block.id} 
-                  block={block} 
-                  isExpanded={block.id === expandedBlockId}
-                  isLoadingAI={isLoadingAI && block.id === expandedBlockId}
-                  isMobile={isMobile}
-                  onExpand={handleExpand}
-                  onCollapse={handleCollapse}
-                  onRegenerate={handleRegenerateBlock}
-              />
-            ))}
+            {blocksToRender.length > 0 ? (
+                blocksToRender.map((block) => (
+                    <ReadingBlock 
+                        key={block.id} 
+                        block={block} 
+                        isExpanded={block.id === expandedBlockId}
+                        isLoadingAI={isLoadingAI && block.id === expandedBlockId}
+                        isMobile={isMobile}
+                        onExpand={handleExpand}
+                        onCollapse={handleCollapse}
+                        onRegenerate={handleRegenerateBlock}
+                    />
+                ))
+            ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-text-secondary p-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-700 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    <h3 className="text-xl font-bold text-text-primary">Canvas Cleared</h3>
+                    <p className="mt-2 max-w-sm">Your visual canvas is empty. Use the AI Study Coach chat to add new concepts and build your own custom layout from scratch!</p>
+                </div>
+            )}
           </AnimatePresence>
         </motion.div>
       </div>
