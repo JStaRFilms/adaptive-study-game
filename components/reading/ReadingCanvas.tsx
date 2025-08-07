@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { StudySet, ReadingLayout, ReadingBlock as ReadingBlockType, ChatMessage } from '../../types';
+import { StudySet, ReadingLayout, ReadingBlock as ReadingBlockType, ChatMessage, AppState } from '../../types';
 import ReadingBlock from './ReadingBlock';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateSubConcepts, reflowLayoutForExpansion, identifyCoreConcepts } from '../../services/geminiService';
@@ -162,6 +162,8 @@ const CanvasSetupScreen: React.FC<{
 
 interface ReadingCanvasProps {
   studySet: StudySet;
+  appState: AppState;
+  isUpdatingCanvas: boolean;
   onBack: () => void;
   onRegenerate: () => Promise<void>;
   onGenerate: (config: { selectedTopics: string[], customPrompt: string }) => void;
@@ -179,7 +181,7 @@ interface ReadingCanvasProps {
 }
 
 const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ 
-    studySet, onBack, onRegenerate, onGenerate, updateSet,
+    studySet, appState, isUpdatingCanvas, onBack, onRegenerate, onGenerate, updateSet,
     chatMessages, isChatOpen, isAITyping, chatError, isChatEnabled,
     onSendMessage, onToggleChat, onCloseChat, onClearChat, onStartCustomQuiz
 }) => {
@@ -348,7 +350,7 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
   }, [currentLayout?.blocks, isMobile]);
 
 
-  if (!currentLayout) {
+  if (appState === AppState.READING_SETUP || !currentLayout) {
     return <CanvasSetupScreen studySet={studySet} onGenerate={onGenerate} onBack={onBack} />;
   }
 
@@ -385,6 +387,19 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
       )}
 
       <div className="flex-grow overflow-auto p-2 sm:p-4 bg-background-dark rounded-lg relative border border-gray-800">
+        <AnimatePresence>
+          {isUpdatingCanvas && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center"
+            >
+              <LoadingSpinner />
+              <p className="mt-4 font-semibold text-text-secondary">Adding new concepts to canvas...</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {isRegenerating && (
             <div className="absolute inset-0 bg-background-dark/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
                 <LoadingSpinner />

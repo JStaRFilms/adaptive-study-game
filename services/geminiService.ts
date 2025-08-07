@@ -303,7 +303,7 @@ export const identifyCoreConcepts = async (parts: PromptPart[], customPrompt?: s
     return jsonResponse.concepts || [];
 };
 
-const summarizeConcept = async (fullContextParts: PromptPart[], conceptTitle: string): Promise<BlockContent> => {
+export const summarizeConcept = async (fullContextParts: PromptPart[], conceptTitle: string): Promise<BlockContent> => {
     const modelIdentifier = 'readingLayoutGeneration';
     const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
         model,

@@ -1,7 +1,7 @@
 
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion, ReadingLayout, CanvasGenerationProgress } from './types';
+import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion, ReadingLayout, CanvasGenerationProgress, ReadingBlock as ReadingBlockType } from './types';
 import { GoogleGenAI, Chat } from '@google/genai';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -17,7 +17,7 @@ import PredictionResultsScreen from './components/PredictionResultsScreen';
 import StatsScreen from './components/StatsScreen';
 import ReadingCanvas from './components/reading/ReadingCanvas';
 import AnnouncementBanner from './components/common/AnnouncementBanner';
-import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedbackStreamed, buildReadingLayoutInParallel, identifyCoreConcepts } from './services/geminiService';
+import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedbackStreamed, buildReadingLayoutInParallel, identifyCoreConcepts, summarizeConcept } from './services/geminiService';
 import { getStudyChatSystemInstruction, getReviewChatSystemInstruction, getReadingCanvasChatSystemInstruction } from './services/geminiPrompts';
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
@@ -56,6 +56,7 @@ const App: React.FC = () => {
   // Processing State
   const [processingTask, setProcessingTask] = useState<'quiz' | 'canvas' | null>(null);
   const [canvasProgress, setCanvasProgress] = useState<CanvasGenerationProgress | null>(null);
+  const [isUpdatingCanvas, setIsUpdatingCanvas] = useState<boolean>(false);
   
   // Personalized Feedback State
   const [feedback, setFeedback] = useState<Partial<PersonalizedFeedback> | null>(null);
@@ -148,7 +149,8 @@ const App: React.FC = () => {
         if (firstKey && set) {
             try {
                 const ai = new GoogleGenAI({ apiKey: firstKey });
-                const systemInstruction = getStudyChatSystemInstruction(set, generatedQuiz);
+                const historyForSet = history.filter(r => r.studySetId === studySetId);
+                const systemInstruction = getStudyChatSystemInstruction(set, generatedQuiz, historyForSet);
                 const newChat = ai.chats.create({
                     model: 'gemini-2.5-flash',
                     config: { systemInstruction },
@@ -180,7 +182,7 @@ const App: React.FC = () => {
     } finally {
         setProcessingTask(null);
     }
-  }, [studySets]);
+  }, [studySets, history]);
   
   const handleStartSrsQuiz = useCallback(() => {
     const reviewPool = getReviewPool();
@@ -598,7 +600,8 @@ const App: React.FC = () => {
         if (firstKey) {
             try {
                 const ai = new GoogleGenAI({ apiKey: firstKey });
-                const systemInstruction = getReadingCanvasChatSystemInstruction(updatedSet, layout);
+                const historyForSet = history.filter(r => r.studySetId === studySet.id);
+                const systemInstruction = getReadingCanvasChatSystemInstruction(updatedSet, layout, historyForSet);
                 const newChat = ai.chats.create({
                     model: 'gemini-2.5-flash',
                     config: { systemInstruction },
@@ -636,7 +639,8 @@ const App: React.FC = () => {
         if (firstKey) {
             try {
                 const ai = new GoogleGenAI({ apiKey: firstKey });
-                const systemInstruction = getReadingCanvasChatSystemInstruction(studySet, studySet.readingLayout);
+                const historyForSet = history.filter(r => r.studySetId === studySet.id);
+                const systemInstruction = getReadingCanvasChatSystemInstruction(studySet, studySet.readingLayout, historyForSet);
                 const newChat = ai.chats.create({
                     model: 'gemini-2.5-flash',
                     config: { systemInstruction },
@@ -658,7 +662,7 @@ const App: React.FC = () => {
         // No layout exists, go to topic selection first
         setAppState(AppState.READING_SETUP);
     }
-  }, []);
+  }, [history]);
   
   const handleRegenerateCanvas = useCallback(async () => {
       if (!currentStudySet) return;
@@ -668,16 +672,78 @@ const App: React.FC = () => {
 
   const handleUpdateCanvas = useCallback(async (newTopics: string[]) => {
     if (!currentStudySet || !currentStudySet.readingLayout) return;
-    
-    const existingTopics = currentStudySet.readingLayout.blocks
-        .filter(b => !b.parentId)
-        .map(b => b.title);
-        
-    const allTopics = [...new Set([...existingTopics, ...newTopics])];
-    
-    await handleGenerateCanvas(currentStudySet, { focusTopics: allTopics });
 
-  }, [currentStudySet]);
+    setIsUpdatingCanvas(true);
+    setError(null);
+
+    try {
+        const currentLayout = currentStudySet.readingLayout;
+        const existingTopics = new Set(currentLayout.blocks.map(b => b.title.toLowerCase().trim()));
+        const topicsToAdd = newTopics.filter(t => !existingTopics.has(t.toLowerCase().trim()));
+
+        if (topicsToAdd.length === 0) {
+            setIsUpdatingCanvas(false);
+            return; // Silently ignore if topics already exist
+        }
+
+        // Recreate parts for context
+        const parts: PromptPart[] = [];
+        if (currentStudySet.content?.trim()) {
+            parts.push({ text: currentStudySet.content.trim() });
+        }
+        if (currentStudySet.persistedFiles) {
+            for (const pFile of currentStudySet.persistedFiles) {
+                if (pFile.type.startsWith('image/') || pFile.type.startsWith('audio/')) {
+                    parts.push({ inlineData: { mimeType: pFile.type, data: pFile.data }});
+                }
+            }
+        }
+        if (currentStudySet.youtubeUrls) {
+            currentStudySet.youtubeUrls.forEach(url => {
+                parts.push({text: `\n\n[Content from YouTube video: ${url}]\nThis content should be analyzed by watching the video or reading its transcript.`});
+            });
+        }
+        
+        const newBlockPromises = topicsToAdd.map(topic => summarizeConcept(parts, topic));
+        const newSummaries = await Promise.all(newBlockPromises);
+
+        let nextRowStart = currentLayout.rows + 1;
+        const DYNAMIC_BLOCK_ROW_HEIGHT = 2; // Each new block will take 2 rows height
+
+        const newBlocks: ReadingBlockType[] = newSummaries.map((summary) => {
+            const block: ReadingBlockType = {
+                id: `dynamic-${Date.now()}-${summary.title.replace(/\s+/g, '-')}`,
+                title: summary.title,
+                summary: summary.summary,
+                gridColumnStart: 1,
+                gridColumnEnd: currentLayout.columns + 1,
+                gridRowStart: nextRowStart,
+                gridRowEnd: nextRowStart + DYNAMIC_BLOCK_ROW_HEIGHT,
+            };
+            nextRowStart += DYNAMIC_BLOCK_ROW_HEIGHT;
+            return block;
+        });
+        
+        const updatedBlocks = [...currentLayout.blocks, ...newBlocks];
+        const updatedRows = nextRowStart - 1;
+
+        const newLayout: ReadingLayout = {
+            ...currentLayout,
+            blocks: updatedBlocks,
+            rows: updatedRows,
+        };
+
+        const updatedSet = { ...currentStudySet, readingLayout: newLayout };
+        await updateSet(updatedSet);
+        setCurrentStudySet(updatedSet); // Ensure local state is updated for immediate re-render
+
+    } catch (err) {
+        console.error("Failed to update canvas:", err);
+        setError(err instanceof Error ? err.message : "An AI error occurred while adding new topics.");
+    } finally {
+        setIsUpdatingCanvas(false);
+    }
+}, [currentStudySet, updateSet]);
 
 
   const handleSendMessage = useCallback(async (userMessage: string, contextQuestion?: Question, contextLog?: AnswerLog) => {
@@ -933,7 +999,9 @@ const App: React.FC = () => {
       case AppState.READING_CANVAS:
         if (!currentStudySet) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={(studySet, config) => handleGenerateCanvas(studySet, { focusTopics: config.topics, customPrompt: config.customPrompt })} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <ReadingCanvas 
-                    studySet={currentStudySet} 
+                    studySet={currentStudySet}
+                    appState={appState}
+                    isUpdatingCanvas={isUpdatingCanvas}
                     onBack={handleRestart} 
                     onRegenerate={handleRegenerateCanvas}
                     onGenerate={(config) => handleGenerateCanvas(currentStudySet, { focusTopics: config.selectedTopics, customPrompt: config.customPrompt })}

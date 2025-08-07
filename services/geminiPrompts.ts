@@ -356,17 +356,44 @@ Respond ONLY with a JSON object matching the required schema. Be strict in your 
 `;
 };
 
-export const getStudyChatSystemInstruction = (studySet: StudySet, quiz: Quiz): string => {
+export const getStudyChatSystemInstruction = (studySet: StudySet, quiz: Quiz, history?: QuizResult[]): string => {
     const quizQuestionText = quiz.questions.map((q, i) => `${i + 1}. ${q.questionText}`).join('\n');
-    
-    // Use a summary of the context to avoid hitting token limits
     const studySetContextSummary = `The study set is named "${studySet.name}" and covers topics like: ${studySet.topics?.join(', ') || 'various topics'}.`;
+    
+    let performanceContext = '';
+    if (history && history.length > 0) {
+        const topicStats: { [topic: string]: { correct: number, total: number } } = {};
+        history.forEach(result => {
+            result.answerLog.forEach(log => {
+                const topic = log.question.topic || 'Uncategorized';
+                if (!topicStats[topic]) {
+                    topicStats[topic] = { correct: 0, total: 0 };
+                }
+                topicStats[topic].total++;
+                if (log.isCorrect) {
+                    topicStats[topic].correct++;
+                }
+            });
+        });
 
-    return `You are an AI Study Coach assisting a student *during* an active quiz. Your primary role is to help them with the **current question** they are facing. Be encouraging and provide hints or clarify concepts related to that question.
+        const weaknessTopics = Object.entries(topicStats)
+            .map(([topic, data]) => ({
+                topic,
+                accuracy: data.total > 0 ? (data.correct / data.total) * 100 : 0
+            }))
+            .filter(t => t.accuracy < 75)
+            .map(t => t.topic);
+
+        if (weaknessTopics.length > 0) {
+            performanceContext = `\n\n**Performance Context:** Based on past quizzes for this subject, the user has shown weakness in the following topics: **${weaknessTopics.join(', ')}**. You should provide more detailed explanations for questions related to these topics, especially if the user answers incorrectly. Proactively offer to clarify these concepts.`;
+        }
+    }
+
+    let baseInstruction = `You are an AI Study Coach assisting a student *during* an active quiz. Your primary role is to help them with the **current question** they are facing. Be encouraging and provide hints or clarify concepts related to that question.
 
 **Your Role & Limitations:**
 - **DO:** Help with the question at hand. Offer hints, explanations, or encouragement.
-- **DO NOT:** Generate a new quiz, discuss past performance, or have general off-topic conversations.
+- **DO NOT:** Generate a new quiz, or have general off-topic conversations.
 - **If the user asks to create a new quiz:** Gently decline, explain that you can do that in the "Review" screen after the quiz is complete, and pivot back to the current question. For example: "That's a great idea, but let's focus on finishing this quiz first! We can create a focused quiz from the review screen afterward. For now, how about a hint on this question?"
 
 **Context You Have:**
@@ -375,17 +402,52 @@ export const getStudyChatSystemInstruction = (studySet: StudySet, quiz: Quiz): s
     ---
     ${quizQuestionText}
     ---
+${performanceContext}
 
 **User Interaction:**
 The user's message will be prefixed with context about the specific question they are currently viewing, including what they answered and whether it was correct. Use all of this context to give the best possible, tailored explanation or hint. If they got it wrong and are asking why, explain their specific mistake based on the answer they provided. Do not give the final answer away directly if they are asking for a hint. Answer concisely.`;
+
+    return baseInstruction;
 };
 
-export const getReadingCanvasChatSystemInstruction = (studySet: StudySet, layout: ReadingLayout): string => {
+
+export const getReadingCanvasChatSystemInstruction = (studySet: StudySet, layout: ReadingLayout, quizHistory?: QuizResult[]): string => {
     const layoutSummary = layout.blocks.map(b => ({
         id: b.id,
         title: b.title,
         isSubConcept: !!b.parentId
     }));
+    // Extract only top-level concept titles for the general quiz
+    const mainConceptTitles = layout.blocks.filter(b => !b.parentId).map(b => b.title);
+
+    let performanceContext = '';
+    if (quizHistory && quizHistory.length > 0) {
+        const topicStats: { [topic: string]: { correct: number, total: number } } = {};
+        quizHistory.forEach(result => {
+            result.answerLog.forEach(log => {
+                const topic = log.question.topic || 'Uncategorized';
+                if (!topicStats[topic]) {
+                    topicStats[topic] = { correct: 0, total: 0 };
+                }
+                topicStats[topic].total++;
+                if (log.isCorrect) {
+                    topicStats[topic].correct++;
+                }
+            });
+        });
+
+        const weaknessTopics = Object.entries(topicStats)
+            .map(([topic, data]) => ({
+                topic,
+                accuracy: data.total > 0 ? (data.correct / data.total) * 100 : 0
+            }))
+            .filter(t => t.accuracy < 75)
+            .map(t => t.topic);
+
+        if (weaknessTopics.length > 0) {
+            performanceContext = `\n3.  **Performance History:** Based on past quizzes for this subject, the user has shown weakness in the following topics: **${weaknessTopics.join(', ')}**. Pay extra attention to these topics. Proactively offer to clarify these concepts or suggest focused quizzes on them.`;
+        }
+    }
 
     return `You are an expert AI Study Coach providing assistance on a "Reading Canvas". The user is viewing a visual, mind-map-like layout of their study notes. Your role is to answer questions, explain concepts, and help them study this material.
 
@@ -395,11 +457,13 @@ export const getReadingCanvasChatSystemInstruction = (studySet: StudySet, layout
     \`\`\`json
     ${JSON.stringify(layoutSummary, null, 2)}
     \`\`\`
+${performanceContext}
 
 **How to Behave:**
 - Answer questions about the concepts in the study set. You can reference the canvas layout (e.g., "That concept is related to '${layoutSummary[0].title}' which is a main topic on your canvas.")
+- Use the **Performance History** to be a smarter tutor. If the user asks about a known weakness topic, provide a more detailed explanation.
 - Keep your answers conversational and concise.
-- **Be proactive!** You can suggest connections between topics or ask probing questions.
+- **Be proactive!** You can suggest connections between topics or ask probing questions, especially about weakness areas.
 
 **Special Tools: Quiz Creation & Canvas Updates**
 You have two main tools, triggered by special commands.
@@ -409,10 +473,15 @@ You have two main tools, triggered by special commands.
 - **TRIGGER:** If the user asks to create a quiz/test.
 - **ACTION:** Respond with confirmation and append \`[ACTION:CREATE_QUIZ:topics=Topic1,Topic2|questions=N]\`
 - The \`|questions=N\` part is OPTIONAL. Only include it if the user specified a number.
+- **IMPORTANT:** If the user makes a general request for a quiz without specifying topics (e.g., "make me a quiz"), you MUST create a quiz covering ALL the main topics from the canvas layout. The main topics are: ${mainConceptTitles.join(', ')}.
 
-**EXAMPLE (Quiz):**
-  - User: "make me a 5 question quiz on photosynthesis"
-  - Your Response: "You got it! A 5-question quiz about photosynthesis, coming right up. You'll see the button appear to start.[ACTION:CREATE_QUIZ:topics=photosynthesis|questions=5]"
+**EXAMPLE (Specific Quiz):**
+  - User: "make me a 5 question quiz on ${mainConceptTitles.length > 0 ? mainConceptTitles[0] : 'a specific topic'}"
+  - Your Response: "You got it! A 5-question quiz about ${mainConceptTitles.length > 0 ? mainConceptTitles[0] : 'that topic'}, coming right up. You'll see the button appear to start.[ACTION:CREATE_QUIZ:topics=${mainConceptTitles.length > 0 ? mainConceptTitles[0] : 'topic'}|questions=5]"
+
+**EXAMPLE (General Quiz):**
+  - User: "generate a quiz for me"
+  - Your Response: "No problem! Your quiz covering all the main concepts on the canvas is being generated now. Keep an eye out for the button to start it.[ACTION:CREATE_QUIZ:topics=${mainConceptTitles.join(',')}]"
 ---
 **TOOL 2: Dynamic Canvas Update**
 - **TRIGGER:** If the user asks to "add", "include", "focus on", or "show more about" a new topic.
@@ -425,7 +494,7 @@ You have two main tools, triggered by special commands.
 
 **CRITICAL RULES:**
 - **DO NOT** ask for confirmation (e.g., "Are you ready?"). The user's request IS the confirmation. Act immediately.
-- **DO NOT** forget to append the correct \`[ACTION:...] \` command.
+- **DO NOT** forget to append the correct \`[ACTION:...] \` command with all required parameters like 'topics'.
 `;
 };
 

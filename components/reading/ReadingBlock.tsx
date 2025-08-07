@@ -64,9 +64,8 @@ const ReadingBlock: React.FC<ReadingBlockProps> = ({ block, isExpanded, isLoadin
       layout
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
       style={{...gridStyle, ...dynamicStyles}}
-      onClick={!isExpanded ? () => onExpand(block.id) : undefined}
-      className={`relative bg-surface-dark p-3 rounded-lg border shadow-md flex flex-col transition-colors duration-300
-        ${isExpanded ? 'shadow-2xl z-20' : 'border-gray-700 hover:border-brand-primary cursor-pointer'}
+      className={`relative group bg-surface-dark p-3 rounded-lg border shadow-md flex flex-col transition-colors duration-300
+        ${isExpanded ? 'shadow-2xl z-20' : 'border-gray-700 hover:border-brand-primary'}
       `}
     >
       {isLoadingAI && isExpanded && (
@@ -74,6 +73,19 @@ const ReadingBlock: React.FC<ReadingBlockProps> = ({ block, isExpanded, isLoadin
            <div className="w-8 h-8 border-2 border-solid border-gray-600 rounded-full border-t-brand-primary animate-spin"></div>
            <span className="sr-only">AI is refining layout...</span>
         </div>
+      )}
+
+      {!isExpanded && (
+        <button
+            onClick={(e) => { e.stopPropagation(); onExpand(block.id); }}
+            className="absolute top-2 right-2 p-1 rounded-full bg-surface-dark/50 text-gray-400 hover:bg-brand-primary hover:text-white opacity-0 group-hover:opacity-100 transition-opacity z-30 cursor-pointer"
+            aria-label="Expand concept"
+            title="Expand"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+        </button>
       )}
 
       {isExpanded && !isSubBlock && (
