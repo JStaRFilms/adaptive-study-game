@@ -35,6 +35,7 @@ export const useStudySets = (): [
       topics: newSet.topics || [],
       youtubeUrls: newSet.youtubeUrls || [],
       readingLayout: newSet.readingLayout || null,
+      subConceptCache: {}, // Initialize the cache
     };
     await add(STORE_NAME, setWithId);
     await refreshSets();
@@ -48,6 +49,7 @@ export const useStudySets = (): [
       topics: updatedSet.topics || [],
       youtubeUrls: updatedSet.youtubeUrls || [],
       readingLayout: updatedSet.readingLayout || null,
+      subConceptCache: updatedSet.subConceptCache || {}, // Ensure cache is saved
     };
     await put(STORE_NAME, setToSave);
     await refreshSets();
