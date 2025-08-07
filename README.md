@@ -28,6 +28,12 @@ An intelligent study tool that uses the Google Gemini API to transform your note
   - **Personalized Feedback**: After each session, the AI analyzes your performance, identifies strengths & weaknesses, and provides actionable recommendations.
   - **One-Click Focused Quizzes**: Instantly generate a new quiz that targets the topics you struggled with the most.
   - **Comprehensive Stats**: Track your progress over time with a detailed analytics dashboard.
+- **AI-Generated Visual Reading Canvas**: A revolutionary way to engage with your study materials.
+  - **Explore Visually**: Transforms your notes into a dynamic, mind-map style interface of interconnected concepts.
+  - **Dynamic Expansion**: Click to expand any concept, and watch as the AI generates new, detailed sub-topics in real-time.
+  - **Intelligent Reflow Animations**: Surrounding blocks fluidly and gracefully animate to make space for new information, creating a seamless exploratory experience.
+  - **Stateful & Persistent**: Your canvas layout is saved automatically. Expanded concepts will remain expanded, allowing you to pick up your study session right where you left off.
+  - **Fully Responsive**: Adapts from a multi-column grid on desktop to a clean, single-column view on mobile devices.
 - **AI-Powered Quiz Generation**: Automatically creates high-quality quizzes from your study materials.
 - **Multimodal Input**: Generate quizzes from a mix of sources:
   - Pasted text notes
@@ -56,14 +62,16 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 ## 🚀 Project Philosophy
 > This project is built on a few core principles:
 > 1.  **AI-First Experience**: Leveraging the powerful Gemini family of models, using `gemini-2.5-flash` for fast, real-time interactions and `gemini-2.5-pro` for high-quality analysis and generation tasks.
-> 2.  **Frictionless Development**: By using browser-native ES Modules and a CDN (`esm.sh`), the project avoids complex build steps. There's no `npm install`, no bundler configuration—just modern web technologies.
-> 3.  **User-Centric Design**: The entire experience, from the landing page to the quiz review screen, is designed to be intuitive, engaging, and effective for learning. Data is stored locally in the user's browser, ensuring privacy and persistence without a backend.
+> 2.  **Performance-Oriented Architecture**: Employs advanced patterns like **"Parallel Pipelines"** and **"Guided Generation"** to break down complex AI tasks into smaller, simultaneous jobs. This significantly reduces latency for features like quiz and canvas generation while ensuring reliable, well-structured output.
+> 3.  **Frictionless Development**: By using browser-native ES Modules and a CDN (`esm.sh`), the project avoids complex build steps. There's no `npm install`, no bundler configuration—just modern web technologies.
+> 4.  **User-Centric Design**: The entire experience is designed to be intuitive, engaging, and effective for learning. Data is stored locally in the user's browser, ensuring privacy and persistence without a backend.
 
 
 ## 🛠️ How It Works
 
 1.  **Create a Study Set**: Add your notes by pasting text, uploading files (`.pdf`, `.docx`, images, audio, etc.), or adding YouTube URLs. Your sets are saved for later.
 2.  **Choose Your Path**:
+    - **Read**: Generate a visual **Reading Canvas** from your notes. This creates a mind-map of interconnected concepts that you can explore interactively. Expand topics to get deeper insights, and watch the canvas intelligently reflow around your focus.
     - **Study**: The app analyzes your notes, identifies key topics, and lets you configure a quiz (Practice, Review, or Exam Mode) with various question types, including multiple choice, matching, and sequence.
     - **Spaced Repetition**: Start a review session that intelligently quizzes you on items you're close to forgetting.
     - **Predict**: Enter the Exam Prediction mode. Provide details about your teacher's style, upload past exams or quizzes, and let the AI generate a list of probable exam questions.
@@ -79,6 +87,7 @@ This app is built with a modern, build-free stack, focusing on performance and d
 -   **Core Framework**: [React](https://react.dev/) (with Hooks) & [TypeScript](https://www.typescriptlang.org/) for a robust and type-safe UI.
 -   **AI Engine**: [Google Gemini API](https://ai.google.dev/) using a suite of models (`gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`) for intelligent features.
 -   **Styling**: [Tailwind CSS](https://tailwindcss.com/) for a utility-first, responsive design system.
+-   **Animation**: [Framer Motion](https://www.framer.com/motion/) for fluid, physics-based UI animations.
 -   **Module System**: Browser-native ES Modules loaded directly from the [esm.sh](https://esm.sh/) CDN. This eliminates the need for local `node_modules` or a bundling step.
 -   **Client-Side File Processing**:
     -   [PDF.js](https://mozilla.github.io/pdf.js/) for parsing `.pdf` files.

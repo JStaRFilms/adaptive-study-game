@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { StudySet, ReadingLayout, ReadingBlock as ReadingBlockType } from '../../types';
 import ReadingBlock from './ReadingBlock';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,6 +27,24 @@ const getNextColor = () => {
 
 const PARENT_EXPANSION_HEIGHT = 2;
 const SUB_CONCEPT_HEIGHT = 2;
+
+// Helper hook for media queries
+const useMediaQuery = (query: string) => {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    if (media.matches !== matches) {
+      setMatches(media.matches);
+    }
+    const listener = () => setMatches(media.matches);
+    window.addEventListener('resize', listener);
+    return () => window.removeEventListener('resize', listener);
+  }, [matches, query]);
+
+  return matches;
+};
+
 
 // Helper for creating the optimistic UI with placeholders
 const createProvisionalLayout = (baseLayout: ReadingLayout, parentBlock: ReadingBlockType): ReadingLayout => {
@@ -82,6 +102,7 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack, onRegen
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   useEffect(() => {
     setCurrentLayout(studySet.readingLayout);
@@ -228,6 +249,19 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack, onRegen
     }
   };
 
+  const sortedBlocksForMobile = useMemo(() => {
+    if (isMobile && currentLayout?.blocks) {
+        return [...currentLayout.blocks].sort((a, b) => {
+            if (a.gridRowStart !== b.gridRowStart) {
+                return a.gridRowStart - b.gridRowStart;
+            }
+            return a.gridColumnStart - b.gridColumnStart;
+        });
+    }
+    return currentLayout?.blocks || [];
+  }, [currentLayout?.blocks, isMobile]);
+
+
   if (!currentLayout) {
     return (
        <div className="flex flex-col items-center justify-center h-full text-center">
@@ -240,7 +274,7 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack, onRegen
     );
   }
 
-  const { blocks, columns, rows } = currentLayout;
+  const { columns, rows } = currentLayout;
 
   const gridStyle = {
     gridTemplateColumns: `repeat(${columns}, 1fr)`,
@@ -279,22 +313,29 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack, onRegen
                 <p className="mt-4 font-semibold text-text-secondary">Regenerating canvas...</p>
             </div>
         )}
-        <div 
-          className="absolute inset-0 z-0 pointer-events-none"
-          style={{
-            backgroundSize: `calc(100% / ${columns}) 40px`,
-            backgroundImage: 'linear-gradient(to right, rgba(107, 114, 128, 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(107, 114, 128, 0.1) 1px, transparent 1px)'
-          }}
-        ></div>
+        {!isMobile && (
+          <div 
+            className="absolute inset-0 z-0 pointer-events-none"
+            style={{
+              backgroundSize: `calc(100% / ${columns}) 40px`,
+              backgroundImage: 'linear-gradient(to right, rgba(107, 114, 128, 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(107, 114, 128, 0.1) 1px, transparent 1px)'
+            }}
+          ></div>
+        )}
         
-        <motion.div layout style={gridStyle} className="grid gap-3 relative z-10">
+        <motion.div 
+          layout 
+          style={!isMobile ? gridStyle : {}} 
+          className={isMobile ? "flex flex-col gap-3 relative z-10" : "grid gap-3 relative z-10"}
+        >
           <AnimatePresence>
-            {blocks.map((block) => (
+            {sortedBlocksForMobile.map((block) => (
               <ReadingBlock 
                   key={block.id} 
                   block={block} 
                   isExpanded={block.id === expandedBlockId}
                   isLoadingAI={isLoadingAI && block.id === expandedBlockId}
+                  isMobile={isMobile}
                   onExpand={handleExpand}
                   onCollapse={handleCollapse}
                   onRegenerate={handleRegenerateBlock}

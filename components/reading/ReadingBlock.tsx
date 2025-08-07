@@ -9,13 +9,14 @@ interface ReadingBlockProps {
   block: ReadingBlockType;
   isExpanded: boolean;
   isLoadingAI: boolean;
+  isMobile: boolean;
   onExpand: (id: string) => void;
   onCollapse: (id: string) => void;
   onRegenerate: (id: string) => void;
 }
 
-const ReadingBlock: React.FC<ReadingBlockProps> = ({ block, isExpanded, isLoadingAI, onExpand, onCollapse, onRegenerate }) => {
-  const gridStyle: React.CSSProperties = {
+const ReadingBlock: React.FC<ReadingBlockProps> = ({ block, isExpanded, isLoadingAI, isMobile, onExpand, onCollapse, onRegenerate }) => {
+  const gridStyle: React.CSSProperties = isMobile ? {} : {
     gridColumn: `${block.gridColumnStart} / ${block.gridColumnEnd}`,
     gridRow: `${block.gridRowStart} / ${block.gridRowEnd}`,
   };
