@@ -55,7 +55,7 @@ interface TopicSelectorProps {
     progressPercent: number;
     flow: 'quiz' | 'canvas';
     onStartQuiz?: (config: { numQuestions: number, studyMode: StudyMode, knowledgeSource: KnowledgeSource, selectedTopics: string[], customInstructions: string}) => void;
-    onGenerateCanvas?: (config: { selectedTopics: string[] }) => void;
+    onGenerateCanvas?: (config: { selectedTopics: string[], customPrompt: string }) => void;
     onBack: () => void;
     onRegenerateTopics: () => void;
     onReanalyzeWithFiles: (files: File[]) => void;
@@ -71,6 +71,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
     const [studyMode, setStudyMode] = useState<StudyMode>(StudyMode.PRACTICE);
     const [knowledgeSource, setKnowledgeSource] = useState<KnowledgeSource>(KnowledgeSource.NOTES_ONLY);
     const [files, setFiles] = useState<File[]>([]);
+    const [customPrompt, setCustomPrompt] = useState('');
 
     const handleTopicToggle = (topic: string) => setSelectedTopics(prev => prev.includes(topic) ? prev.filter(t => t !== topic) : [...prev, topic]);
     const handleSelectAll = () => topics && setSelectedTopics(topics);
@@ -80,7 +81,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
         if (flow === 'quiz' && onStartQuiz) {
             onStartQuiz({ numQuestions, studyMode, knowledgeSource, selectedTopics, customInstructions });
         } else if (flow === 'canvas' && onGenerateCanvas) {
-            onGenerateCanvas({ selectedTopics });
+            onGenerateCanvas({ selectedTopics, customPrompt });
         }
     };
 
@@ -184,33 +185,50 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
                 </div>
 
                 {flow === 'quiz' && (
-                    <>
-                        <div className="border-t border-gray-700 pt-8">
-                            <h3 className="text-2xl font-bold text-text-primary mb-4">Custom Focus <span className="text-base font-normal text-text-secondary">(Optional)</span></h3>
-                            <p className="text-text-secondary mb-3 text-sm">
-                                Give the AI specific instructions to tailor your quiz. For example: "focus on chapters 5 and 6" or "create fill in the gap questions comparing photosynthesis and cellular respiration".
-                            </p>
-                            <textarea
-                                value={customInstructions}
-                                onChange={(e) => setCustomInstructions(e.target.value)}
-                                placeholder="Let's focus on..."
-                                className="w-full h-24 p-3 bg-gray-900 border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                                aria-label="Custom quiz instructions"
-                            />
-                            {customInstructions && <p className="text-sm text-correct mt-2 animate-fade-in">✓ Your custom focus will be applied.</p>}
-                        </div>
+                    <div className="border-t border-gray-700 pt-8">
+                        <h3 className="text-2xl font-bold text-text-primary mb-4">Custom Focus <span className="text-base font-normal text-text-secondary">(Optional)</span></h3>
+                        <p className="text-text-secondary mb-3 text-sm">
+                            Give the AI specific instructions to tailor your quiz. For example: "focus on chapters 5 and 6" or "create fill in the gap questions comparing photosynthesis and cellular respiration".
+                        </p>
+                        <textarea
+                            value={customInstructions}
+                            onChange={(e) => setCustomInstructions(e.target.value)}
+                            placeholder="Let's focus on..."
+                            className="w-full h-24 p-3 bg-gray-900 border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                            aria-label="Custom quiz instructions"
+                        />
+                        {customInstructions && <p className="text-sm text-correct mt-2 animate-fade-in">✓ Your custom focus will be applied.</p>}
+                    </div>
+                )}
+                
+                {flow === 'canvas' && (
+                    <div className="border-t border-gray-700 pt-8">
+                        <h3 className="text-2xl font-bold text-text-primary mb-4">Custom Focus <span className="text-base font-normal text-text-secondary">(Optional)</span></h3>
+                        <p className="text-text-secondary mb-3 text-sm">
+                            Describe what you want the canvas to focus on. For example, "Create a timeline of the key events" or "Compare and contrast the main characters".
+                            <strong className="text-yellow-400 block mt-1">Using a custom prompt will override the topic selections above.</strong>
+                        </p>
+                        <textarea
+                            value={customPrompt}
+                            onChange={(e) => setCustomPrompt(e.target.value)}
+                            placeholder="Focus on..."
+                            className="w-full h-24 p-3 bg-gray-900 border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                            aria-label="Custom canvas focus prompt"
+                        />
+                    </div>
+                )}
 
-                        <div className="border-t border-gray-700 pt-8 mt-8 space-y-8 text-center">
-                            <QuizConfigurator 
-                                numQuestions={numQuestions}
-                                setNumQuestions={setNumQuestions}
-                                studyMode={studyMode}
-                                setStudyMode={setStudyMode}
-                                knowledgeSource={knowledgeSource}
-                                setKnowledgeSource={setKnowledgeSource}
-                            />
-                        </div>
-                    </>
+                {flow === 'quiz' && (
+                    <div className="border-t border-gray-700 pt-8 mt-8 space-y-8 text-center">
+                        <QuizConfigurator 
+                            numQuestions={numQuestions}
+                            setNumQuestions={setNumQuestions}
+                            studyMode={studyMode}
+                            setStudyMode={setStudyMode}
+                            knowledgeSource={knowledgeSource}
+                            setKnowledgeSource={setKnowledgeSource}
+                        />
+                    </div>
                 )}
 
                 <div className="border-t border-gray-700 pt-8 text-center">

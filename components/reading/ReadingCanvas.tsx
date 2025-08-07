@@ -93,7 +93,7 @@ const createProvisionalLayout = (baseLayout: ReadingLayout, parentBlock: Reading
 
 const CanvasSetupScreen: React.FC<{
     studySet: StudySet,
-    onGenerate: (topics: string[]) => void,
+    onGenerate: (config: { selectedTopics: string[], customPrompt: string }) => void,
     onBack: () => void
 }> = ({ studySet, onGenerate, onBack }) => {
     const [topics, setTopics] = useState<string[] | null>(null);
@@ -151,7 +151,7 @@ const CanvasSetupScreen: React.FC<{
             isProcessing={false}
             processingError={null}
             progressPercent={0}
-            onGenerateCanvas={(config) => onGenerate(config.selectedTopics)}
+            onGenerateCanvas={onGenerate}
             onBack={onBack}
             onRegenerateTopics={() => {}} // Not needed here
             onReanalyzeWithFiles={() => {}} // Not needed here
@@ -164,6 +164,7 @@ interface ReadingCanvasProps {
   studySet: StudySet;
   onBack: () => void;
   onRegenerate: () => Promise<void>;
+  onGenerate: (config: { selectedTopics: string[], customPrompt: string }) => void;
   updateSet: (set: StudySet) => Promise<void>;
   chatMessages: ChatMessage[];
   isChatOpen: boolean;
@@ -178,7 +179,7 @@ interface ReadingCanvasProps {
 }
 
 const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ 
-    studySet, onBack, onRegenerate, updateSet,
+    studySet, onBack, onRegenerate, onGenerate, updateSet,
     chatMessages, isChatOpen, isAITyping, chatError, isChatEnabled,
     onSendMessage, onToggleChat, onCloseChat, onClearChat, onStartCustomQuiz
 }) => {
@@ -348,15 +349,7 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
 
 
   if (!currentLayout) {
-    return (
-       <div className="flex flex-col items-center justify-center h-full text-center">
-        <h2 className="text-2xl font-bold text-incorrect">Layout Error</h2>
-        <p className="text-text-secondary mt-2">Could not load the reading canvas for this set.</p>
-        <button onClick={onBack} className="mt-6 px-6 py-2 bg-brand-primary text-white font-bold rounded-lg hover:bg-brand-secondary">
-          Back to Sets
-        </button>
-      </div>
-    );
+    return <CanvasSetupScreen studySet={studySet} onGenerate={onGenerate} onBack={onBack} />;
   }
 
   const { columns, rows } = currentLayout;

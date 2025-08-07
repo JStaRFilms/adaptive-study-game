@@ -29,7 +29,7 @@ const ProcessingModal: React.FC<{ title: string; message: string; progress: numb
 interface SetupScreenProps {
   onStart: (parts: PromptPart[], config: QuizConfig, studySetId: string) => void;
   onStartReading: (set: StudySet) => void;
-  onStartCanvasGeneration: (studySet: StudySet, topics: string[]) => void;
+  onStartCanvasGeneration: (studySet: StudySet, config: { topics: string[], customPrompt: string }) => void;
   error: string | null;
   initialContent?: string | null;
   onReviewHistory: (result: QuizResult) => void;
@@ -257,9 +257,9 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
         onStart(preparedParts, finalConfig, activeSet.id);
     };
 
-    const handleGenerateCanvas = (config: { selectedTopics: string[] }) => {
+    const handleGenerateCanvas = (config: { selectedTopics: string[], customPrompt: string }) => {
         if (!activeSet) return;
-        onStartCanvasGeneration(activeSet, config.selectedTopics);
+        onStartCanvasGeneration(activeSet, { topics: config.selectedTopics, customPrompt: config.customPrompt });
     };
   
     const handleRegenerateTopics = async () => {

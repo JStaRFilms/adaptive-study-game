@@ -287,13 +287,13 @@ export const generateQuiz = async (parts: PromptPart[], config: QuizConfig): Pro
   }
 };
 
-export const identifyCoreConcepts = async (parts: PromptPart[]): Promise<string[]> => {
+export const identifyCoreConcepts = async (parts: PromptPart[], customPrompt?: string): Promise<string[]> => {
     const modelIdentifier = 'topicAnalysis';
     const apiFunction = (client: GoogleGenAI, model: string): Promise<GenerateContentResponse> => client.models.generateContent({
         model,
         contents: { parts },
         config: {
-            systemInstruction: getCoreConceptsInstruction(),
+            systemInstruction: getCoreConceptsInstruction(customPrompt),
             responseMimeType: "application/json",
             responseSchema: coreConceptsSchema
         }

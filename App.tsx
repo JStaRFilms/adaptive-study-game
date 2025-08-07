@@ -17,7 +17,7 @@ import PredictionResultsScreen from './components/PredictionResultsScreen';
 import StatsScreen from './components/StatsScreen';
 import ReadingCanvas from './components/reading/ReadingCanvas';
 import AnnouncementBanner from './components/common/AnnouncementBanner';
-import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedbackStreamed, buildReadingLayoutInParallel } from './services/geminiService';
+import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedbackStreamed, buildReadingLayoutInParallel, identifyCoreConcepts } from './services/geminiService';
 import { getStudyChatSystemInstruction, getReviewChatSystemInstruction, getReadingCanvasChatSystemInstruction } from './services/geminiPrompts';
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
@@ -556,7 +556,7 @@ const App: React.FC = () => {
     setAppState(AppState.STATS);
   }, []);
 
-  const handleGenerateCanvas = async (studySet: StudySet, focusTopics?: string[]) => {
+  const handleGenerateCanvas = async (studySet: StudySet, config: { focusTopics?: string[], customPrompt?: string }) => {
     setProcessingTask('canvas');
     setAppState(AppState.PROCESSING);
     setCanvasProgress(null);
@@ -578,9 +578,16 @@ const App: React.FC = () => {
             });
         }
 
+        let topicsForLayout: string[] | undefined = config.focusTopics;
+
+        if (config.customPrompt && config.customPrompt.trim()) {
+            setCanvasProgress({ stage: 'Analyzing custom focus...', progress: 5 });
+            topicsForLayout = await identifyCoreConcepts(allParts, config.customPrompt.trim());
+        }
+
         const layout = await buildReadingLayoutInParallel(allParts, (progressUpdate) => {
             setCanvasProgress(progressUpdate);
-        }, focusTopics);
+        }, topicsForLayout);
         
         const updatedSet = { ...studySet, readingLayout: layout, subConceptCache: {} }; // Reset cache on new generation
         await updateSet(updatedSet);
@@ -668,7 +675,7 @@ const App: React.FC = () => {
         
     const allTopics = [...new Set([...existingTopics, ...newTopics])];
     
-    await handleGenerateCanvas(currentStudySet, allTopics);
+    await handleGenerateCanvas(currentStudySet, { focusTopics: allTopics });
 
   }, [currentStudySet]);
 
@@ -867,7 +874,7 @@ const App: React.FC = () => {
         );
       
       case AppState.STUDYING:
-        if (!quiz) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={handleGenerateCanvas} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        if (!quiz) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={(studySet, config) => handleGenerateCanvas(studySet, { focusTopics: config.topics, customPrompt: config.customPrompt })} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <StudyScreen 
                     quiz={quiz} 
                     onFinish={handleFinishStudy} 
@@ -890,7 +897,7 @@ const App: React.FC = () => {
         return <ResultsScreen result={currentResult} onRestart={handleRestart} onReview={handleReview} feedback={feedback} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={(topics) => handleStartFocusedQuiz(topics, currentStudySet)} />;
       
       case AppState.REVIEWING:
-        if (answerLog.length === 0 || !currentResult) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={handleGenerateCanvas} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        if (answerLog.length === 0 || !currentResult) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={(studySet, config) => handleGenerateCanvas(studySet, { focusTopics: config.topics, customPrompt: config.customPrompt })} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <ReviewScreen 
                   result={currentResult} 
                   onRetakeSameQuiz={handleRetakeQuiz} 
@@ -912,7 +919,7 @@ const App: React.FC = () => {
         return <ExamScreen quiz={quiz} onFinish={handleFinishExam} onCancel={handleRestart} />;
 
       case AppState.PREDICTION_SETUP:
-        if (!currentStudySet) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={handleGenerateCanvas} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        if (!currentStudySet) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={(studySet, config) => handleGenerateCanvas(studySet, { focusTopics: config.topics, customPrompt: config.customPrompt })} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <PredictionSetupScreen studySet={currentStudySet} onGenerate={handleGeneratePrediction} onCancel={handleRestart} error={error}/>;
 
       case AppState.PREDICTION_RESULTS:
@@ -924,11 +931,12 @@ const App: React.FC = () => {
 
       case AppState.READING_SETUP:
       case AppState.READING_CANVAS:
-        if (!currentStudySet) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={handleGenerateCanvas} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        if (!currentStudySet) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={(studySet, config) => handleGenerateCanvas(studySet, { focusTopics: config.topics, customPrompt: config.customPrompt })} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <ReadingCanvas 
                     studySet={currentStudySet} 
                     onBack={handleRestart} 
-                    onRegenerate={handleRegenerateCanvas} 
+                    onRegenerate={handleRegenerateCanvas}
+                    onGenerate={(config) => handleGenerateCanvas(currentStudySet, { focusTopics: config.selectedTopics, customPrompt: config.customPrompt })}
                     updateSet={updateSet}
                     chatMessages={chatMessages}
                     isChatOpen={isChatOpen}
@@ -944,7 +952,7 @@ const App: React.FC = () => {
 
       case AppState.SETUP:
       default:
-        return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={handleGenerateCanvas} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={(studySet, config) => handleGenerateCanvas(studySet, { focusTopics: config.topics, customPrompt: config.customPrompt })} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
     }
   };
 

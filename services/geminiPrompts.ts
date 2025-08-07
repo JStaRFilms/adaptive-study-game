@@ -81,8 +81,14 @@ ${schemaDescription}
 };
 
 
-export const getCoreConceptsInstruction = (): string => {
-    return "You are an expert at analyzing text and identifying key themes. Based on the provided study materials (which can include text, images, and content from YouTube URLs), identify the 10-15 main concepts or subjects discussed. If a YouTube URL is provided, you must access its content to inform the topics. Your response must be a JSON object containing a single key 'concepts' which is an array of strings. Each string should be a concise concept name (e.g., 'Cellular Respiration', 'The Krebs Cycle', 'World War II Causes').";
+export const getCoreConceptsInstruction = (customPrompt?: string): string => {
+    let baseInstruction = "You are an expert at analyzing text and identifying key themes. Based on the provided study materials (which can include text, images, and content from YouTube URLs), identify the 10-15 main concepts or subjects discussed. If a YouTube URL is provided, you must access its content to inform the topics.";
+    
+    if (customPrompt && customPrompt.trim()) {
+        baseInstruction = `You are an expert at analyzing text and identifying key themes. Based on the provided study materials AND the user's focus prompt, identify the 10-15 main concepts or subjects discussed. Your analysis should be guided by the user's prompt. User's Focus Prompt: "${customPrompt}"`;
+    }
+
+    return `${baseInstruction} Your response must be a JSON object containing a single key 'concepts' which is an array of strings. Each string should be a concise concept name (e.g., 'Cellular Respiration', 'The Krebs Cycle', 'World War II Causes').`;
 };
 
 export const getConceptSummaryInstruction = (conceptTitle: string): string => {
