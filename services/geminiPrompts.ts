@@ -420,7 +420,7 @@ export const getReadingCanvasChatSystemInstruction = (studySet: StudySet, layout
     // Extract only top-level concept titles for the general quiz
     const mainConceptTitles = layout.blocks.filter(b => !b.parentId).map(b => b.title);
 
-    let performanceContext = '';
+    let performanceContext = `\n3.  **Performance History:** You do not have access to specific scores, but you can see general performance trends.`; // Default message
     if (quizHistory && quizHistory.length > 0) {
         const topicStats: { [topic: string]: { correct: number, total: number } } = {};
         quizHistory.forEach(result => {
@@ -445,7 +445,14 @@ export const getReadingCanvasChatSystemInstruction = (studySet: StudySet, layout
             .map(t => t.topic);
 
         if (weaknessTopics.length > 0) {
-            performanceContext = `\n3.  **Performance History:** Based on past quizzes for this subject, the user has shown weakness in the following topics: **${weaknessTopics.join(', ')}**. Pay extra attention to these topics. Proactively offer to clarify these concepts or suggest focused quizzes on them.`;
+            performanceContext = `\n3.  **Performance History:** You have access to the user's past quiz performance trends for this subject. Use this to provide personalized help.
+    - **Weakness Topics Identified:** ${weaknessTopics.join(', ')}.
+    - **How to Use This Data:** When the user asks about their performance or a specific concept, use this list of weaknesses to tailor your explanation. Proactively offer to clarify these concepts or suggest focused quizzes.
+    - **Privacy Rule:** Do NOT mention specific scores, grades, or percentages (e.g., "You got 50%"). Instead, frame it as a "tricky topic" or an "area for review."
+
+**Example Interaction:**
+- User: "what did I get in my last test?"
+- Your Response: "I don't have access to specific scores from past tests. However, I can see that based on your past performance, topics like **${weaknessTopics.slice(0, 3).join(', ')}** have been challenging. Would you like me to explain any of those concepts, or create a focused quiz on them to help you review?"`;
         }
     }
 
