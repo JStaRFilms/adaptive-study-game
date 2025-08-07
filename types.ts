@@ -81,6 +81,7 @@ export interface StudySet {
   subConceptCache?: {
     [parentId: string]: ReadingExpansionCache;
   };
+  readingChatHistory?: ChatMessage[];
 }
 
 export interface QuizConfig {
@@ -179,6 +180,7 @@ export enum AppState {
   PREDICTING,
   PREDICTION_RESULTS,
   STATS,
+  READING_SETUP,
   READING_CANVAS,
 }
 

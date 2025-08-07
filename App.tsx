@@ -18,7 +18,7 @@ import StatsScreen from './components/StatsScreen';
 import ReadingCanvas from './components/reading/ReadingCanvas';
 import AnnouncementBanner from './components/common/AnnouncementBanner';
 import { generateQuiz, gradeExam, generateExamPrediction, generatePersonalizedFeedbackStreamed, buildReadingLayoutInParallel } from './services/geminiService';
-import { getStudyChatSystemInstruction, getReviewChatSystemInstruction } from './services/geminiPrompts';
+import { getStudyChatSystemInstruction, getReviewChatSystemInstruction, getReadingCanvasChatSystemInstruction } from './services/geminiPrompts';
 import { useQuizHistory } from './hooks/useQuizHistory';
 import { useStudySets } from './hooks/useStudySets';
 import { usePredictions } from './hooks/usePredictions';
@@ -348,6 +348,17 @@ const App: React.FC = () => {
     }
   }, [appState, currentResult, chatMessages, updateQuizResult]);
 
+  const saveReadingChatIfDirty = useCallback(async () => {
+    if (appState === AppState.READING_CANVAS && currentStudySet) {
+        const cleanedChatHistory = chatMessages.map(({ action, ...rest }) => rest);
+        if (JSON.stringify(cleanedChatHistory) !== JSON.stringify(currentStudySet.readingChatHistory || [])) {
+             const updatedSet = { ...currentStudySet, readingChatHistory: cleanedChatHistory };
+             await updateSet(updatedSet);
+             setCurrentStudySet(updatedSet); // Keep local state in sync
+        }
+    }
+  }, [appState, currentStudySet, chatMessages, updateSet]);
+
   const handleStartFocusedQuiz = useCallback(async (
     weaknessTopics: PersonalizedFeedback['weaknessTopics'], 
     studySetForQuiz: StudySet | null
@@ -449,6 +460,7 @@ const App: React.FC = () => {
 
   const handleRestart = useCallback(async () => {
     await saveReviewChatIfDirty();
+    await saveReadingChatIfDirty();
 
     setAppState(AppState.SETUP);
     setQuiz(null);
@@ -465,7 +477,7 @@ const App: React.FC = () => {
     setIsAITyping(false);
     setChatError(null);
     setProcessingTask(null);
-  }, [saveReviewChatIfDirty]);
+  }, [saveReviewChatIfDirty, saveReadingChatIfDirty]);
   
   const handlePredict = useCallback((studySetId: string) => {
     const set = studySets.find(s => s.id === studySetId) || null;
@@ -511,6 +523,7 @@ const App: React.FC = () => {
     numQuestions?: number
 ) => {
     await saveReviewChatIfDirty();
+    await saveReadingChatIfDirty();
     setIsChatOpen(false);
     if (!studySetForQuiz) {
       console.error("handleStartCustomQuiz called without a study set.");
@@ -530,7 +543,7 @@ const App: React.FC = () => {
     };
     
     await handleStartStudy(parts, config, studySetForQuiz.id);
-  }, [handleStartStudy, saveReviewChatIfDirty]);
+  }, [handleStartStudy, saveReviewChatIfDirty, saveReadingChatIfDirty]);
 
   const handleRetakeQuiz = useCallback(async () => {
       await saveReviewChatIfDirty();
@@ -543,7 +556,7 @@ const App: React.FC = () => {
     setAppState(AppState.STATS);
   }, []);
 
-  const generateCanvas = async (studySet: StudySet) => {
+  const handleGenerateCanvas = async (studySet: StudySet, focusTopics?: string[]) => {
     setProcessingTask('canvas');
     setAppState(AppState.PROCESSING);
     setCanvasProgress(null);
@@ -567,10 +580,34 @@ const App: React.FC = () => {
 
         const layout = await buildReadingLayoutInParallel(allParts, (progressUpdate) => {
             setCanvasProgress(progressUpdate);
-        });
-        const updatedSet = { ...studySet, readingLayout: layout };
+        }, focusTopics);
+        
+        const updatedSet = { ...studySet, readingLayout: layout, subConceptCache: {} }; // Reset cache on new generation
         await updateSet(updatedSet);
         setCurrentStudySet(updatedSet);
+
+        // Initialize chat for the newly generated canvas
+        const firstKey = (process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY)?.split(',')[0].trim();
+        if (firstKey) {
+            try {
+                const ai = new GoogleGenAI({ apiKey: firstKey });
+                const systemInstruction = getReadingCanvasChatSystemInstruction(updatedSet, layout);
+                const newChat = ai.chats.create({
+                    model: 'gemini-2.5-flash',
+                    config: { systemInstruction },
+                });
+                setChat(newChat);
+                // This is a new canvas, so chat history should be new.
+                setChatMessages([
+                    { role: 'model', text: `Hello! I'm your AI tutor for "${updatedSet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }
+                ]);
+                setChatError(null);
+            } catch (e) {
+                console.error("Failed to initialize reading chat after canvas generation", e);
+                setChatError("Could not start AI chat session.");
+            }
+        }
+        
         setAppState(AppState.READING_CANVAS);
     } catch (err) {
         console.error(err);
@@ -585,17 +622,56 @@ const App: React.FC = () => {
   const handleStartReading = useCallback(async (studySet: StudySet) => {
     setCurrentStudySet(studySet);
     setError(null);
+    
     if (studySet.readingLayout) {
+        // Chat Initialization for existing Reading Canvas
+        const firstKey = (process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY)?.split(',')[0].trim();
+        if (firstKey) {
+            try {
+                const ai = new GoogleGenAI({ apiKey: firstKey });
+                const systemInstruction = getReadingCanvasChatSystemInstruction(studySet, studySet.readingLayout);
+                const newChat = ai.chats.create({
+                    model: 'gemini-2.5-flash',
+                    config: { systemInstruction },
+                });
+                setChat(newChat);
+                const initialMessages: ChatMessage[] = studySet.readingChatHistory ? JSON.parse(JSON.stringify(studySet.readingChatHistory)) : [];
+                if (initialMessages.length === 0) {
+                    initialMessages.push({ role: 'model', text: `Hello! I'm your AI tutor for "${studySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` });
+                }
+                setChatMessages(initialMessages);
+                setChatError(null);
+            } catch (e) {
+                console.error("Failed to initialize reading chat", e);
+                setChatError("Could not start AI chat session.");
+            }
+        }
         setAppState(AppState.READING_CANVAS);
     } else {
-        await generateCanvas(studySet);
+        // No layout exists, go to topic selection first
+        setAppState(AppState.READING_SETUP);
     }
-  }, [updateSet]);
+  }, []);
   
   const handleRegenerateCanvas = useCallback(async () => {
       if (!currentStudySet) return;
-      await generateCanvas(currentStudySet);
+      // Go back to setup to allow re-selecting topics
+      setAppState(AppState.READING_SETUP);
   }, [currentStudySet]);
+
+  const handleUpdateCanvas = useCallback(async (newTopics: string[]) => {
+    if (!currentStudySet || !currentStudySet.readingLayout) return;
+    
+    const existingTopics = currentStudySet.readingLayout.blocks
+        .filter(b => !b.parentId)
+        .map(b => b.title);
+        
+    const allTopics = [...new Set([...existingTopics, ...newTopics])];
+    
+    await handleGenerateCanvas(currentStudySet, allTopics);
+
+  }, [currentStudySet]);
+
 
   const handleSendMessage = useCallback(async (userMessage: string, contextQuestion?: Question, contextLog?: AnswerLog) => {
     if (!chat || isAITyping) return;
@@ -609,7 +685,7 @@ const App: React.FC = () => {
 
     try {
       let messageForAI = userMessage;
-      if (contextQuestion) {
+      if (contextQuestion && appState === AppState.STUDYING) {
         // This is for the STUDYING screen, add question context
         let contextString = `The user is on the following question:\n"""\n${contextQuestion.questionText}\n"""\n`;
 
@@ -701,14 +777,14 @@ const App: React.FC = () => {
       setChatMessages(prev => {
         const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'model') {
-            const actionMatch = lastMessage.text.match(/\[ACTION:CREATE_QUIZ:(.*?)\]/);
-            if (actionMatch && actionMatch[1]) {
-                const paramsStr = actionMatch[1];
+            const quizActionMatch = lastMessage.text.match(/\[ACTION:CREATE_QUIZ:(.*?)\]/);
+            const canvasActionMatch = lastMessage.text.match(/\[ACTION:UPDATE_CANVAS:(.*?)\]/);
+
+            if (quizActionMatch && quizActionMatch[1]) {
+                const paramsStr = quizActionMatch[1];
                 const params = paramsStr.split('|').reduce((acc, part) => {
                     const [key, value] = part.split('=');
-                    if (key && value) {
-                        acc[key.trim()] = value.trim();
-                    }
+                    if (key && value) acc[key.trim()] = value.trim();
                     return acc;
                 }, {} as Record<string, string>);
 
@@ -717,31 +793,45 @@ const App: React.FC = () => {
                 
                 if (topics.length > 0) {
                     const cleanedText = lastMessage.text.replace(/\[ACTION:CREATE_QUIZ:.*?\]/, '').trim();
-                    
-                    let buttonText = `Create Focused Quiz (${topics.length} topic${topics.length > 1 ? 's' : ''}`;
-                    if (numQuestions) {
-                        buttonText += `, ${numQuestions} questions`;
-                    }
-                    buttonText += ')';
-                    
+                    let buttonText = `Create Focused Quiz (${topics.length} topic${topics.length > 1 ? 's' : ''}${numQuestions ? `, ${numQuestions} questions` : ''})`;
                     const newMessages = [...prev];
                     newMessages[prev.length - 1] = {
                         ...lastMessage,
                         text: cleanedText,
-                        action: {
-                            text: buttonText,
-                            onClick: () => handleStartCustomQuiz(topics, currentStudySet, numQuestions),
-                        }
+                        action: { text: buttonText, onClick: () => handleStartCustomQuiz(topics, currentStudySet, numQuestions) }
                     };
                     return newMessages;
                 }
+            } else if (canvasActionMatch && canvasActionMatch[1]) {
+                 const paramsStr = canvasActionMatch[1];
+                 const topicsParam = paramsStr.split('=').slice(1).join('=');
+                 const topics = topicsParam ? topicsParam.split(',').map(t => t.trim()).filter(Boolean) : [];
+                 if (topics.length > 0) {
+                    const cleanedText = lastMessage.text.replace(/\[ACTION:UPDATE_CANVAS:.*?\]/, '').trim();
+                    let buttonText = `Update Canvas with "${topics.join(', ')}"`;
+                    const newMessages = [...prev];
+                    newMessages[prev.length - 1] = {
+                        ...lastMessage,
+                        text: cleanedText,
+                        action: { text: buttonText, onClick: () => handleUpdateCanvas(topics) }
+                    };
+                    return newMessages;
+                 }
             }
         }
         return prev;
       });
     }
-  }, [chat, isAITyping, handleStartCustomQuiz, currentStudySet]);
+  }, [chat, isAITyping, handleStartCustomQuiz, currentStudySet, appState, handleUpdateCanvas]);
 
+  const handleClearChat = useCallback(() => {
+    if (appState === AppState.READING_CANVAS && currentStudySet) {
+        setChatMessages([{ role: 'model', text: `Hello! I'm your AI tutor for "${currentStudySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }]);
+    } else if (appState === AppState.REVIEWING && currentResult) {
+         const reviewSet = studySets.find(s => s.id === currentResult.studySetId);
+         setChatMessages([{ role: 'model', text: `You are reviewing your quiz on "${reviewSet?.name}". Feel free to ask me anything about your performance or the questions.` }]);
+    }
+  }, [appState, currentStudySet, currentResult, studySets]);
 
   if (!migrationChecked) {
     return <div className="flex justify-center items-center min-h-screen"><LoadingSpinner /></div>;
@@ -777,7 +867,7 @@ const App: React.FC = () => {
         );
       
       case AppState.STUDYING:
-        if (!quiz) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        if (!quiz) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={handleGenerateCanvas} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <StudyScreen 
                     quiz={quiz} 
                     onFinish={handleFinishStudy} 
@@ -800,7 +890,7 @@ const App: React.FC = () => {
         return <ResultsScreen result={currentResult} onRestart={handleRestart} onReview={handleReview} feedback={feedback} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={(topics) => handleStartFocusedQuiz(topics, currentStudySet)} />;
       
       case AppState.REVIEWING:
-        if (answerLog.length === 0 || !currentResult) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        if (answerLog.length === 0 || !currentResult) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={handleGenerateCanvas} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <ReviewScreen 
                   result={currentResult} 
                   onRetakeSameQuiz={handleRetakeQuiz} 
@@ -822,7 +912,7 @@ const App: React.FC = () => {
         return <ExamScreen quiz={quiz} onFinish={handleFinishExam} onCancel={handleRestart} />;
 
       case AppState.PREDICTION_SETUP:
-        if (!currentStudySet) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        if (!currentStudySet) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={handleGenerateCanvas} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
         return <PredictionSetupScreen studySet={currentStudySet} onGenerate={handleGeneratePrediction} onCancel={handleRestart} error={error}/>;
 
       case AppState.PREDICTION_RESULTS:
@@ -832,13 +922,29 @@ const App: React.FC = () => {
       case AppState.STATS:
         return <StatsScreen history={history} studySets={studySets} onBack={handleRestart} />;
 
+      case AppState.READING_SETUP:
       case AppState.READING_CANVAS:
-        if (!currentStudySet) return null;
-        return <ReadingCanvas studySet={currentStudySet} onBack={handleRestart} onRegenerate={handleRegenerateCanvas} updateSet={updateSet} />;
+        if (!currentStudySet) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={handleGenerateCanvas} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        return <ReadingCanvas 
+                    studySet={currentStudySet} 
+                    onBack={handleRestart} 
+                    onRegenerate={handleRegenerateCanvas} 
+                    updateSet={updateSet}
+                    chatMessages={chatMessages}
+                    isChatOpen={isChatOpen}
+                    isAITyping={isAITyping}
+                    chatError={chatError}
+                    isChatEnabled={!!chat}
+                    onSendMessage={(msg) => handleSendMessage(msg)}
+                    onToggleChat={() => setIsChatOpen(!isChatOpen)}
+                    onCloseChat={() => setIsChatOpen(false)}
+                    onClearChat={handleClearChat}
+                    onStartCustomQuiz={handleStartCustomQuiz}
+                />;
 
       case AppState.SETUP:
       default:
-        return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
+        return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={handleGenerateCanvas} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
     }
   };
 
@@ -846,7 +952,7 @@ const App: React.FC = () => {
     if (isPredictionFlow) {
         return 'flex-grow flex flex-col items-center justify-start p-4 sm:p-6 lg:p-8';
     }
-    if (appState === AppState.READING_CANVAS) {
+    if (appState === AppState.READING_CANVAS || appState === AppState.READING_SETUP) {
         // Full width for the canvas view
         return 'w-full p-4 sm:p-6 lg:p-8 flex-grow flex flex-col';
     }

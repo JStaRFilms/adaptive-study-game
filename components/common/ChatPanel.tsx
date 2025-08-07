@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage } from '../../types';
 import Markdown from './Markdown';
@@ -23,11 +24,13 @@ interface ChatPanelProps {
     error: string | null;
     isEnabled: boolean;
     disabledTooltipText?: string;
+    onClearChat?: () => void;
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
     isOpen, onOpen, onClose, onSendMessage, messages, isTyping, error, isEnabled, 
-    disabledTooltipText = "Chat is disabled"
+    disabledTooltipText = "Chat is disabled",
+    onClearChat
 }) => {
     const [inputValue, setInputValue] = useState('');
     const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
@@ -82,9 +85,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
          <div className="flex flex-col h-full bg-gray-900/80 backdrop-blur-md animate-fade-in">
             <header className="flex items-center justify-between p-4 border-b border-gray-700 flex-shrink-0">
                 <h2 className="text-lg font-bold text-text-primary">AI Study Coach</h2>
-                <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" /></svg>
-                </button>
+                <div className="flex items-center gap-2">
+                    {onClearChat && (
+                        <Tooltip text="Clear Conversation" position="bottom">
+                            <button onClick={onClearChat} className="p-1 rounded-full text-gray-400 hover:bg-gray-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                            </button>
+                        </Tooltip>
+                    )}
+                    <button onClick={onClose} className="p-1 rounded-full text-gray-400 hover:bg-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" /></svg>
+                    </button>
+                </div>
             </header>
             <div ref={scrollableContainerRef} onScroll={handleScroll} className="flex-grow overflow-y-auto p-4 space-y-4">
                 {messages.map((msg, index) => (

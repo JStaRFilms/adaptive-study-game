@@ -335,11 +335,15 @@ const designGridLayout = async (concepts: BlockContent[]): Promise<ReadingLayout
 
 export const buildReadingLayoutInParallel = async (
     parts: PromptPart[], 
-    onProgress: (progress: CanvasGenerationProgress) => void
+    onProgress: (progress: CanvasGenerationProgress) => void,
+    focusTopics?: string[]
 ): Promise<ReadingLayout> => {
     // Stage 1: Identify core concepts
     onProgress({ stage: 'Identifying core concepts...', progress: 10 });
-    const concepts = await identifyCoreConcepts(parts);
+    const concepts = (focusTopics && focusTopics.length > 0)
+        ? focusTopics
+        : await identifyCoreConcepts(parts);
+        
     const totalConcepts = concepts.length;
     if (totalConcepts === 0) {
         throw new Error("No concepts could be identified from the provided materials.");

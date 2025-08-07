@@ -29,6 +29,7 @@ const ProcessingModal: React.FC<{ title: string; message: string; progress: numb
 interface SetupScreenProps {
   onStart: (parts: PromptPart[], config: QuizConfig, studySetId: string) => void;
   onStartReading: (set: StudySet) => void;
+  onStartCanvasGeneration: (studySet: StudySet, topics: string[]) => void;
   error: string | null;
   initialContent?: string | null;
   onReviewHistory: (result: QuizResult) => void;
@@ -43,11 +44,12 @@ interface SetupScreenProps {
   reviewPoolCount: number;
 }
 
-type Action = 'LIST' | 'CREATE_EDIT' | 'HISTORY' | 'TOPIC_SELECTION';
+type Action = 'LIST' | 'CREATE_EDIT' | 'HISTORY' | 'TOPIC_SELECTION' | 'CANVAS_TOPIC_SELECTION';
 
 const SetupScreen: React.FC<SetupScreenProps> = ({ 
     onStart, 
     onStartReading,
+    onStartCanvasGeneration,
     error, 
     initialContent, 
     onReviewHistory, 
@@ -102,52 +104,59 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     setProgressPercent(percent);
   }, []);
 
-    const handlePrepareForQuiz = useCallback(async (parts: PromptPart[], set: StudySet) => {
-        resetState();
-        setActiveSet(set);
-        setIsProcessing(true);
-        setProcessingError(null);
-        setProgressPercent(0);
-        setPreparedParts(parts); // Set parts immediately from the list screen
+  const prepareAndAnalyzeTopics = useCallback(async (set: StudySet, parts: PromptPart[], nextAction: Action) => {
+    resetState();
+    setActiveSet(set);
+    setIsProcessing(true);
+    setProcessingError(null);
+    setProgressPercent(0);
+    setPreparedParts(parts);
 
-        try {
-            let currentSet = set;
-
-            // This block is now only for generating topics, not reprocessing files
-            const onTopicProgress = (message: string, percent: number) => {
-                setProgressMessage(message);
-                setProgressPercent(percent);
-            };
-            onTopicProgress('Checking for topics...', 25);
-            
-            // Check for existing topics
-            if (currentSet.topics && currentSet.topics.length > 0) {
-                onTopicProgress('Loading existing topics...', 100);
-                setTopics(currentSet.topics);
-            } else {
-                onTopicProgress('Analyzing for topics...', 75);
-                const generatedTopics = await identifyCoreConcepts(parts);
-                
-                const updatedSetWithTopics: StudySet = { ...currentSet, topics: generatedTopics };
-                await updateSet(updatedSetWithTopics);
-                setActiveSet(updatedSetWithTopics);
-                setTopics(generatedTopics);
-                onTopicProgress('Topics generated!', 90);
-            }
-            
-            setProgressPercent(100);
-            await new Promise(res => setTimeout(res, 300));
-
-            setAction('TOPIC_SELECTION');
-        } catch (err) {
-            console.error("Error preparing quiz:", err);
-            const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
-            setProcessingError(errorMessage);
-            setAction('LIST');
-        } finally {
-            setIsProcessing(false);
+    try {
+        let currentSet = set;
+        const onTopicProgress = (message: string, percent: number) => {
+            setProgressMessage(message);
+            setProgressPercent(percent);
+        };
+        onTopicProgress('Checking for topics...', 25);
+        
+        if (currentSet.topics && currentSet.topics.length > 0) {
+            onTopicProgress('Loading existing topics...', 100);
+            setTopics(currentSet.topics);
+        } else {
+            onTopicProgress('Analyzing for topics...', 75);
+            const generatedTopics = await identifyCoreConcepts(parts);
+            const updatedSetWithTopics: StudySet = { ...currentSet, topics: generatedTopics };
+            await updateSet(updatedSetWithTopics);
+            setActiveSet(updatedSetWithTopics);
+            setTopics(generatedTopics);
+            onTopicProgress('Topics generated!', 90);
         }
-    }, [resetState, updateSet]);
+        
+        setProgressPercent(100);
+        await new Promise(res => setTimeout(res, 300));
+
+        setAction(nextAction);
+    } catch (err) {
+        console.error("Error preparing for action:", err);
+        const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
+        setProcessingError(errorMessage);
+        setAction('LIST');
+    } finally {
+        setIsProcessing(false);
+    }
+  }, [resetState, updateSet]);
+
+
+    const handlePrepareForQuiz = useCallback(async (parts: PromptPart[], set: StudySet) => {
+        await prepareAndAnalyzeTopics(set, parts, 'TOPIC_SELECTION');
+    }, [prepareAndAnalyzeTopics]);
+    
+    const handlePrepareForCanvas = useCallback(async (set: StudySet) => {
+        const { parts } = await processFilesToParts(set.content, [], () => {});
+        await prepareAndAnalyzeTopics(set, parts, 'CANVAS_TOPIC_SELECTION');
+    }, [prepareAndAnalyzeTopics]);
+
 
     const fullSaveAndAnalyze = async (data: {name: string, content: string, files: File[], youtubeUrls: string[]}) => {
         setIsProcessing(true);
@@ -247,6 +256,11 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
         };
         onStart(preparedParts, finalConfig, activeSet.id);
     };
+
+    const handleGenerateCanvas = (config: { selectedTopics: string[] }) => {
+        if (!activeSet) return;
+        onStartCanvasGeneration(activeSet, config.selectedTopics);
+    };
   
     const handleRegenerateTopics = async () => {
         if (!activeSet) return;
@@ -330,7 +344,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
         }
     };
 
-    if (isProcessing && action === 'LIST' && activeSet) {
+    if (isProcessing && (action === 'LIST' || action === 'CANVAS_TOPIC_SELECTION') && activeSet) {
       return (
           <ProcessingModal
               title={`Preparing "${activeSet.name}"`}
@@ -356,6 +370,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                  />;
         case 'TOPIC_SELECTION':
             return activeSet ? <TopicSelector 
+                flow="quiz"
                 activeSet={activeSet}
                 topics={topics}
                 isAnalyzingTopics={isAnalyzingTopics}
@@ -363,6 +378,20 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                 processingError={processingError}
                 progressPercent={progressPercent}
                 onStartQuiz={handleStartQuiz}
+                onBack={handleShowList}
+                onRegenerateTopics={handleRegenerateTopics}
+                onReanalyzeWithFiles={handleReanalyzeWithFiles}
+            /> : null;
+        case 'CANVAS_TOPIC_SELECTION':
+             return activeSet ? <TopicSelector 
+                flow="canvas"
+                activeSet={activeSet}
+                topics={topics}
+                isAnalyzingTopics={isAnalyzingTopics}
+                isProcessing={isProcessing}
+                processingError={processingError}
+                progressPercent={progressPercent}
+                onGenerateCanvas={handleGenerateCanvas}
                 onBack={handleShowList}
                 onRegenerateTopics={handleRegenerateTopics}
                 onReanalyzeWithFiles={handleReanalyzeWithFiles}
@@ -385,6 +414,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                 onEditSet={handleEditSet}
                 onDeleteSet={handleDeleteSet}
                 onPrepareForQuiz={handlePrepareForQuiz}
+                onPrepareForCanvas={handlePrepareForCanvas}
                 onPredict={onPredict}
                 onShowHistory={handleShowHistory}
                 onShowStats={onShowStats}

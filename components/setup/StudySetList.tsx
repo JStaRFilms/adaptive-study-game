@@ -15,6 +15,7 @@ interface StudySetListProps {
   onDeleteSet: (id: string) => void;
   onPredict: (id: string) => void;
   onPrepareForQuiz: (parts: PromptPart[], set: StudySet) => void;
+  onPrepareForCanvas: (set: StudySet) => void;
   onShowHistory: (set: StudySet) => void;
   onShowStats: () => void;
   onStartSrsQuiz: () => void;
@@ -32,6 +33,7 @@ const StudySetList: React.FC<StudySetListProps> = ({
   onDeleteSet,
   onPredict,
   onPrepareForQuiz,
+  onPrepareForCanvas,
   onShowHistory,
   onShowStats,
   onStartSrsQuiz,
@@ -45,6 +47,14 @@ const StudySetList: React.FC<StudySetListProps> = ({
   const handleShowDetails = (set: StudySet) => {
     setSetForDetails(set);
     setIsDetailsModalOpen(true);
+  };
+
+  const handleReadClick = (set: StudySet) => {
+    if (set.readingLayout) {
+      onStartReading(set);
+    } else {
+      onPrepareForCanvas(set);
+    }
   };
 
   const handlePrepareWrapper = (set: StudySet) => {
@@ -130,7 +140,7 @@ const StudySetList: React.FC<StudySetListProps> = ({
               </div>
               <div className="flex gap-2 flex-shrink-0 self-end sm:self-center flex-wrap justify-end">
                 <Tooltip text="Visual Reading Canvas" position="top">
-                  <button onClick={() => onStartReading(set)} className="px-3 py-2 text-sm bg-blue-600 text-white font-bold rounded-md hover:bg-blue-500 transition-all">Read</button>
+                  <button onClick={() => handleReadClick(set)} className="px-3 py-2 text-sm bg-blue-600 text-white font-bold rounded-md hover:bg-blue-500 transition-all">Read</button>
                 </Tooltip>
                 <Tooltip text="AI Exam Predictor" position="top">
                   <button onClick={() => onPredict(set.id)} className="px-3 py-2 text-sm bg-purple-600 text-white font-bold rounded-md hover:bg-purple-500 transition-all">Predict</button>

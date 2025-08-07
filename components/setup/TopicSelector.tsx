@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { StudyMode, StudySet, KnowledgeSource } from '../../types';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -52,7 +53,9 @@ interface TopicSelectorProps {
     isProcessing: boolean;
     processingError: string | null;
     progressPercent: number;
-    onStartQuiz: (config: { numQuestions: number, studyMode: StudyMode, knowledgeSource: KnowledgeSource, selectedTopics: string[], customInstructions: string}) => void;
+    flow: 'quiz' | 'canvas';
+    onStartQuiz?: (config: { numQuestions: number, studyMode: StudyMode, knowledgeSource: KnowledgeSource, selectedTopics: string[], customInstructions: string}) => void;
+    onGenerateCanvas?: (config: { selectedTopics: string[] }) => void;
     onBack: () => void;
     onRegenerateTopics: () => void;
     onReanalyzeWithFiles: (files: File[]) => void;
@@ -60,7 +63,7 @@ interface TopicSelectorProps {
 
 
 const TopicSelector: React.FC<TopicSelectorProps> = ({
-    activeSet, topics, isAnalyzingTopics, isProcessing, processingError, progressPercent, onStartQuiz, onBack, onRegenerateTopics, onReanalyzeWithFiles
+    activeSet, topics, isAnalyzingTopics, isProcessing, processingError, progressPercent, flow, onStartQuiz, onGenerateCanvas, onBack, onRegenerateTopics, onReanalyzeWithFiles
 }) => {
     const [selectedTopics, setSelectedTopics] = useState<string[]>(topics || []);
     const [customInstructions, setCustomInstructions] = useState('');
@@ -74,7 +77,11 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
     const handleDeselectAll = () => setSelectedTopics([]);
 
     const handleStartClick = () => {
-        onStartQuiz({ numQuestions, studyMode, knowledgeSource, selectedTopics, customInstructions });
+        if (flow === 'quiz' && onStartQuiz) {
+            onStartQuiz({ numQuestions, studyMode, knowledgeSource, selectedTopics, customInstructions });
+        } else if (flow === 'canvas' && onGenerateCanvas) {
+            onGenerateCanvas({ selectedTopics });
+        }
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,6 +119,8 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
         );
     }
 
+    const title = flow === 'quiz' ? 'Configure Quiz' : 'Configure Reading Canvas';
+
     return (
         <div className="animate-fade-in w-full max-w-3xl mx-auto">
             <header className="relative text-center">
@@ -121,7 +130,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
                  <button onClick={onBack} className="absolute top-0 right-0 p-2 rounded-full text-gray-400 hover:bg-gray-700 transition-colors" aria-label="Close">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                  </button>
-                <h1 className="text-3xl sm:text-4xl font-bold text-text-primary mb-2">Configure Quiz</h1>
+                <h1 className="text-3xl sm:text-4xl font-bold text-text-primary mb-2">{title}</h1>
                 <p className="text-text-secondary mb-8">For "{activeSet.name}"</p>
             </header>
             
@@ -155,7 +164,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
 
                 <div className="border-t border-gray-700 pt-8">
                     <h3 className="text-xl font-bold text-text-primary mb-2">Add More Materials</h3>
-                    <p className="text-sm text-text-secondary mb-3">You can add supplemental files before generating the quiz. This will re-analyze the content to find new topics.</p>
+                    <p className="text-sm text-text-secondary mb-3">You can add supplemental files before generating. This will re-analyze the content to find new topics.</p>
                     <div className="flex flex-col gap-4">
                         <input type="file" id="reanalyzeUpload" multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,audio/*,.md,.pptx" onChange={handleFileChange} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary file:text-white hover:file:bg-brand-primary"/>
                         {files.length > 0 && (
@@ -174,32 +183,41 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
                     </div>
                 </div>
 
-                <div className="border-t border-gray-700 pt-8">
-                    <h3 className="text-2xl font-bold text-text-primary mb-4">Custom Focus <span className="text-base font-normal text-text-secondary">(Optional)</span></h3>
-                     <p className="text-text-secondary mb-3 text-sm">
-                        Give the AI specific instructions to tailor your quiz. For example: "focus on chapters 5 and 6" or "create fill in the gap questions comparing photosynthesis and cellular respiration".
-                    </p>
-                    <textarea
-                        value={customInstructions}
-                        onChange={(e) => setCustomInstructions(e.target.value)}
-                        placeholder="Let's focus on..."
-                        className="w-full h-24 p-3 bg-gray-900 border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                        aria-label="Custom quiz instructions"
-                    />
-                     {customInstructions && <p className="text-sm text-correct mt-2 animate-fade-in">✓ Your custom focus will be applied.</p>}
-                </div>
+                {flow === 'quiz' && (
+                    <>
+                        <div className="border-t border-gray-700 pt-8">
+                            <h3 className="text-2xl font-bold text-text-primary mb-4">Custom Focus <span className="text-base font-normal text-text-secondary">(Optional)</span></h3>
+                            <p className="text-text-secondary mb-3 text-sm">
+                                Give the AI specific instructions to tailor your quiz. For example: "focus on chapters 5 and 6" or "create fill in the gap questions comparing photosynthesis and cellular respiration".
+                            </p>
+                            <textarea
+                                value={customInstructions}
+                                onChange={(e) => setCustomInstructions(e.target.value)}
+                                placeholder="Let's focus on..."
+                                className="w-full h-24 p-3 bg-gray-900 border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                                aria-label="Custom quiz instructions"
+                            />
+                            {customInstructions && <p className="text-sm text-correct mt-2 animate-fade-in">✓ Your custom focus will be applied.</p>}
+                        </div>
 
-                <div className="border-t border-gray-700 pt-8 mt-8 space-y-8 text-center">
-                    <QuizConfigurator 
-                        numQuestions={numQuestions}
-                        setNumQuestions={setNumQuestions}
-                        studyMode={studyMode}
-                        setStudyMode={setStudyMode}
-                        knowledgeSource={knowledgeSource}
-                        setKnowledgeSource={setKnowledgeSource}
-                    />
-                    {processingError && <div className="text-red-400 font-semibold">{processingError}</div>}
-                    <button onClick={handleStartClick} className="w-full sm:w-auto px-12 py-4 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all transform hover:scale-105">Start Quiz</button>
+                        <div className="border-t border-gray-700 pt-8 mt-8 space-y-8 text-center">
+                            <QuizConfigurator 
+                                numQuestions={numQuestions}
+                                setNumQuestions={setNumQuestions}
+                                studyMode={studyMode}
+                                setStudyMode={setStudyMode}
+                                knowledgeSource={knowledgeSource}
+                                setKnowledgeSource={setKnowledgeSource}
+                            />
+                        </div>
+                    </>
+                )}
+
+                <div className="border-t border-gray-700 pt-8 text-center">
+                    {processingError && <div className="text-red-400 font-semibold mb-4">{processingError}</div>}
+                    <button onClick={handleStartClick} className="w-full sm:w-auto px-12 py-4 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all transform hover:scale-105">
+                         {flow === 'quiz' ? 'Start Quiz' : 'Generate Canvas'}
+                    </button>
                 </div>
             </div>
         </div>

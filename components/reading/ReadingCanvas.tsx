@@ -1,11 +1,14 @@
 
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { StudySet, ReadingLayout, ReadingBlock as ReadingBlockType } from '../../types';
+import { StudySet, ReadingLayout, ReadingBlock as ReadingBlockType, ChatMessage } from '../../types';
 import ReadingBlock from './ReadingBlock';
 import { motion, AnimatePresence } from 'framer-motion';
-import { generateSubConcepts, reflowLayoutForExpansion } from '../../services/geminiService';
+import { generateSubConcepts, reflowLayoutForExpansion, identifyCoreConcepts } from '../../services/geminiService';
 import LoadingSpinner from '../common/LoadingSpinner';
+import ChatPanel from '../common/ChatPanel';
+import TopicSelector from '../setup/TopicSelector';
+import { processFilesToParts } from '../../utils/fileProcessor';
 
 const COLOR_PALETTE = [
   '#4ade80', // green-400
@@ -88,15 +91,97 @@ const createProvisionalLayout = (baseLayout: ReadingLayout, parentBlock: Reading
     return { ...baseLayout, blocks: newBlocks, rows: finalRows };
 };
 
+const CanvasSetupScreen: React.FC<{
+    studySet: StudySet,
+    onGenerate: (topics: string[]) => void,
+    onBack: () => void
+}> = ({ studySet, onGenerate, onBack }) => {
+    const [topics, setTopics] = useState<string[] | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchTopics = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                if (studySet.topics && studySet.topics.length > 0) {
+                    setTopics(studySet.topics);
+                } else {
+                    const { parts } = await processFilesToParts(studySet.content, [], () => {});
+                    const generatedTopics = await identifyCoreConcepts(parts);
+                    setTopics(generatedTopics);
+                }
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to analyze topics.');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchTopics();
+    }, [studySet]);
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full">
+                <LoadingSpinner />
+                <p className="mt-4 text-lg font-semibold text-text-secondary">Analyzing topics...</p>
+            </div>
+        );
+    }
+    
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+                <p className="text-xl font-bold text-incorrect">Error analyzing topics</p>
+                <p className="text-text-secondary mt-2">{error}</p>
+                <button onClick={onBack} className="mt-6 px-6 py-2 bg-brand-primary text-white font-bold rounded-lg hover:bg-brand-secondary">
+                  Back to Sets
+                </button>
+            </div>
+        )
+    }
+
+    return (
+        <TopicSelector 
+            flow="canvas"
+            activeSet={studySet}
+            topics={topics}
+            isAnalyzingTopics={false}
+            isProcessing={false}
+            processingError={null}
+            progressPercent={0}
+            onGenerateCanvas={(config) => onGenerate(config.selectedTopics)}
+            onBack={onBack}
+            onRegenerateTopics={() => {}} // Not needed here
+            onReanalyzeWithFiles={() => {}} // Not needed here
+        />
+    )
+}
+
 
 interface ReadingCanvasProps {
   studySet: StudySet;
   onBack: () => void;
   onRegenerate: () => Promise<void>;
   updateSet: (set: StudySet) => Promise<void>;
+  chatMessages: ChatMessage[];
+  isChatOpen: boolean;
+  isAITyping: boolean;
+  chatError: string | null;
+  isChatEnabled: boolean;
+  onSendMessage: (message: string) => void;
+  onToggleChat: () => void;
+  onCloseChat: () => void;
+  onClearChat: () => void;
+  onStartCustomQuiz: (topics: string[], studySet: StudySet | null, numQuestions?: number) => void;
 }
 
-const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack, onRegenerate, updateSet }) => {
+const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ 
+    studySet, onBack, onRegenerate, updateSet,
+    chatMessages, isChatOpen, isAITyping, chatError, isChatEnabled,
+    onSendMessage, onToggleChat, onCloseChat, onClearChat, onStartCustomQuiz
+}) => {
   const [currentLayout, setCurrentLayout] = useState<ReadingLayout | null>(studySet.readingLayout);
   const [expandedBlockId, setExpandedBlockId] = useState<string | null>(null);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
@@ -236,7 +321,7 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack, onRegen
   }, [currentLayout, isLoadingAI, studySet, updateSet, handleExpand]);
 
   const handleRegenerateClick = async () => {
-    if (window.confirm("Are you sure you want to regenerate the entire canvas? This will create a new layout and clear your expansion cache.")) {
+    if (window.confirm("Are you sure you want to regenerate the entire canvas? This will let you re-select the focus topics.")) {
         setIsRegenerating(true);
         setError(null);
         try {
@@ -292,7 +377,7 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack, onRegen
         <div className="flex gap-2 self-start sm:self-center">
             <button onClick={handleRegenerateClick} disabled={isRegenerating} className="px-4 py-2 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-500 transition-all flex items-center gap-2 disabled:bg-gray-500 disabled:cursor-wait">
                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isRegenerating ? 'animate-spin' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
-                Regenerate
+                Reconfigure
             </button>
             <button onClick={onBack} className="px-6 py-2 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-all">
               Back to Sets
@@ -344,6 +429,18 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({ studySet, onBack, onRegen
           </AnimatePresence>
         </motion.div>
       </div>
+      <ChatPanel
+        isOpen={isChatOpen}
+        onOpen={onToggleChat}
+        onClose={onCloseChat}
+        onSendMessage={(msg) => onSendMessage(msg)}
+        messages={chatMessages}
+        isTyping={isAITyping}
+        error={chatError}
+        isEnabled={isChatEnabled}
+        disabledTooltipText="Chat is unavailable"
+        onClearChat={onClearChat}
+      />
     </div>
   );
 };
