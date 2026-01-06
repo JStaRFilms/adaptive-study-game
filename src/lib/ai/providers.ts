@@ -25,7 +25,7 @@ export const models = {
     examGrading: openrouter('anthropic/claude-3.5-sonnet'),
 
     // Gemini - Native features only
-    webSearch: gemini('gemini-2.0-flash', { useSearchGrounding: true }),
-    fileSearch: gemini('gemini-2.0-flash'), // with File Search tool
-    urlContext: gemini('gemini-2.0-flash'), // with URL Context tool
+    webSearch: gemini('gemini-2.5-flash'), // Search grounding to be enabled in generate call
+    fileSearch: gemini('gemini-2.5-flash'), // with File Search tool
+    urlContext: gemini('gemini-2.5-flash'), // with URL Context tool
 };

@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, Layers, Sparkles, Wand2, BrainCircuit, Gamepad2, PlayCircle } from "lucide-react";
+import { useState, useEffect } from "react";
 
 export default function Home() {
   return (
@@ -16,10 +19,10 @@ export default function Home() {
             <Link href="#about" className="hover:text-white transition">About</Link>
           </div>
           <div className="flex gap-4">
-            <button className="text-sm font-medium hover:text-white transition">Login</button>
-            <button className="px-5 py-2 rounded-full bg-white text-black font-bold text-sm hover:scale-105 transition">
+            <Link href="/login" className="px-4 py-2 text-sm font-medium hover:text-white transition flex items-center">Login</Link>
+            <Link href="/register" className="px-5 py-2 rounded-full bg-white text-black font-bold text-sm hover:scale-105 transition flex items-center">
               Get Started
-            </button>
+            </Link>
           </div>
         </div>
       </nav>
@@ -36,7 +39,7 @@ export default function Home() {
             Study at the <br /> speed of <span className="text-brand-primary">thought.</span>
           </h1>
           <p className="text-xl md:text-2xl text-gray-400 mb-12 max-w-2xl mx-auto leading-relaxed">
-            Transform ANY document or note into an interactive, gamified study experience in seconds. Powered by <span className="text-white font-semibold">Liquid AI™</span>.
+            Transform ANY document or note into an interactive, gamified study experience in seconds. Powered by <BrandFlip />.
           </p>
           <div className="flex flex-col md:flex-row items-center justify-center gap-4">
             <button className="px-8 py-4 rounded-2xl bg-brand-primary text-white font-bold text-lg shadow-[0_0_40px_rgba(139,92,246,0.3)] hover:scale-105 transition-transform flex items-center gap-2">
@@ -102,5 +105,35 @@ export default function Home() {
         </div>
       </section>
     </div>
+  );
+}
+
+function BrandFlip() {
+  const [text, setText] = useState("Adaptive AI");
+  const [key, setKey] = useState(0);
+
+  useEffect(() => {
+    const loop = async () => {
+      while (true) {
+        // Random wait between 3s and 10s
+        const wait = Math.floor(Math.random() * 7000) + 3000;
+        await new Promise((r) => setTimeout(r, wait));
+
+        setText((prev) => prev === "Adaptive AI" ? "Flow State AI" : "Adaptive AI");
+        setKey((k) => k + 1);
+      }
+    };
+    loop();
+  }, []);
+
+  return (
+    <span className="inline-block relative h-[1.2em] w-[4.5em] align-top text-white font-semibold">
+      <span
+        key={key}
+        className="absolute left-0 top-0 whitespace-nowrap animate-slide-up-fade"
+      >
+        {text}
+      </span>
+    </span>
   );
 }
