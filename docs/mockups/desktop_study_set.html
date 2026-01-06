@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Set - Desktop Split View</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { bg: '#0B0E14', surface: '#151923', primary: '#8B5CF6', secondary: '#3B82F6', accent: '#F59E0B', success: '#10B981' }
+                    },
+                    fontFamily: { heading: ['Outfit', 'sans-serif'], body: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0B0E14;
+            background-image: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.05) 0%, transparent 40%);
+            color: #F3F4F6;
+        }
+
+        .glass {
+            background: rgba(15, 20, 30, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .glass:hover {
+            border-color: rgba(139, 92, 246, 0.2);
+        }
+
+        /* Custom Scrollbar for the PDF/Content area */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+
+<body class="h-screen flex overflow-hidden">
+    <script>window.onload = () => lucide.createIcons();</script>
+
+    <!-- Sidebar Mini (Collapsed for Focus) -->
+    <aside
+        class="w-16 glass border-r-0 border-r-white/5 flex flex-col items-center py-6 m-4 mr-0 rounded-2xl h-[calc(100vh-2rem)]">
+        <div class="mb-8">
+            <div
+                class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-primary to-brand-secondary flex items-center justify-center text-white font-bold">
+                J</div>
+        </div>
+        <nav class="flex-1 space-y-4 flex flex-col items-center">
+            <a href="#" class="p-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition"><i
+                    data-lucide="arrow-left" class="w-5 h-5"></i></a>
+            <div class="w-8 h-px bg-white/10 my-2"></div>
+            <a href="#" class="p-3 rounded-xl bg-brand-primary/10 text-brand-primary border border-brand-primary/20"><i
+                    data-lucide="book-open" class="w-5 h-5"></i></a>
+            <a href="#" class="p-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition"><i
+                    data-lucide="layers" class="w-5 h-5"></i></a>
+            <a href="#" class="p-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition"><i
+                    data-lucide="message-square" class="w-5 h-5"></i></a>
+        </nav>
+    </aside>
+
+    <!-- Split View Container -->
+    <main class="flex-1 flex gap-4 p-4 h-full">
+
+        <!-- Left: Source Material (PDF/Notes) -->
+        <section class="flex-1 glass rounded-2xl flex flex-col overflow-hidden relative group">
+            <!-- Source Header -->
+            <div class="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-black/20">
+                <div class="flex items-center gap-3">
+                    <i data-lucide="file-text" class="w-4 h-4 text-brand-secondary"></i>
+                    <span class="font-medium text-sm">Lecture_04_Mitosis.pdf</span>
+                </div>
+                <div class="flex gap-2">
+                    <button class="p-2 hover:bg-white/5 rounded-lg text-gray-400"><i data-lucide="zoom-in"
+                            class="w-4 h-4"></i></button>
+                    <button class="p-2 hover:bg-white/5 rounded-lg text-gray-400"><i data-lucide="maximize"
+                            class="w-4 h-4"></i></button>
+                </div>
+            </div>
+
+            <!-- Source Content (Mock) -->
+            <div class="flex-1 overflow-y-auto p-8 bg-white/5 font-serif text-gray-300 leading-loose relative">
+                <h1 class="text-2xl text-white font-bold mb-4">Phases of Mitosis</h1>
+                <p class="mb-4"><span class="bg-brand-primary/20 text-white px-1 rounded">Mitosis</span> is the process
+                    of cell division...</p>
+                <div class="p-4 border-l-2 border-brand-accent bg-brand-accent/5 my-6">
+                    <p class="text-sm italic text-gray-400">Key Concept: Cytokinesis occurs after Telophase.</p>
+                </div>
+                <p>During <span class="bg-brand-secondary/20 text-white px-1 rounded">Prophase</span>, the chromatin
+                    condenses into chromosomes...</p>
+                <br><br><!-- Mock scroll -->
+                <p class="text-gray-600">... (More content) ...</p>
+            </div>
+
+            <!-- Floating AI Action -->
+            <div class="absolute bottom-6 right-6">
+                <button
+                    class="flex items-center gap-2 px-4 py-3 rounded-xl bg-brand-primary text-white shadow-lg shadow-brand-primary/30 hover:scale-105 transition-transform">
+                    <i data-lucide="wand-2" class="w-4 h-4"></i>
+                    <span>Generate Quiz from Page 4</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Right: Study Tools & Chat -->
+        <section class="w-[450px] flex flex-col gap-4">
+
+            <!-- Stats Slab -->
+            <div class="h-auto glass rounded-2xl p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h2 class="text-xl font-heading font-bold text-white">Cellular Biology</h2>
+                        <div class="flex items-center gap-2 text-xs text-gray-400 mt-1">
+                            <span class="px-2 py-0.5 rounded bg-white/5 border border-white/5">BIO-101</span>
+                            <span>• 45 Cards</span>
+                        </div>
+                    </div>
+                    <div class="radial-progress text-brand-success text-sm font-bold">85%</div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button
+                        class="flex-1 py-2.5 rounded-xl bg-brand-primary text-white font-medium shadow-lg shadow-brand-primary/20 flex items-center justify-center gap-2">
+                        <i data-lucide="play" class="w-4 h-4 fill-current"></i> Play Quiz
+                    </button>
+                    <button
+                        class="flex-1 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 flex items-center justify-center gap-2">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Add Card
+                    </button>
+                </div>
+            </div>
+
+            <!-- AI Chat / Notes Tab -->
+            <div class="flex-1 glass rounded-2xl flex flex-col overflow-hidden">
+                <div class="flex border-b border-white/5">
+                    <button
+                        class="flex-1 py-3 text-sm font-medium text-white border-b-2 border-brand-primary bg-white/5">AI
+                        Chat</button>
+                    <button
+                        class="flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-300">Flashcards</button>
+                    <button class="flex-1 py-3 text-sm font-medium text-gray-500 hover:text-gray-300">Settings</button>
+                </div>
+
+                <!-- Chat Area -->
+                <div class="flex-1 p-4 overflow-y-auto space-y-4">
+                    <!-- Bot Msg -->
+                    <div class="flex gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-brand-primary/20 flex items-center justify-center"><i
+                                data-lucide="sparkles" class="w-4 h-4 text-brand-primary"></i></div>
+                        <div class="flex-1 bg-white/5 p-3 rounded-2xl rounded-tl-none border border-white/5">
+                            <p class="text-sm text-gray-300">I noticed you highlighted "Prophase". Would you like me to
+                                explain the difference between Prophase I and II?</p>
+                        </div>
+                    </div>
+                    <!-- User Msg -->
+                    <div class="flex gap-3 flex-row-reverse">
+                        <div class="w-8 h-8 rounded-lg bg-gray-700 flex items-center justify-center text-xs">Me</div>
+                        <div
+                            class="flex-1 bg-brand-secondary/10 p-3 rounded-2xl rounded-tr-none border border-brand-secondary/20">
+                            <p class="text-sm text-white">Yes, please explain simply.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input -->
+                <div class="p-4 border-t border-white/5 bg-black/20">
+                    <div class="relative">
+                        <input type="text" placeholder="Ask about this document..."
+                            class="w-full bg-white/5 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-sm focus:outline-none focus:border-brand-primary transition-colors">
+                        <button
+                            class="absolute right-2 top-2 p-1.5 rounded-lg bg-brand-primary text-white hover:scale-90 transition-transform"><i
+                                data-lucide="arrow-up" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+</body>
+
+</html>

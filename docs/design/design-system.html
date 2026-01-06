@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J-Star Study OS - Design System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            bg: '#0B0E14',   /* Deep Void */
+                            surface: '#151923', /* Panel Base */
+                            primary: '#8B5CF6', /* Nebula Purple */
+                            secondary: '#3B82F6', /* Electric Blue */
+                            accent: '#F59E0B',  /* Starlight Gold */
+                            success: '#10B981',
+                            error: '#EF4444',
+                        }
+                    },
+                    fontFamily: {
+                        heading: ['Outfit', 'sans-serif'],
+                        body: ['Inter', 'sans-serif'],
+                    },
+                    backdropBlur: {
+                        xs: '2px',
+                    },
+                    animation: {
+                        'slide-up': 'slideUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                    },
+                    keyframes: {
+                        slideUp: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Liquid Glass Base */
+        body {
+            background-color: #0B0E14;
+            background-image:
+                radial-gradient(circle at 15% 50%, rgba(139, 92, 246, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.15) 0%, transparent 40%);
+            color: #F3F4F6;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* Glass Panel - The "Slab" */
+        /* More transparent, more blur */
+        .glass-panel {
+            background: rgba(11, 14, 20, 0.4);
+            /* Reduced opacity for more see-through */
+            backdrop-filter: blur(20px);
+            /* Increased blur for "Liquid" feel */
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            /* Thinner border */
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Slab Logic (Sliding Layers) */
+        .slab {
+            position: relative;
+            z-index: 10;
+            background: rgba(15, 20, 30, 0.6);
+            backdrop-filter: blur(25px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+            border-radius: 24px 24px 0 0;
+            margin-top: -16px;
+            /* Overlap effect */
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        /* Interactive Liquid Effect */
+        .glass-panel:hover {
+            border-color: rgba(139, 92, 246, 0.3);
+            background: rgba(11, 14, 20, 0.5);
+        }
+
+        /* Typography */
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        /* Smooth Scroll */
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+
+<body class="p-8 pb-32">
+    <script>
+        // Init Lucide Icons
+        window.addEventListener('load', function () {
+            lucide.createIcons();
+        });
+    </script>
+
+    <!-- Header -->
+    <header class="mb-16 flex items-center justify-between">
+        <div>
+            <h1
+                class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-brand-primary to-brand-secondary">
+                J-Star Study OS
+            </h1>
+            <p class="text-gray-400 mt-2">Design System v1.1 • No Emojis • "Sliding Slabs"</p>
+        </div>
+        <div class="glass-panel px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
+            <i data-lucide="sparkles" class="w-4 h-4 text-brand-accent"></i>
+            Theme: Cosmic Flow
+        </div>
+    </header>
+
+    <!-- 01. Color Palette & Transparency -->
+    <section class="mb-20">
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+            <span class="text-brand-primary">01.</span> Palette & Translucency
+        </h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <!-- Background Stack visualization -->
+            <div class="col-span-2 h-40 relative rounded-2xl overflow-hidden bg-brand-bg border border-white/10">
+                <!-- Base Layer -->
+                <div class="absolute inset-0 flex items-center justify-center text-gray-600">Base Context</div>
+                <!-- Glass Layer 1 -->
+                <div
+                    class="absolute inset-x-0 bottom-0 h-28 glass-panel rounded-t-2xl flex items-center justify-center text-gray-300 border-t border-white/10 backdrop-blur-xl">
+                    Slab Height 1 (Blur 20px)
+                </div>
+                <!-- Glass Layer 2 -->
+                <div
+                    class="absolute inset-x-0 bottom-0 h-14 bg-brand-primary/20 backdrop-filter backdrop-blur-md rounded-t-2xl flex items-center justify-center border-t border-white/20">
+                    Slab Height 2
+                </div>
+            </div>
+
+            <!-- Brand -->
+            <div class="space-y-3">
+                <div
+                    class="h-40 rounded-2xl bg-brand-primary shadow-[0_0_30px_rgba(139,92,246,0.5)] flex items-center justify-center">
+                    Nebula #8B5CF6</div>
+            </div>
+            <div class="space-y-3">
+                <div
+                    class="h-40 rounded-2xl bg-brand-accent text-black font-bold flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.4)]">
+                    Gold #F59E0B</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 02. Typography -->
+    <section class="mb-20">
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+            <span class="text-brand-primary">02.</span> Typography
+        </h2>
+        <div class="glass-panel p-8 rounded-3xl space-y-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-baseline">
+                <span class="text-gray-500 font-mono text-sm">Display XL</span>
+                <h1 class="text-6xl font-bold md:col-span-2 tracking-tight">Focus & flow.</h1>
+            </div>
+            <div class="h-px bg-white/10 w-full"></div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-baseline">
+                <span class="text-gray-500 font-mono text-sm">Heading 2</span>
+                <h2 class="text-3xl font-semibold md:col-span-2">Your Daily Briefing</h2>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-baseline">
+                <span class="text-gray-500 font-mono text-sm">Body</span>
+                <p class="text-gray-300 leading-relaxed md:col-span-2 max-w-xl">
+                    Adaptive Study uses AI to transform your notes into interactive quizzes.
+                    The interface is designed for "Liquid Flow"—minimizing friction so you
+                    can focus purely on learning.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 03. Components (Clean Icons) -->
+    <section class="mb-20">
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+            <span class="text-brand-primary">03.</span> Components (Iconography)
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+            <!-- Buttons -->
+            <div class="glass-panel p-8 rounded-3xl space-y-6">
+                <h3 class="text-lg font-medium text-gray-400 uppercase tracking-wider text-sm mb-4">Icon Buttons</h3>
+
+                <div class="flex flex-wrap gap-4 items-center">
+                    <!-- Primary -->
+                    <button
+                        class="px-6 py-3 rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-semibold shadow-lg shadow-brand-primary/25 hover:shadow-brand-primary/40 hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2">
+                        <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+                        Start Quiz
+                    </button>
+
+                    <!-- Secondary -->
+                    <button
+                        class="px-6 py-3 rounded-xl glass-panel text-white font-medium hover:bg-white/10 transition-all flex items-center gap-2">
+                        <i data-lucide="bar-chart-2" class="w-4 h-4"></i>
+                        View Stats
+                    </button>
+                </div>
+            </div>
+
+            <!-- Cards -->
+            <div class="glass-panel p-8 rounded-3xl space-y-4">
+                <h3 class="text-lg font-medium text-gray-400 uppercase tracking-wider text-sm mb-4">Cards (Slab Style)
+                </h3>
+
+                <!-- Card Item -->
+                <div
+                    class="glass-panel p-5 rounded-2xl flex items-center gap-4 cursor-pointer group hover:bg-white/5 transition-all">
+                    <div
+                        class="w-12 h-12 rounded-xl bg-brand-primary/10 text-brand-primary flex items-center justify-center group-hover:bg-brand-primary group-hover:text-white transition-colors border border-brand-primary/20">
+                        <i data-lucide="atom" class="w-6 h-6"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h4
+                            class="font-heading font-semibold text-lg text-white group-hover:text-brand-accent transition-colors">
+                            Biology Final</h4>
+                        <div class="flex items-center gap-2 text-gray-500 text-xs mt-1">
+                            <i data-lucide="clock" class="w-3 h-3"></i> 2h ago
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-brand-success font-bold text-lg">92%</div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-gray-600 ml-auto mt-1"></i>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Inputs -->
+            <div class="glass-panel p-8 rounded-3xl md:col-span-2">
+                <h3 class="text-lg font-medium text-gray-400 uppercase tracking-wider text-sm mb-4">Inputs & Forms</h3>
+                <div class="flex gap-4">
+                    <input type="text" placeholder="Search your study sets..."
+                        class="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary transition-all">
+
+                    <button
+                        class="px-6 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                        Filter
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+</body>
+
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Dashboard - Slab Design</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { bg: '#0B0E14', primary: '#8B5CF6', secondary: '#3B82F6', accent: '#F59E0B' }
+                    },
+                    fontFamily: { heading: ['Outfit', 'sans-serif'], body: ['Inter', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0B0E14;
+            color: #F3F4F6;
+            overflow-x: hidden;
+        }
+
+        /* Base Glass */
+        .glass-base {
+            background: rgba(21, 25, 35, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        /* The Slab - Slides over things */
+        .slab {
+            background: rgba(20, 24, 32, 0.85);
+            /* Slightly clearer */
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 32px 32px 0 0;
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.3);
+            min-height: 100vh;
+        }
+
+        /* Nav Pill - Replaces Bottom Tab Bar */
+        .nav-pill {
+            background: rgba(10, 10, 12, 0.6);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 99px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+
+<body class="bg-brand-bg min-h-screen relative">
+    <script>
+        window.onload = () => lucide.createIcons();
+    </script>
+
+    <!-- Fixed Header (Behind the slab) -->
+    <div
+        class="fixed top-0 inset-x-0 h-48 px-6 pt-12 z-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-brand-primary/20 via-brand-bg to-transparent">
+        <div class="flex justify-between items-start">
+            <div>
+                <button class="p-2 -ml-2 rounded-full hover:bg-white/10">
+                    <i data-lucide="menu" class="w-6 h-6 text-white"></i>
+                </button>
+                <div class="mt-4">
+                    <h1 class="text-3xl font-heading font-bold text-white leading-tight">Good evening,<br>John.</h1>
+                </div>
+            </div>
+            <div class="w-10 h-10 rounded-full border border-white/10 p-0.5">
+                <div class="w-full h-full rounded-full bg-gradient-to-br from-brand-primary to-brand-secondary"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spacer for fixed header interactions -->
+    <div class="h-40"></div>
+
+    <!-- The Content Slab (Slides UP) -->
+    <main class="slab relative z-10 px-6 pt-8 pb-32">
+
+        <!-- Pull Indicator -->
+        <div class="w-12 h-1 bg-white/10 rounded-full mx-auto mb-8"></div>
+
+        <!-- AI Prompt (Floaty) -->
+        <div class="glass-base border border-brand-primary/30 p-5 rounded-3xl mb-8 relative overflow-hidden group">
+            <div class="absolute inset-0 bg-brand-primary/5 group-hover:bg-brand-primary/10 transition-colors"></div>
+            <div class="relative z-10">
+                <div class="flex items-center gap-2 text-brand-accent mb-2 font-medium text-sm">
+                    <i data-lucide="sparkles" class="w-4 h-4 fill-current"></i>
+                    <span>Focus Recommendation</span>
+                </div>
+                <h3 class="text-lg font-semibold text-white mb-1">Cellular Respiration</h3>
+                <p class="text-gray-400 text-sm mb-4">You missed 3 concepts in Glycolysis.</p>
+                <button
+                    class="w-full py-3 rounded-2xl bg-white text-black font-bold text-sm hover:scale-[1.02] transition-transform">
+                    Start Review Session
+                </button>
+            </div>
+        </div>
+
+        <!-- Section Title -->
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-heading font-semibold text-white">My Library</h3>
+            <button class="p-2 rounded-full bg-white/5 hover:bg-white/10">
+                <i data-lucide="search" class="w-4 h-4 text-gray-400"></i>
+            </button>
+        </div>
+
+        <!-- Stacked Items -->
+        <div class="space-y-4">
+
+            <!-- Item 1 -->
+            <div
+                class="glass-base p-4 rounded-2xl flex items-center gap-4 border border-white/5 active:scale-[0.98] transition-all">
+                <div
+                    class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20">
+                    <i data-lucide="atom" class="w-6 h-6"></i>
+                </div>
+                <div class="flex-1">
+                    <h4 class="font-medium text-white">Quantum Mechanics</h4>
+                    <p class="text-xs text-gray-500 mt-1">140 Cards • 85% Mastery</p>
+                </div>
+                <button class="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center">
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                </button>
+            </div>
+
+            <!-- Item 2 -->
+            <div
+                class="glass-base p-4 rounded-2xl flex items-center gap-4 border border-white/5 active:scale-[0.98] transition-all">
+                <div
+                    class="w-12 h-12 rounded-xl bg-orange-500/10 text-orange-400 flex items-center justify-center border border-orange-500/20">
+                    <i data-lucide="scroll-text" class="w-6 h-6"></i>
+                </div>
+                <div class="flex-1">
+                    <h4 class="font-medium text-white">World History</h4>
+                    <p class="text-xs text-gray-500 mt-1">45 Cards • 60% Mastery</p>
+                </div>
+                <button class="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center">
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                </button>
+            </div>
+
+            <!-- Item 3 -->
+            <div
+                class="glass-base p-4 rounded-2xl flex items-center gap-4 border border-white/5 active:scale-[0.98] transition-all">
+                <div
+                    class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20">
+                    <i data-lucide="languages" class="w-6 h-6"></i>
+                </div>
+                <div class="flex-1">
+                    <h4 class="font-medium text-white">Spanish Vocab</h4>
+                    <p class="text-xs text-gray-500 mt-1">200 Cards • 32% Mastery</p>
+                </div>
+                <button class="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center">
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                </button>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Floating UI (The "Magic Island") -->
+    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+        <div class="nav-pill flex items-center gap-1 p-1.5 pr-6">
+            <button
+                class="w-10 h-10 rounded-full bg-brand-primary text-white flex items-center justify-center shadow-lg shadow-brand-primary/40">
+                <i data-lucide="plus" class="w-6 h-6"></i>
+            </button>
+            <div class="w-px h-6 bg-white/10 mx-2"></div>
+            <button class="p-2 text-white hover:text-brand-primary transition-colors">
+                <i data-lucide="home" class="w-5 h-5"></i>
+            </button>
+            <button class="p-2 text-gray-400 hover:text-white transition-colors ml-2">
+                <i data-lucide="bar-chart-2" class="w-5 h-5"></i>
+            </button>
+            <button class="p-2 text-gray-400 hover:text-white transition-colors ml-2">
+                <i data-lucide="layers" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </div>
+
+</body>
+
+</html>

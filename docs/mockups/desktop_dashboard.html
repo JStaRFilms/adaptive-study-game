@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Desktop Command Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { bg: '#0B0E14', surface: '#151923', primary: '#8B5CF6', secondary: '#3B82F6', accent: '#F59E0B' }
+                    },
+                    fontFamily: { heading: ['Outfit', 'sans-serif'], body: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0B0E14;
+            background-image: radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 20%);
+            color: #F3F4F6;
+        }
+
+        /* Ultra Glass - Higher Transparency */
+        .glass {
+            background: rgba(15, 20, 30, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .glass:hover {
+            border-color: rgba(139, 92, 246, 0.2);
+            background: rgba(15, 20, 30, 0.5);
+        }
+    </style>
+</head>
+
+<body class="h-screen flex overflow-hidden">
+    <script>
+        window.onload = () => lucide.createIcons();
+    </script>
+
+    <!-- Sidebar (Productivity) -->
+    <aside class="w-64 glass border-r-0 border-r-white/5 flex flex-col pt-6 m-4 mr-0 rounded-2xl h-[calc(100vh-2rem)]">
+        <div class="px-6 mb-8">
+            <h1 class="font-heading font-bold text-xl tracking-tight">J-Star OS</h1>
+            <p class="text-xs text-gray-500">v2.0 • Pro</p>
+        </div>
+        <nav class="flex-1 px-3 space-y-1">
+            <a href="#"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-brand-primary/10 text-brand-primary border border-brand-primary/10">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                <span class="text-sm font-medium">Dashboard</span>
+            </a>
+            <a href="#"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition group">
+                <i data-lucide="library" class="w-4 h-4 group-hover:text-brand-secondary transition-colors"></i>
+                <span class="text-sm font-medium">Study Sets</span>
+            </a>
+            <a href="#"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition group">
+                <i data-lucide="pie-chart" class="w-4 h-4 group-hover:text-brand-accent transition-colors"></i>
+                <span class="text-sm font-medium">Analytics</span>
+            </a>
+            <a href="#"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition group">
+                <i data-lucide="network" class="w-4 h-4 group-hover:text-pink-500 transition-colors"></i>
+                <span class="text-sm font-medium">Canvas</span>
+            </a>
+        </nav>
+        <div class="p-4 border-t border-white/5 mt-auto">
+            <div
+                class="flex items-center gap-3 glass p-2 rounded-xl border-white/5 hover:border-white/10 cursor-pointer">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-primary to-brand-secondary"></div>
+                <div class="text-sm">
+                    <div class="font-medium text-white">John Doe</div>
+                </div>
+                <i data-lucide="settings" class="w-4 h-4 text-gray-500 ml-auto"></i>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content (Command Center) -->
+    <main class="flex-1 flex flex-col overflow-hidden relative">
+        <!-- Optional Topbar for Search/Context -->
+        <header class="h-16 flex items-center justify-between px-8 pt-4">
+            <div class="flex items-center gap-2 text-gray-400 text-sm">
+                <i data-lucide="sun" class="w-4 h-4"></i>
+                <span>Good afternoon, Traveler.</span>
+            </div>
+            <div class="flex gap-4">
+                <button
+                    class="px-4 py-2 rounded-xl glass text-sm hover:text-white text-gray-400 flex items-center gap-2">
+                    <i data-lucide="search" class="w-4 h-4"></i> Search (Cmd+K)
+                </button>
+                <button
+                    class="px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white text-sm shadow-lg shadow-brand-primary/20 flex items-center gap-2 transition-all">
+                    <i data-lucide="plus" class="w-4 h-4"></i> New Study Set
+                </button>
+            </div>
+        </header>
+
+        <!-- Productive Grid -->
+        <div class="flex-1 p-8 overflow-y-auto">
+            <div class="grid grid-cols-12 gap-6 max-w-7xl mx-auto">
+
+                <!-- Stats Row -->
+                <div class="col-span-12 grid grid-cols-4 gap-6 mb-2">
+                    <div class="glass p-5 rounded-2xl flex flex-col justify-between h-32">
+                        <div class="flex justify-between items-start">
+                            <i data-lucide="flame" class="w-5 h-5 text-brand-accent"></i>
+                            <span class="text-xs font-mono text-gray-500 bg-white/5 px-2 py-0.5 rounded">+12%</span>
+                        </div>
+                        <div>
+                            <div class="text-3xl font-heading font-bold text-white">12</div>
+                            <div class="text-xs text-brand-accent font-medium mt-1">Day Streak</div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-2xl flex flex-col justify-between h-32">
+                        <div class="flex justify-between items-start">
+                            <i data-lucide="zap" class="w-5 h-5 text-brand-secondary"></i>
+                        </div>
+                        <div>
+                            <div class="text-3xl font-heading font-bold text-white">2.4k</div>
+                            <div class="text-xs text-gray-400 font-medium mt-1">XP Gained</div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-2xl flex flex-col justify-between h-32">
+                        <div class="flex justify-between items-start">
+                            <i data-lucide="rotate-ccw" class="w-5 h-5 text-green-500"></i>
+                        </div>
+                        <div>
+                            <div class="text-3xl font-heading font-bold text-white">85</div>
+                            <div class="text-xs text-gray-400 font-medium mt-1">Cards Reviewed</div>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-2xl flex flex-col justify-between h-32">
+                        <div class="flex justify-between items-start">
+                            <i data-lucide="clock" class="w-5 h-5 text-purple-500"></i>
+                        </div>
+                        <div>
+                            <div class="text-3xl font-heading font-bold text-white">4h 20m</div>
+                            <div class="text-xs text-gray-400 font-medium mt-1">Focus Time</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Feed / Recent -->
+                <div class="col-span-8 space-y-4">
+                    <h3 class="text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide">Recent Activity</h3>
+
+                    <!-- Feature Card -->
+                    <div
+                        class="glass p-6 rounded-2xl group cursor-pointer border-l-4 border-l-brand-primary relative overflow-hidden">
+                        <div
+                            class="absolute right-0 top-0 p-32 bg-brand-primary/5 blur-3xl rounded-full translate-x-10 -translate-y-10 pointer-events-none">
+                        </div>
+                        <div class="flex justify-between items-start mb-4 relative z-10">
+                            <div class="flex items-center gap-3">
+                                <span
+                                    class="w-8 h-8 rounded-lg bg-brand-primary/20 text-brand-primary flex items-center justify-center border border-brand-primary/20">
+                                    <i data-lucide="microscope" class="w-4 h-4"></i>
+                                </span>
+                                <div>
+                                    <h4
+                                        class="text-xl font-heading font-semibold group-hover:text-brand-secondary transition">
+                                        Cellular Respiration</h4>
+                                    <span class="text-xs font-mono text-gray-500">BIO-101 • Last studied 2h ago</span>
+                                </div>
+                            </div>
+                            <div class="text-brand-success text-lg font-bold">85%</div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="w-full h-1 bg-white/5 rounded-full mb-4 overflow-hidden">
+                            <div
+                                class="h-full bg-brand-success w-[85%] rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]">
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3 relative z-10">
+                            <button
+                                class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm flex items-center gap-2 border border-white/5">
+                                <i data-lucide="play-circle" class="w-4 h-4"></i> Resume
+                            </button>
+                            <button
+                                class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm flex items-center gap-2 border border-white/5">
+                                <i data-lucide="network" class="w-4 h-4"></i> Canvas
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- List Items -->
+                    <div
+                        class="glass p-4 rounded-xl flex items-center justify-between hover:translate-x-1 transition-all cursor-pointer group">
+                        <div class="flex items-center gap-4">
+                            <div
+                                class="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center border border-blue-500/20 group-hover:bg-blue-500/20 transition-colors">
+                                <i data-lucide="atom" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <div class="font-medium text-white group-hover:text-blue-400 transition-colors">Physics:
+                                    Quantum Mechanics</div>
+                                <div class="text-xs text-gray-500">Updated yesterday</div>
+                            </div>
+                        </div>
+                        <div class="text-right flex items-center gap-4">
+                            <div class="text-sm text-gray-400">140 Cards</div>
+                            <i data-lucide="chevron-right"
+                                class="w-4 h-4 text-gray-600 group-hover:text-white transition-colors"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar (SRS / AI) -->
+                <div class="col-span-4 space-y-6">
+                    <!-- AI Insight -->
+                    <div
+                        class="glass p-6 rounded-2xl bg-gradient-to-b from-brand-primary/10 to-transparent border-t border-brand-primary/20">
+                        <div class="flex items-center gap-2 mb-3 text-brand-primary">
+                            <i data-lucide="sparkles" class="w-4 h-4 fill-current"></i>
+                            <span class="font-semibold text-sm">AI Coach</span>
+                        </div>
+                        <p class="text-sm text-gray-300 italic mb-4 leading-relaxed">"You seem to be having trouble with
+                            <span class="text-white font-medium">Mitosis phases</span>. I've prepared a quick 5-min
+                            review for you."</p>
+                        <button
+                            class="w-full py-2.5 rounded-lg bg-brand-primary hover:bg-brand-primary/90 text-white text-sm font-medium shadow-lg shadow-brand-primary/20 transition-all">Start
+                            Focused Review</button>
+                    </div>
+
+                    <!-- Due for Review -->
+                    <div>
+                        <h3
+                            class="text-sm font-medium text-gray-400 mb-3 uppercase tracking-wide flex items-center gap-2">
+                            <i data-lucide="clock-4" class="w-4 h-4"></i>
+                            Due Today
+                        </h3>
+                        <div class="space-y-2">
+                            <div
+                                class="glass p-3 rounded-lg flex justify-between items-center text-sm hover:bg-white/5 transition cursor-pointer">
+                                <span>History: WW2</span>
+                                <span
+                                    class="bg-brand-accent/20 text-brand-accent px-2 py-0.5 rounded text-xs font-bold">12</span>
+                            </div>
+                            <div
+                                class="glass p-3 rounded-lg flex justify-between items-center text-sm hover:bg-white/5 transition cursor-pointer">
+                                <span>Calculus I</span>
+                                <span
+                                    class="bg-brand-secondary/20 text-brand-secondary px-2 py-0.5 rounded text-xs font-bold">5</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>

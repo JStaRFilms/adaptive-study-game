@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Mode - Mobile Card</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { bg: '#0B0E14', primary: '#8B5CF6', secondary: '#3B82F6', accent: '#F59E0B', success: '#10B981', error: '#EF4444' }
+                    },
+                    fontFamily: { heading: ['Outfit', 'sans-serif'], body: ['Inter', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0B0E14;
+            color: #F3F4F6;
+            overflow: hidden;
+        }
+
+        .glass-card {
+            background: rgba(21, 25, 35, 0.85);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .option-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .option-btn.selected {
+            background: rgba(139, 92, 246, 0.2);
+            border-color: #8B5CF6;
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col p-4 bg-[url('https://grainy-gradients.vercel.app/noise.svg')]">
+    <script>window.onload = () => lucide.createIcons();</script>
+
+    <!-- Header Stats -->
+    <div class="flex justify-between items-center mb-6 pt-2">
+        <button class="p-2 rounded-full bg-white/5"><i data-lucide="x" class="w-5 h-5"></i></button>
+        <div class="flex flex-col items-center">
+            <span class="text-xs font-bold text-gray-500 uppercase tracking-widest">Question 4</span>
+            <div class="flex gap-1 mt-1">
+                <div class="w-8 h-1 bg-brand-primary rounded-full"></div>
+                <div class="w-8 h-1 bg-brand-primary rounded-full"></div>
+                <div class="w-8 h-1 bg-brand-primary rounded-full"></div>
+                <div class="w-8 h-1 bg-gray-700 rounded-full"></div>
+            </div>
+        </div>
+        <div class="p-2 rounded-full bg-brand-accent/10 text-brand-accent font-mono text-sm">14s</div>
+    </div>
+
+    <!-- The Flashcard (Swipeable Area) -->
+    <main class="flex-1 flex flex-col relative z-10">
+
+        <!-- Question -->
+        <div class="flex-1 flex items-center justify-center mb-6">
+            <h2 class="text-2xl font-heading font-semibold text-center leading-relaxed">
+                Which organelle is famously known as the "powerhouse" of the cell?
+            </h2>
+        </div>
+
+        <!-- Options Stack -->
+        <div class="space-y-3 mb-8">
+            <button
+                class="option-btn w-full p-4 rounded-xl text-left font-medium text-gray-300 active:scale-95 transition-all">
+                A. Nucleus
+            </button>
+            <button
+                class="option-btn selected w-full p-4 rounded-xl text-left font-medium text-white shadow-[0_0_15px_rgba(139,92,246,0.2)] flex justify-between items-center active:scale-95 transition-all">
+                <span>B. Mitochondria</span>
+                <i data-lucide="check-circle" class="w-5 h-5 text-brand-primary"></i>
+            </button>
+            <button
+                class="option-btn w-full p-4 rounded-xl text-left font-medium text-gray-300 active:scale-95 transition-all">
+                C. Ribosome
+            </button>
+            <button
+                class="option-btn w-full p-4 rounded-xl text-left font-medium text-gray-300 active:scale-95 transition-all">
+                D. Golgi Apparatus
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Bottom Controls -->
+    <div class="flex items-center justify-between text-sm px-4 pb-6">
+        <button class="flex flex-col items-center gap-1 text-gray-500 hover:text-white">
+            <i data-lucide="lightbulb" class="w-6 h-6"></i>
+            <span class="text-[10px]">Hint</span>
+        </button>
+
+        <button
+            class="px-8 py-3 rounded-full bg-brand-primary text-white font-bold shadow-lg shadow-brand-primary/40 active:scale-95 transition-all flex items-center gap-2">
+            Check Answer
+        </button>
+
+        <button class="flex flex-col items-center gap-1 text-gray-500 hover:text-white">
+            <i data-lucide="flag" class="w-6 h-6"></i>
+            <span class="text-[10px]">Report</span>
+        </button>
+    </div>
+
+</body>
+
+</html>
