@@ -23,9 +23,15 @@ Enable users to create, view, update, and delete study sets. This includes handl
 
 ## Implementation Steps
 
-### 1. Dashboard Scaffold
-- [ ] Create `(app)/dashboard/page.tsx` using `desktop_dashboard.html` as reference.
-- [ ] Implement `Sidebar` and `TopNav` components.
+### 1. Dashboard Scaffold (Visuals)
+- [ ] **Layout**: `app/(app)/layout.tsx` (Sidebar + Main Content wrapper).
+- [ ] **Components**:
+  - `components/layout/sidebar.tsx`: Navigation & User Profile.
+  - `components/layout/top-nav.tsx`: Greeting, Search, "New Set" button.
+  - `components/dashboard/stats-grid.tsx`: 4-card row (Streak, XP, etc).
+  - `components/dashboard/recent-activity.tsx`: Main feed with Feature Card.
+  - `components/dashboard/ai-sidebar.tsx`: Right column (AI Coach, Due Reviews).
+- [ ] **Page**: `app/(app)/dashboard/page.tsx` assembling the above.
 
 ### 2. Validation & Actions
 - [ ] Create `lib/schemas/study-set.ts` (Zod schemas).

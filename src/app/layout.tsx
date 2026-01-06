@@ -17,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${outfit.variable}`}>{children}</body>
+      <body className={`${inter.variable} ${outfit.variable}`} suppressHydrationWarning={true}>{children}</body>
     </html>
   );
 }
