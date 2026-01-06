@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer, WebSource, PersonalizedFeedback, QuizResult, ChatMessage, MatchingQuestion, SequenceQuestion } from '../types';
+import { AnswerLog, QuestionType, MultipleChoiceQuestion, TrueFalseQuestion, FillInTheBlankQuestion, OpenEndedAnswer, WebSource, PersonalizedFeedback, QuizResult, ChatMessage, MatchingQuestion, SequenceQuestion, ChatContentPart } from '../types';
 import Markdown from './common/Markdown';
 import { extractAnswerForQuestion } from '../utils/textUtils';
 import LoadingSpinner from './common/LoadingSpinner';
 import ImageModal from './common/ImageModal';
 import ChatPanel from './common/ChatPanel';
+import { useVoiceChat } from '../hooks/useVoiceChat';
 
 
 interface ReviewCardProps {
@@ -389,7 +390,7 @@ interface ReviewScreenProps {
   isAITyping: boolean;
   chatError: string | null;
   isChatEnabled: boolean;
-  onSendMessage: (message: string) => void;
+  onSendMessage: (parts: ChatContentPart[], messageId?: string) => Promise<void>;
   onToggleChat: () => void;
   onCloseChat: () => void;
 }
@@ -414,6 +415,12 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({
     conceptText: string | null;
     mode: 'visualize' | 'coming_soon';
   }>({ isOpen: false, imageUrl: null, imagePrompt: null, conceptText: null, mode: 'visualize' });
+
+  const voiceChat = useVoiceChat({
+    chatMessages,
+    isAITyping,
+    onSendMessage: (parts) => { onSendMessage(parts) },
+  });
 
   const handleVisualize = (concept: string) => {
     setVisModalData({
@@ -454,7 +461,7 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({
   }
 
   return (
-    <div className="animate-fade-in pb-16">
+    <div className="animate-fade-in pb-16 flex flex-col flex-grow">
       <h1 className="text-3xl sm:text-4xl font-bold text-text-primary text-center mb-8">Quiz Review</h1>
       
       {isExamReview && (
@@ -533,6 +540,13 @@ const ReviewScreen: React.FC<ReviewScreenProps> = ({
         error={chatError}
         isEnabled={isChatEnabled}
         disabledTooltipText="Chat is unavailable for this review session"
+        isCallActive={voiceChat.isCallActive}
+        isListening={voiceChat.isListening}
+        isSpeaking={voiceChat.isSpeaking}
+        onStartCall={voiceChat.startCall}
+        onEndCall={voiceChat.endCall}
+        onPttMouseDown={voiceChat.handlePttMouseDown}
+        onPttMouseUp={voiceChat.handlePttMouseUp}
       />
     </div>
   );

@@ -1,7 +1,8 @@
 
 
+
 import React, { useState, useCallback, useEffect } from 'react';
-import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion, ReadingLayout, CanvasGenerationProgress, ReadingBlock as ReadingBlockType } from './types';
+import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion, ReadingLayout, CanvasGenerationProgress, ReadingBlock as ReadingBlockType, ChatContentPart } from './types';
 import { GoogleGenAI, Chat } from '@google/genai';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -158,7 +159,7 @@ const App: React.FC = () => {
                 });
                 setChat(newChat);
                 setChatMessages([
-                    { role: 'model', text: `Hi! I'm your AI study coach. I have context on your notes for "${set.name}" and the questions in this quiz. Ask me anything about the current question!` }
+                    { id: Date.now().toString(), role: 'model', parts: [{type: 'text', text: `Hi! I'm your AI study coach. I have context on your notes for "${set.name}" and the questions in this quiz. Ask me anything about the current question!` }] }
                 ]);
                 setChatError(null);
             } catch (e) {
@@ -249,8 +250,17 @@ const App: React.FC = () => {
     
     // Immediately calculate and show results, then fetch feedback
     (async () => {
-        // Sanitize chat history by removing non-serializable 'action' property before saving
-        const cleanedChatHistory = chatMessages.map(({ action, ...rest }) => rest);
+        // Sanitize chat history by removing non-serializable properties before saving
+        const cleanedChatHistory = chatMessages.map(({ action, status, ...rest }) => {
+            const cleanedParts = rest.parts.map(part => {
+                if (part.type === 'audio') {
+                    const { localUrl, ...audioPart } = part;
+                    return audioPart;
+                }
+                return part;
+            });
+            return { ...rest, parts: cleanedParts };
+        });
 
         const initialResultData: Omit<QuizResult, 'id'> = {
             studySetId: currentStudySet.id,
@@ -342,8 +352,16 @@ const App: React.FC = () => {
 
   const saveReviewChatIfDirty = useCallback(async () => {
     if (appState === AppState.REVIEWING && currentResult) {
-        const cleanedChatHistory = chatMessages.map(({ action, ...rest }) => rest);
-        // Only update if there's a change to prevent unnecessary writes
+        const cleanedChatHistory = chatMessages.map(({ action, status, ...rest }) => {
+            const cleanedParts = rest.parts.map(part => {
+                if (part.type === 'audio') {
+                    const { localUrl, ...audioPart } = part;
+                    return audioPart;
+                }
+                return part;
+            });
+            return { ...rest, parts: cleanedParts };
+        });
         if (JSON.stringify(cleanedChatHistory) !== JSON.stringify(currentResult.chatHistory || [])) {
              const updatedResult = { ...currentResult, chatHistory: cleanedChatHistory };
              await updateQuizResult(updatedResult);
@@ -353,7 +371,16 @@ const App: React.FC = () => {
 
   const saveReadingChatIfDirty = useCallback(async () => {
     if (appState === AppState.READING_CANVAS && currentStudySet) {
-        const cleanedChatHistory = chatMessages.map(({ action, ...rest }) => rest);
+        const cleanedChatHistory = chatMessages.map(({ action, status, ...rest }) => {
+            const cleanedParts = rest.parts.map(part => {
+                if (part.type === 'audio') {
+                    const { localUrl, ...audioPart } = part;
+                    return audioPart;
+                }
+                return part;
+            });
+            return { ...rest, parts: cleanedParts };
+        });
         if (JSON.stringify(cleanedChatHistory) !== JSON.stringify(currentStudySet.readingChatHistory || [])) {
              const updatedSet = { ...currentStudySet, readingChatHistory: cleanedChatHistory };
              await updateSet(updatedSet);
@@ -404,7 +431,7 @@ const App: React.FC = () => {
       : [];
     
     if (initialMessages.length === 0 && reviewSet) {
-        initialMessages.push({ role: 'model', text: `You are reviewing your quiz on "${reviewSet.name}". Feel free to ask me anything about your performance or the questions.` });
+        initialMessages.push({ id: Date.now().toString(), role: 'model', parts: [{ type: 'text', text: `You are reviewing your quiz on "${reviewSet.name}". Feel free to ask me anything about your performance or the questions.` }]});
     }
 
     let hasWeaknessSuggestion = initialMessages.some(msg => msg.action && msg.action.text.includes('Create Focused Quiz'));
@@ -414,10 +441,11 @@ const App: React.FC = () => {
     if (weaknessTopics && weaknessTopics.length > 0 && reviewSet) {
         initialMessages.forEach(msg => {
             const suggestionText = "Based on your results, I've identified some areas we can work on";
-            if (msg.role === 'model' && msg.text.includes(suggestionText)) {
+            const textPart = msg.parts.find(p => p.type === 'text');
+            if (msg.role === 'model' && textPart && textPart.type === 'text' && textPart.text.includes(suggestionText)) {
                 msg.action = {
                     text: `Create Focused Quiz (${weaknessTopics.length} topic${weaknessTopics.length > 1 ? 's' : ''})`,
-                    onClick: () => handleStartFocusedQuiz(weaknessTopics, reviewSet)
+                    onClick: () => { void handleStartFocusedQuiz(weaknessTopics, reviewSet); }
                 };
                 hasWeaknessSuggestion = true;
             }
@@ -427,11 +455,12 @@ const App: React.FC = () => {
     // Add a new suggestion if no existing one was found and re-hydrated
     if (weaknessTopics && weaknessTopics.length > 0 && !hasWeaknessSuggestion && reviewSet) {
         const suggestionMessage: ChatMessage = {
+            id: Date.now().toString(),
             role: 'model',
-            text: "Based on your results, I've identified some areas we can work on. I can create a quiz to help you practice.",
+            parts: [{ type: 'text', text: "Based on your results, I've identified some areas we can work on. I can create a quiz to help you practice."}],
             action: {
                 text: `Create Focused Quiz (${weaknessTopics.length} topic${weaknessTopics.length > 1 ? 's' : ''})`,
-                onClick: () => handleStartFocusedQuiz(weaknessTopics, reviewSet)
+                onClick: () => { void handleStartFocusedQuiz(weaknessTopics, reviewSet); }
             }
         };
         initialMessages.push(suggestionMessage);
@@ -610,7 +639,7 @@ const App: React.FC = () => {
                 setChat(newChat);
                 // This is a new canvas, so chat history should be new.
                 setChatMessages([
-                    { role: 'model', text: `Hello! I'm your AI tutor for "${updatedSet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }
+                    { id: Date.now().toString(), role: 'model', parts: [{ type: 'text', text: `Hello! I'm your AI tutor for "${updatedSet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }] }
                 ]);
                 setChatError(null);
             } catch (e) {
@@ -649,7 +678,7 @@ const App: React.FC = () => {
                 setChat(newChat);
                 const initialMessages: ChatMessage[] = studySet.readingChatHistory ? JSON.parse(JSON.stringify(studySet.readingChatHistory)) : [];
                 if (initialMessages.length === 0) {
-                    initialMessages.push({ role: 'model', text: `Hello! I'm your AI tutor for "${studySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` });
+                    initialMessages.push({ id: Date.now().toString(), role: 'model', parts: [{ type: 'text', text: `Hello! I'm your AI tutor for "${studySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }] });
                 }
                 setChatMessages(initialMessages);
                 setChatError(null);
@@ -703,7 +732,7 @@ const App: React.FC = () => {
             setPendingUIAction({ type: 'EXPAND_BLOCK', payload: { blockId: blockToExp.id } });
         } else {
             // Inform the user it's already expanded.
-            setChatMessages(prev => [...prev, { role: 'model', text: `It looks like "${blockToExp.title}" is already expanded with more details.` }]);
+            setChatMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', parts: [{ type: 'text', text: `It looks like "${blockToExp.title}" is already expanded with more details.` }] }]);
         }
     }
 
@@ -775,150 +804,181 @@ const App: React.FC = () => {
 }, [currentStudySet, updateSet]);
 
 
-  const handleSendMessage = useCallback(async (userMessage: string, contextQuestion?: Question, contextLog?: AnswerLog) => {
+  const handleSendMessage = useCallback(async (parts: ChatContentPart[], messageId?: string, contextQuestion?: Question, contextLog?: AnswerLog) => {
     if (!chat || isAITyping) return;
+
+    const id = messageId || `${Date.now()}-${Math.random()}`;
+    const updateMessageStatus = (status: 'sent' | 'error') => {
+        setChatMessages(prev => prev.map(m => m.id === id ? { ...m, status } : m));
+    };
+
+    if (messageId) { // Is a retry
+        setChatMessages(prev => prev.map(m => m.id === id ? { ...m, status: 'sending' } : m));
+    } else { // Is a new message
+        const newUserMessage: ChatMessage = { id, role: 'user', parts, status: 'sending' };
+        setChatMessages(prev => [...prev, newUserMessage]);
+    }
     
-    const newUserMessage: ChatMessage = { role: 'user', text: userMessage };
-    setChatMessages(prev => [...prev, newUserMessage]);
     setIsAITyping(true);
     setChatError(null);
-
-    setChatMessages(prev => [...prev, { role: 'model', text: '' }]);
+    setChatMessages(prev => [...prev, { id: `${id}-response`, role: 'model', parts: [{ type: 'text', text: '' }], status: 'sending' }]);
 
     try {
-      let messageForAI = userMessage;
-      if (contextQuestion && appState === AppState.STUDYING) {
-        // This is for the STUDYING screen, add question context
-        let contextString = `The user is on the following question:\n"""\n${contextQuestion.questionText}\n"""\n`;
+        const geminiParts: PromptPart[] = parts.map(p => {
+            if (p.type === 'text') return { text: p.text };
+            if (p.type === 'image' || p.type === 'audio') return { inlineData: { mimeType: p.mimeType, data: p.base64Data }};
+            return { text: '' }; // Should never happen
+        }).filter(p => (p as any).text || (p as any).inlineData);
 
-        if (contextLog && contextLog.userAnswer !== null) {
-            let userAnswerText = 'The user skipped this question.';
-            if (contextLog.userAnswer !== 'SKIPPED') {
-                 if (contextQuestion.questionType === QuestionType.MULTIPLE_CHOICE) {
-                    const selectedOption = (contextQuestion as MultipleChoiceQuestion).options[contextLog.userAnswer as number];
-                    userAnswerText = `The user answered: "${selectedOption}"`;
-                } else if (contextQuestion.questionType === QuestionType.TRUE_FALSE) {
-                    userAnswerText = `The user answered: ${contextLog.userAnswer ? 'True' : 'False'}`;
-                } else if (contextQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
-                    userAnswerText = `The user answered: "${(contextLog.userAnswer as string[]).join('", "')}"`;
-                } else if (contextQuestion.questionType === QuestionType.MATCHING) {
-                    const matchingQ = contextQuestion as MatchingQuestion;
-                    const userAnswerArray = contextLog.userAnswer as (number | null)[];
-                    const matches = userAnswerArray
-                        .map((promptIndex, answerIndex) => {
-                            if (promptIndex === null) return null; // Skip unmatched answers
-                            const promptText = `"${matchingQ.prompts[promptIndex]}"`;
-                            const answerText = `"${matchingQ.answers[answerIndex]}"`;
-                            return `${promptText} with ${answerText}`;
-                        })
-                        .filter(Boolean) // Remove nulls
-                        .join('; and ');
-                    
-                    userAnswerText = matches ? `The user made the following matches: ${matches}.` : 'The user did not make any matches.';
-                } else if (contextQuestion.questionType === QuestionType.SEQUENCE) {
-                    const sequenceQ = contextQuestion as SequenceQuestion;
-                    const userOrderIndices = contextLog.userAnswer as number[];
-                    const orderedItemsText = userOrderIndices.map((originalIndex, displayIndex) => 
-                        `${displayIndex + 1}. ${sequenceQ.items[originalIndex]}`
-                    ).join('\n');
-                    userAnswerText = `The user submitted the following order:\n${orderedItemsText}`;
-                } else if (typeof contextLog.userAnswer === 'string' || typeof contextLog.userAnswer === 'number' || typeof contextLog.userAnswer === 'boolean') {
-                    userAnswerText = `The user answered: "${contextLog.userAnswer}"`
+        if (contextQuestion && appState === AppState.STUDYING) {
+            // This is for the STUDYING screen, add question context
+            let contextString = `The user is on the following question:\n"""\n${contextQuestion.questionText}\n"""\n`;
+    
+            if (contextLog && contextLog.userAnswer !== null) {
+                let userAnswerText = 'The user skipped this question.';
+                if (contextLog.userAnswer !== 'SKIPPED') {
+                     if (contextQuestion.questionType === QuestionType.MULTIPLE_CHOICE) {
+                        const selectedOption = (contextQuestion as MultipleChoiceQuestion).options[contextLog.userAnswer as number];
+                        userAnswerText = `The user answered: "${selectedOption}"`;
+                    } else if (contextQuestion.questionType === QuestionType.TRUE_FALSE) {
+                        userAnswerText = `The user answered: ${contextLog.userAnswer ? 'True' : 'False'}`;
+                    } else if (contextQuestion.questionType === QuestionType.FILL_IN_THE_BLANK) {
+                        userAnswerText = `The user answered: "${(contextLog.userAnswer as string[]).join('", "')}"`;
+                    } else if (contextQuestion.questionType === QuestionType.MATCHING) {
+                        const matchingQ = contextQuestion as MatchingQuestion;
+                        const userAnswerArray = contextLog.userAnswer as (number | null)[];
+                        const matches = userAnswerArray
+                            .map((promptIndex, answerIndex) => {
+                                if (promptIndex === null) return null; // Skip unmatched answers
+                                const promptText = `"${matchingQ.prompts[promptIndex]}"`;
+                                const answerText = `"${matchingQ.answers[answerIndex]}"`;
+                                return `${promptText} with ${answerText}`;
+                            })
+                            .filter(Boolean) // Remove nulls
+                            .join('; and ');
+                        
+                        userAnswerText = matches ? `The user made the following matches: ${matches}.` : 'The user did not make any matches.';
+                    } else if (contextQuestion.questionType === QuestionType.SEQUENCE) {
+                        const sequenceQ = contextQuestion as SequenceQuestion;
+                        const userOrderIndices = contextLog.userAnswer as number[];
+                        const orderedItemsText = userOrderIndices.map((originalIndex, displayIndex) => 
+                            `${displayIndex + 1}. ${sequenceQ.items[originalIndex]}`
+                        ).join('\n');
+                        userAnswerText = `The user submitted the following order:\n${orderedItemsText}`;
+                    } else if (typeof contextLog.userAnswer === 'string' || typeof contextLog.userAnswer === 'number' || typeof contextLog.userAnswer === 'boolean') {
+                        userAnswerText = `The user answered: "${contextLog.userAnswer}"`
+                    }
                 }
+                
+                let correctness: string;
+                if (contextLog.pointsAwarded === contextLog.maxPoints) {
+                    correctness = 'correctly';
+                } else if (contextLog.pointsAwarded > 0) {
+                    correctness = 'partially correctly';
+                } else {
+                    correctness = 'incorrectly';
+                }
+                contextString += `\nThey answered it ${correctness}. ${userAnswerText}\n`;
             }
             
-            let correctness: string;
-            if (contextLog.pointsAwarded === contextLog.maxPoints) {
-                correctness = 'correctly';
-            } else if (contextLog.pointsAwarded > 0) {
-                correctness = 'partially correctly';
+            const firstTextPart = geminiParts.find(p => 'text' in p) as { text: string } | undefined;
+            if (firstTextPart) {
+                firstTextPart.text = `${contextString}\nUser's message: ${firstTextPart.text}`;
             } else {
-                correctness = 'incorrectly';
+                geminiParts.unshift({ text: contextString });
             }
-            contextString += `\nThey answered it ${correctness}. ${userAnswerText}\n`;
         }
-
-        messageForAI = `${contextString}\nUser's message: ${userMessage}`;
-      }
       
-      const stream = await chat.sendMessageStream({ message: messageForAI });
+        const stream = await chat.sendMessageStream({ message: geminiParts });
+        
+        let userMessageUpdated = false;
 
-      for await (const chunk of stream) {
-        const chunkText = chunk.text;
-        if (chunkText) {
-          setChatMessages(prev => {
+        for await (const chunk of stream) {
+            if (!userMessageUpdated) {
+                updateMessageStatus('sent');
+                userMessageUpdated = true;
+            }
+            const chunkText = chunk.text;
+            if (chunkText) {
+                setChatMessages(prev => {
+                    const lastMessage = prev[prev.length - 1];
+                    if (lastMessage && lastMessage.role === 'model') {
+                        const updatedMessages = [...prev];
+                        const lastPart = lastMessage.parts[lastMessage.parts.length - 1];
+                        if (lastPart?.type === 'text') {
+                            lastPart.text += chunkText;
+                        } else {
+                            lastMessage.parts.push({ type: 'text', text: chunkText });
+                        }
+                        updatedMessages[prev.length - 1] = { ...lastMessage, status: 'sent' };
+                        return updatedMessages;
+                    }
+                    return prev;
+                });
+            }
+        }
+    } catch (err) {
+        console.error("Chat error:", err);
+        const errorText = err instanceof Error ? err.message : "An error occurred in the chat.";
+        setChatError(errorText);
+        updateMessageStatus('error');
+        setChatMessages(prev => {
             const lastMessage = prev[prev.length - 1];
-            if (lastMessage && lastMessage.role === 'model') {
+            if (lastMessage && lastMessage.role === 'model' && lastMessage.parts.every(p => p.type === 'text' && p.text === '')) {
               const updatedMessages = [...prev];
-              updatedMessages[prev.length - 1] = {
-                ...lastMessage,
-                text: lastMessage.text + chunkText,
-              };
+              updatedMessages[prev.length - 1] = { id: `${id}-response`, role: 'model', parts: [{ type: 'text', text: `Sorry, I encountered an error: ${errorText}` }], status: 'error' };
               return updatedMessages;
             }
-            return prev;
-          });
-        }
-      }
-    } catch (err) {
-      console.error("Chat error:", err);
-      const errorText = err instanceof Error ? err.message : "An error occurred in the chat.";
-      setChatError(errorText);
-      setChatMessages(prev => {
-        const lastMessage = prev[prev.length - 1];
-        if (lastMessage && lastMessage.role === 'model' && lastMessage.text === '') {
-          const updatedMessages = [...prev];
-          updatedMessages[prev.length - 1] = { role: 'model', text: `Sorry, I encountered an error: ${errorText}` };
-          return updatedMessages;
-        }
-        return [...prev, { role: 'model', text: `Sorry, I encountered an error: ${errorText}` }];
-      });
+            return [...prev, { id: `${id}-error`, role: 'model', parts: [{ type: 'text', text: `Sorry, I encountered an error: ${errorText}`}], status: 'error' }];
+        });
     } finally {
       setIsAITyping(false);
       // Check for action command in the last message
       setChatMessages(prev => {
         const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'model') {
-            const quizActionMatch = lastMessage.text.match(/\[ACTION:CREATE_QUIZ:(.*?)\]/);
-            const canvasActionMatch = lastMessage.text.match(/\[ACTION:UPDATE_CANVAS:(.*?)\]/);
+            const textPart = lastMessage.parts.find(p => p.type === 'text');
+            if (textPart && textPart.type === 'text') {
+                const textContent = textPart.text;
+                const quizActionMatch = textContent.match(/\[ACTION:CREATE_QUIZ:(.*?)\]/);
+                const canvasActionMatch = textContent.match(/\[ACTION:UPDATE_CANVAS:(.*?)\]/);
 
-            if (quizActionMatch && quizActionMatch[1]) {
-                const paramsStr = quizActionMatch[1];
-                const params = paramsStr.split('|').reduce((acc, part) => {
-                    const [key, value] = part.split('=');
-                    if (key && value) acc[key.trim()] = value.trim();
-                    return acc;
-                }, {} as Record<string, string>);
+                if (quizActionMatch && quizActionMatch[1]) {
+                    const paramsStr = quizActionMatch[1];
+                    const params = paramsStr.split('|').reduce((acc, part) => {
+                        const [key, value] = part.split('=');
+                        if (key && value) acc[key.trim()] = value.trim();
+                        return acc;
+                    }, {} as Record<string, string>);
 
-                const topics = params.topics ? params.topics.split(',').map(t => t.trim()).filter(Boolean) : [];
-                const numQuestions = params.questions ? parseInt(params.questions, 10) : undefined;
-                
-                if (topics.length > 0) {
-                    const cleanedText = lastMessage.text.replace(/\[ACTION:CREATE_QUIZ:.*?\]/, '').trim();
-                    let buttonText = `Create Focused Quiz (${topics.length} topic${topics.length > 1 ? 's' : ''}${numQuestions ? `, ${numQuestions} questions` : ''})`;
-                    const newMessages = [...prev];
-                    newMessages[prev.length - 1] = {
-                        ...lastMessage,
-                        text: cleanedText,
-                        action: { text: buttonText, onClick: () => handleStartCustomQuiz(topics, currentStudySet, numQuestions) }
-                    };
-                    return newMessages;
+                    const topics = params.topics ? params.topics.split(',').map(t => t.trim()).filter(Boolean) : [];
+                    const numQuestions = params.questions ? parseInt(params.questions, 10) : undefined;
+                    
+                    if (topics.length > 0) {
+                        textPart.text = textContent.replace(/\[ACTION:CREATE_QUIZ:.*?\]/, '').trim();
+                        let buttonText = `Create Focused Quiz (${topics.length} topic${topics.length > 1 ? 's' : ''}${numQuestions ? `, ${numQuestions} questions` : ''})`;
+                        const newMessages = [...prev];
+                        newMessages[prev.length - 1] = {
+                            ...lastMessage,
+                            action: { text: buttonText, onClick: () => { void handleStartCustomQuiz(topics, currentStudySet, numQuestions); } }
+                        };
+                        return newMessages;
+                    }
+                } else if (canvasActionMatch && canvasActionMatch[1]) {
+                     const paramsStr = canvasActionMatch[1];
+                     const topicsParam = paramsStr.split('=').slice(1).join('=');
+                     const topics = topicsParam ? topicsParam.split(',').map(t => t.trim()).filter(Boolean) : [];
+                     if (topics.length > 0) {
+                        textPart.text = textContent.replace(/\[ACTION:UPDATE_CANVAS:.*?\]/, '').trim();
+                        let buttonText = `Update Canvas with "${topics.join(', ')}"`;
+                        const newMessages = [...prev];
+                        newMessages[prev.length - 1] = {
+                            ...lastMessage,
+                            action: { text: buttonText, onClick: () => { void handleUpdateCanvas(topics); } }
+                        };
+                        return newMessages;
+                     }
                 }
-            } else if (canvasActionMatch && canvasActionMatch[1]) {
-                 const paramsStr = canvasActionMatch[1];
-                 const topicsParam = paramsStr.split('=').slice(1).join('=');
-                 const topics = topicsParam ? topicsParam.split(',').map(t => t.trim()).filter(Boolean) : [];
-                 if (topics.length > 0) {
-                    const cleanedText = lastMessage.text.replace(/\[ACTION:UPDATE_CANVAS:.*?\]/, '').trim();
-                    let buttonText = `Update Canvas with "${topics.join(', ')}"`;
-                    const newMessages = [...prev];
-                    newMessages[prev.length - 1] = {
-                        ...lastMessage,
-                        text: cleanedText,
-                        action: { text: buttonText, onClick: () => handleUpdateCanvas(topics) }
-                    };
-                    return newMessages;
-                 }
             }
         }
         return prev;
@@ -928,10 +988,10 @@ const App: React.FC = () => {
 
   const handleClearChat = useCallback(() => {
     if (appState === AppState.READING_CANVAS && currentStudySet) {
-        setChatMessages([{ role: 'model', text: `Hello! I'm your AI tutor for "${currentStudySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }]);
+        setChatMessages([{ id: Date.now().toString(), role: 'model', parts: [{ type: 'text', text: `Hello! I'm your AI tutor for "${currentStudySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }] }]);
     } else if (appState === AppState.REVIEWING && currentResult) {
          const reviewSet = studySets.find(s => s.id === currentResult.studySetId);
-         setChatMessages([{ role: 'model', text: `You are reviewing your quiz on "${reviewSet?.name}". Feel free to ask me anything about your performance or the questions.` }]);
+         setChatMessages([{ id: Date.now().toString(), role: 'model', parts: [{ type: 'text', text: `You are reviewing your quiz on "${reviewSet?.name}". Feel free to ask me anything about your performance or the questions.` }] }]);
     }
   }, [appState, currentStudySet, currentResult, studySets]);
 
@@ -982,14 +1042,14 @@ const App: React.FC = () => {
                     isAITyping={isAITyping}
                     chatError={chatError}
                     isChatEnabled={!!chat}
-                    onSendMessage={(msg, q, log) => handleSendMessage(msg, q, log)}
+                    onSendMessage={(parts, id, q, log) => handleSendMessage(parts, id, q, log)}
                     onToggleChat={() => setIsChatOpen(!isChatOpen)}
                     onCloseChat={() => setIsChatOpen(false)}
                 />;
       
       case AppState.RESULTS:
         if (!currentResult) return null; // This now correctly handles the period before feedback is ready
-        return <ResultsScreen result={currentResult} onRestart={handleRestart} onReview={handleReview} feedback={feedback} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={(topics) => handleStartFocusedQuiz(topics, currentStudySet)} />;
+        return <ResultsScreen result={currentResult} onRestart={handleRestart} onReview={handleReview} feedback={feedback} isGeneratingFeedback={isGeneratingFeedback} onStartFocusedQuiz={(topics) => { void handleStartFocusedQuiz(topics, currentStudySet); }} />;
       
       case AppState.REVIEWING:
         if (answerLog.length === 0 || !currentResult) return <SetupScreen onStart={handleStartStudy} onStartReading={handleStartReading} onStartCanvasGeneration={(studySet, config) => handleGenerateCanvas(studySet, { focusTopics: config.topics, customPrompt: config.customPrompt })} error={error} initialContent={initialContent} onReviewHistory={handleReview} onPredict={handlePredict} studySets={studySets} addSet={addSet} updateSet={updateSet} deleteSet={deleteSet} history={history} onShowStats={handleShowStats} onStartSrsQuiz={handleStartSrsQuiz} reviewPoolCount={getReviewPool().length} />;
@@ -998,13 +1058,13 @@ const App: React.FC = () => {
                   onRetakeSameQuiz={handleRetakeQuiz} 
                   onStartNewQuiz={handleRestart} 
                   isGeneratingFeedback={isGeneratingFeedback} 
-                  onStartFocusedQuiz={(topics) => handleStartFocusedQuiz(topics, currentStudySet)}
+                  onStartFocusedQuiz={(topics) => { void handleStartFocusedQuiz(topics, currentStudySet); }}
                   chatMessages={chatMessages}
                   isChatOpen={isChatOpen}
                   isAITyping={isAITyping}
                   chatError={chatError}
                   isChatEnabled={!!chat}
-                  onSendMessage={(msg) => handleSendMessage(msg)}
+                  onSendMessage={(parts, id) => handleSendMessage(parts, id)}
                   onToggleChat={() => setIsChatOpen(!isChatOpen)}
                   onCloseChat={() => setIsChatOpen(false)}
                />;
@@ -1040,7 +1100,7 @@ const App: React.FC = () => {
                     isAITyping={isAITyping}
                     chatError={chatError}
                     isChatEnabled={!!chat}
-                    onSendMessage={(msg) => handleSendMessage(msg)}
+                    onSendMessage={(parts, id) => { void handleSendMessage(parts, id); }}
                     onToggleChat={() => setIsChatOpen(!isChatOpen)}
                     onCloseChat={() => setIsChatOpen(false)}
                     onClearChat={handleClearChat}
@@ -1064,13 +1124,13 @@ const App: React.FC = () => {
         return 'w-full p-4 sm:p-6 lg:p-8 flex-grow flex flex-col';
     }
     // Default centered layout for other screens like Setup, Study, Results
-    return 'w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 flex-grow flex flex-col justify-center';
+    return 'w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 flex-grow flex flex-col';
   })();
 
   return (
     <div className="flex flex-col min-h-screen">
-      <AnnouncementBanner />
       <main className={mainContainerClasses}>
+        <AnnouncementBanner />
         {renderContent()}
       </main>
       <SpeedInsights />

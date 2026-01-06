@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { StudySet } from '../types';
+import { StudySet, ChatMessage } from '../types';
 import { getAll, add, put, deleteItem } from '../utils/db';
 
 const STORE_NAME = 'studySets';
@@ -15,7 +15,25 @@ export const useStudySets = (): [
   const refreshSets = useCallback(async () => {
     try {
       const sets = await getAll(STORE_NAME);
-      const sortedSets = sets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      // Hydrate old chat history format to new format
+      const hydratedSets: StudySet[] = sets.map(set => {
+        if (set.readingChatHistory && set.readingChatHistory.length > 0) {
+            const firstMessage = set.readingChatHistory[0] as any; // Cast to check for old format
+            if (typeof firstMessage.text === 'string' && !firstMessage.parts) {
+                const newChatHistory: ChatMessage[] = set.readingChatHistory.map((oldMsg: any) => ({
+                    id: oldMsg.id || `${Date.now()}-${Math.random()}`,
+                    role: oldMsg.role,
+                    parts: [{ type: 'text', text: oldMsg.text }],
+                    action: oldMsg.action
+                }));
+                return { ...set, readingChatHistory: newChatHistory };
+            }
+        }
+        return set;
+      });
+
+      const sortedSets = hydratedSets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setStudySets(sortedSets);
     } catch (error) {
       console.error("Failed to refresh study sets from IndexedDB:", error);

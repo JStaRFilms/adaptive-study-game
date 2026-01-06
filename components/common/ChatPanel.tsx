@@ -1,10 +1,9 @@
-
-
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage } from '../../types';
+import { ChatMessage, ChatContentPart } from '../../types';
 import Markdown from './Markdown';
 import Tooltip from './Tooltip';
 import ChatActionButton from './ChatActionButton';
+import VoiceCallUI from './VoiceCallUI';
 
 const TypingIndicator = () => (
     <div className="flex items-center space-x-1 p-2">
@@ -18,19 +17,34 @@ interface ChatPanelProps {
     isOpen: boolean;
     onOpen: () => void;
     onClose: () => void;
-    onSendMessage: (message: string) => void;
+    onSendMessage: (parts: ChatContentPart[], messageId?: string) => void | Promise<void>;
     messages: ChatMessage[];
     isTyping: boolean;
     error: string | null;
     isEnabled: boolean;
     disabledTooltipText?: string;
     onClearChat?: () => void;
+    // Voice Call props
+    isCallActive?: boolean;
+    isListening?: boolean;
+    isSpeaking?: boolean;
+    onStartCall?: () => void;
+    onEndCall?: () => void;
+    onPttMouseDown?: () => void;
+    onPttMouseUp?: () => void;
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
     isOpen, onOpen, onClose, onSendMessage, messages, isTyping, error, isEnabled, 
     disabledTooltipText = "Chat is disabled",
-    onClearChat
+    onClearChat,
+    isCallActive = false,
+    isListening = false,
+    isSpeaking = false,
+    onStartCall,
+    onEndCall,
+    onPttMouseDown,
+    onPttMouseUp,
 }) => {
     const [inputValue, setInputValue] = useState('');
     const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
@@ -72,11 +86,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleTextSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (inputValue.trim() && !isTyping) {
             setUserHasScrolledUp(false); // When user sends a message, they expect to see the response
-            onSendMessage(inputValue);
+            onSendMessage([{ type: 'text', text: inputValue }]);
             setInputValue('');
         }
     };
@@ -86,6 +100,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <header className="flex items-center justify-between p-4 border-b border-gray-700 flex-shrink-0">
                 <h2 className="text-lg font-bold text-text-primary">AI Study Coach</h2>
                 <div className="flex items-center gap-2">
+                    {onStartCall && !isCallActive && (
+                        <Tooltip text="Start Voice Call" position="bottom">
+                            <button onClick={onStartCall} className="p-1 rounded-full text-gray-400 hover:bg-gray-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C6.842 18 2 13.158 2 7V3z" />
+                                </svg>
+                            </button>
+                        </Tooltip>
+                    )}
                     {onClearChat && (
                         <Tooltip text="Clear Conversation" position="bottom">
                             <button onClick={onClearChat} className="p-1 rounded-full text-gray-400 hover:bg-gray-600">
@@ -100,9 +123,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </header>
             <div ref={scrollableContainerRef} onScroll={handleScroll} className="flex-grow overflow-y-auto p-4 space-y-4">
                 {messages.map((msg, index) => (
-                    <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div key={msg.id || index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`p-3 rounded-2xl max-w-sm lg:max-w-md ${msg.role === 'user' ? 'bg-brand-primary text-white rounded-br-none' : 'bg-surface-dark text-text-primary rounded-bl-none'}`}>
-                            {msg.text && <Markdown content={msg.text} className="prose prose-invert prose-p:my-0 prose-ul:my-0 prose-ol:my-0" />}
+                            {msg.parts.map((part, partIndex) => {
+                                if (part.type === 'text') {
+                                    return <Markdown key={partIndex} content={part.text} className="prose prose-invert prose-p:my-0 prose-ul:my-0 prose-ol:my-0" />
+                                }
+                                return null;
+                            })}
                             {msg.action && <ChatActionButton text={msg.action.text} onClick={msg.action.onClick} />}
                         </div>
                     </div>
@@ -112,21 +140,34 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
             {error && <div className="p-2 text-center text-sm text-incorrect bg-red-900/50 flex-shrink-0">{error}</div>}
             
-            <form onSubmit={handleSubmit} className="p-4 border-t border-gray-700 flex-shrink-0">
-                <div className="flex items-center gap-2 bg-background-dark rounded-lg p-1">
-                    <input
-                        type="text"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="Ask about this session..."
-                        className="w-full bg-transparent p-2 text-text-primary focus:outline-none"
-                        aria-label="Chat message input"
+            <div className={`border-t border-gray-700 flex-shrink-0 ${isCallActive ? 'p-0' : 'p-4'}`}>
+                {isCallActive && onEndCall && onPttMouseDown && onPttMouseUp ? (
+                    <VoiceCallUI 
+                        isListening={isListening}
+                        isThinking={isTyping}
+                        isSpeaking={isSpeaking}
+                        onPttMouseDown={onPttMouseDown}
+                        onPttMouseUp={onPttMouseUp}
+                        onEndCall={onEndCall}
                     />
-                    <button type="submit" disabled={!inputValue.trim() || isTyping} className="bg-brand-secondary p-2 rounded-md text-white hover:bg-brand-primary disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.949a.75.75 0 00.95.826L10 8.184l-4.949 1.414a.75.75 0 00-.826.95l1.414 4.949a.75.75 0 00.95.826L10 15.816l4.949 1.414a.75.75 0 00.95-.826l1.414-4.949a.75.75 0 00-.826-.95L10 11.816l4.949-1.414a.75.75 0 00.826-.95l-1.414-4.949a.75.75 0 00-.95-.826L10 8.184 5.051 6.77a.75.75 0 00-.95.826L5.516 10l-1.414-4.949a.75.75 0 00-.997-1.762z" /></svg>
-                    </button>
-                </div>
-            </form>
+                ) : (
+                    <form onSubmit={handleTextSubmit}>
+                        <div className="flex items-center gap-2 bg-background-dark rounded-lg p-1">
+                            <input
+                                type="text"
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                placeholder="Ask about this session..."
+                                className="w-full bg-transparent p-2 text-text-primary focus:outline-none"
+                                aria-label="Chat message input"
+                            />
+                            <button type="submit" disabled={!inputValue.trim() || isTyping} className="bg-brand-secondary p-2 rounded-md text-white hover:bg-brand-primary disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.949a.75.75 0 00.95.826L10 8.184l-4.949 1.414a.75.75 0 00-.826.95l1.414 4.949a.75.75 0 00.95.826L10 15.816l4.949 1.414a.75.75 0 00.95-.826l1.414-4.949a.75.75 0 00-.826-.95L10 11.816l4.949-1.414a.75.75 0 00.826-.95l-1.414-4.949a.75.75 0 00-.95-.826L10 8.184 5.051 6.77a.75.75 0 00-.95.826L5.516 10l-1.414-4.949a.75.75 0 00-.997-1.762z" /></svg>
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </div>
         </div>
     );
 

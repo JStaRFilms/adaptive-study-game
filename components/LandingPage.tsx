@@ -153,10 +153,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
                         </p>
                         
                         <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 max-w-md mx-auto">
-                           <span className="inline-flex items-center justify-center gap-x-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm">🤖<span>AI-Powered</span></span>
-                           <span className="inline-flex items-center justify-center gap-x-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm">🎮<span>Gamified</span></span>
-                           <span className="inline-flex items-center justify-center gap-x-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm">📚<span>Multi-Modal</span></span>
-                           <span className="inline-flex items-center justify-center gap-x-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-sm font-semibold backdrop-blur-sm">⚡<span>Real-time</span></span>
+                           <span className="inline-flex items-center justify-center gap-x-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-xs sm:text-sm font-semibold backdrop-blur-sm">🤖<span>AI-Powered</span></span>
+                           <span className="inline-flex items-center justify-center gap-x-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-xs sm:text-sm font-semibold backdrop-blur-sm">🎮<span>Gamified</span></span>
+                           <span className="inline-flex items-center justify-center gap-x-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-xs sm:text-sm font-semibold backdrop-blur-sm">📚<span>Multi-Modal</span></span>
+                           <span className="inline-flex items-center justify-center gap-x-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-xs sm:text-sm font-semibold backdrop-blur-sm">⚡<span>Real-time</span></span>
                         </div>
                         
                         <div className="mt-10 sm:mt-12 flex justify-center gap-4 sm:gap-6 flex-col sm:flex-row">

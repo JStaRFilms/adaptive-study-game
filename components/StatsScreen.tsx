@@ -1,4 +1,5 @@
 
+
 import React, { useMemo, useState } from 'react';
 import { QuizResult, StudySet } from '../types';
 
@@ -213,7 +214,7 @@ const StatsScreen: React.FC<{ history: QuizResult[], studySets: StudySet[], onBa
     if (!stats) return null; // Should not happen if filteredHistory has items, but a good guard
 
     return (
-        <div className="animate-fade-in space-y-8 pb-8">
+        <div className="animate-fade-in space-y-8 pb-8 flex flex-col flex-grow">
             <header className="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="flex-grow">
                     <h1 className="text-3xl sm:text-4xl font-bold text-text-primary">{stats.title}</h1>

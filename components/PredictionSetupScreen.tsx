@@ -179,15 +179,15 @@ const PredictionSetupScreen: React.FC<PredictionSetupScreenProps> = ({ studySet,
     }
     
     return (
-        <div className="animate-fade-in w-full max-w-6xl mx-auto font-serif text-case-text-primary">
-            <header className="text-center mb-8">
+        <div className="animate-fade-in w-full max-w-6xl mx-auto font-serif flex flex-col flex-grow">
+            <header className="text-center mb-8 flex-shrink-0">
                 <div className="inline-block border-2 border-white/50 p-2 mb-4">
                     <h1 className="text-2xl md:text-3xl font-display text-case-paper tracking-widest">CONFIDENTIAL // EXAM ANALYSIS DIVISION</h1>
                 </div>
                 <h2 className="text-xl font-serif text-white/70 font-normal">CASE FILE BUILDER FOR: "{studySet.name}"</h2>
             </header>
 
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start flex-grow">
                 
                 {/* Step 1 */}
                 <section className="paper-section bg-case-paper p-8 shadow-2xl rounded-sm lg:col-span-3">
@@ -259,7 +259,7 @@ const PredictionSetupScreen: React.FC<PredictionSetupScreenProps> = ({ studySet,
             </form>
             
              {error && <div className="mt-6 bg-red-900/80 border border-red-500 text-red-100 px-4 py-3 text-center font-serif" role="alert">{error}</div>}
-             <div className="text-center mt-8">
+             <div className="text-center mt-8 flex-shrink-0">
                  <button type="button" onClick={onCancel} className="font-display text-case-paper hover:underline transition-all">Cancel and Return to Sets</button>
              </div>
         </div>

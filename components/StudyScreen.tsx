@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion, QuizResult } from '../types';
+import { Quiz, Question, QuestionType, StudyMode, FillInTheBlankQuestion, AnswerLog, UserAnswer, QuizConfig, ChatMessage, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion, QuizResult, ChatContentPart } from '../types';
 import ProgressBar from './common/ProgressBar';
 import TimerBar from './common/TimerBar';
 import Markdown from './common/Markdown';
@@ -7,6 +7,7 @@ import Modal from './common/Modal';
 import Tooltip from './common/Tooltip';
 import ChatPanel from './common/ChatPanel';
 import { validateFillInTheBlankAnswer } from '../services/geminiService';
+import { useVoiceChat } from '../hooks/useVoiceChat';
 
 interface StudyScreenProps {
   quiz: Quiz;
@@ -21,7 +22,7 @@ interface StudyScreenProps {
   isAITyping: boolean;
   chatError: string | null;
   isChatEnabled: boolean;
-  onSendMessage: (userVisibleMessage: string, currentQuestion: Question, currentAnswerLog?: AnswerLog) => Promise<void>;
+  onSendMessage: (parts: ChatContentPart[], messageId?: string, currentQuestion?: Question, currentAnswerLog?: AnswerLog) => Promise<void>;
   onToggleChat: () => void;
   onCloseChat: () => void;
 }
@@ -132,6 +133,18 @@ const StudyScreen = ({
   };
   const timeLimitForCurrentQuestion = getTimeLimitForCurrentQuestion();
   const isChatAllowedNow = isChatEnabled && answerStatus !== 'unanswered';
+
+  const handleSendMessageWrapper = useCallback((parts: ChatContentPart[], messageId?: string) => {
+      if (!isChatAllowedNow) return;
+      const currentLog = answerLog.find(l => l.question.questionText === currentQuestion.questionText);
+      void onSendMessage(parts, messageId, currentQuestion, currentLog);
+  }, [isChatAllowedNow, onSendMessage, currentQuestion, answerLog]);
+
+  const voiceChat = useVoiceChat({
+    chatMessages,
+    isAITyping,
+    onSendMessage: handleSendMessageWrapper,
+  });
 
   const goToNextQuestion = useCallback(() => {
     if (currentQuestionIndex + 1 < totalQuestions) {
@@ -520,18 +533,12 @@ const StudyScreen = ({
                 if (currentLog.userAnswer === 'SKIPPED') {
                     userMessage = "I skipped this, please explain.";
                 }
-                onSendMessage(userMessage, currentQuestion, currentLog);
+                void onSendMessage([{type: 'text', text: userMessage}], undefined, currentQuestion, currentLog);
                 setExplanationRequestedMap(prev => ({ ...prev, [currentQuestionIndex]: true }));
             }
         }
     };
   
-  const handleSendMessageWrapper = (message: string) => {
-      if (!isChatAllowedNow) return;
-      const currentLog = answerLog.find(l => l.question.questionText === currentQuestion.questionText);
-      onSendMessage(message, currentQuestion, currentLog);
-  };
-
   const renderAnswerFeedback = () => {
     if (answerStatus === 'unanswered') return null;
     
@@ -1025,6 +1032,13 @@ const StudyScreen = ({
         error={chatError}
         isEnabled={isChatAllowedNow}
         disabledTooltipText="Answer the question to unlock the AI Coach"
+        isCallActive={voiceChat.isCallActive}
+        isListening={voiceChat.isListening}
+        isSpeaking={voiceChat.isSpeaking}
+        onStartCall={voiceChat.startCall}
+        onEndCall={voiceChat.endCall}
+        onPttMouseDown={voiceChat.handlePttMouseDown}
+        onPttMouseUp={voiceChat.handlePttMouseUp}
       />
 
       <Modal isOpen={isQuitModalOpen} onClose={() => setIsQuitModalOpen(false)} title="End Study Session?">

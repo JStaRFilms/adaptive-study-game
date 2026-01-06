@@ -1,7 +1,5 @@
-
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { StudySet, ReadingLayout, ReadingBlock as ReadingBlockType, ChatMessage, AppState } from '../../types';
+import { StudySet, ReadingLayout, ReadingBlock as ReadingBlockType, ChatMessage, AppState, ChatContentPart } from '../../types';
 import ReadingBlock from './ReadingBlock';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateSubConcepts, reflowLayoutForExpansion, identifyCoreConcepts } from '../../services/geminiService';
@@ -9,6 +7,7 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import ChatPanel from '../common/ChatPanel';
 import TopicSelector from '../setup/TopicSelector';
 import { processFilesToParts } from '../../utils/fileProcessor';
+import { useVoiceChat } from '../../hooks/useVoiceChat';
 
 const COLOR_PALETTE = [
   '#4ade80', // green-400
@@ -173,7 +172,7 @@ interface ReadingCanvasProps {
   isAITyping: boolean;
   chatError: string | null;
   isChatEnabled: boolean;
-  onSendMessage: (message: string) => void;
+  onSendMessage: (parts: ChatContentPart[], messageId?: string) => void;
   onToggleChat: () => void;
   onCloseChat: () => void;
   onClearChat: () => void;
@@ -194,6 +193,12 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isMobile = useMediaQuery('(max-width: 768px)');
+
+  const voiceChat = useVoiceChat({
+    chatMessages,
+    isAITyping,
+    onSendMessage,
+  });
 
   useEffect(() => {
     setCurrentLayout(studySet.readingLayout);
@@ -499,13 +504,20 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
         isOpen={isChatOpen}
         onOpen={onToggleChat}
         onClose={onCloseChat}
-        onSendMessage={(msg) => onSendMessage(msg)}
+        onSendMessage={onSendMessage}
         messages={chatMessages}
         isTyping={isAITyping}
         error={chatError}
         isEnabled={isChatEnabled}
         disabledTooltipText="Chat is unavailable"
         onClearChat={onClearChat}
+        isCallActive={voiceChat.isCallActive}
+        isListening={voiceChat.isListening}
+        isSpeaking={voiceChat.isSpeaking}
+        onStartCall={voiceChat.startCall}
+        onEndCall={voiceChat.endCall}
+        onPttMouseDown={voiceChat.handlePttMouseDown}
+        onPttMouseUp={voiceChat.handlePttMouseUp}
       />
     </div>
   );

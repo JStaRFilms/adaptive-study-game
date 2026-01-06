@@ -271,15 +271,15 @@ const PredictionResultsScreen: React.FC<PredictionResultsScreenProps> = ({ resul
   };
 
   return (
-    <div className="animate-fade-in w-full max-w-4xl mx-auto font-serif">
-      <header className="text-center mb-12">
+    <div className="animate-fade-in w-full max-w-4xl mx-auto font-serif flex flex-col flex-grow">
+      <header className="text-center mb-12 flex-shrink-0">
           <div className="inline-block border-2 border-case-paper/50 p-2 mb-4">
               <h1 className="text-2xl md:text-3xl font-display text-case-paper tracking-widest">ANALYSIS COMPLETE</h1>
           </div>
           <h2 className="text-xl font-display text-case-paper/80 font-normal">PREDICTION REPORT</h2>
       </header>
 
-      <div ref={reportRef} className="bg-case-paper text-case-text-primary p-8 md:p-12 shadow-2xl rounded-sm">
+      <div ref={reportRef} className="bg-case-paper text-case-text-primary p-8 md:p-12 shadow-2xl rounded-sm flex-grow">
         {results.length > 0 ? (
           <div className="space-y-12">
             {results.map((item, index) => (
@@ -314,7 +314,7 @@ const PredictionResultsScreen: React.FC<PredictionResultsScreenProps> = ({ resul
         )}
       </div>
 
-      <div className="text-center mt-12 flex flex-col sm:flex-row justify-center items-center gap-6">
+      <div className="text-center mt-12 flex flex-col sm:flex-row justify-center items-center gap-6 flex-shrink-0">
         <button
           onClick={handleDownloadImage}
           disabled={!results || results.length === 0 || isGeneratingPdf}

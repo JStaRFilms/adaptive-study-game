@@ -236,9 +236,16 @@ export interface StudyGuide {
 
 export type PromptPart = { text: string } | { inlineData: { mimeType: string; data: string } };
 
+export type ChatContentPart = 
+  | { type: 'text'; text: string }
+  | { type: 'image'; mimeType: string; base64Data: string }
+  | { type: 'audio'; mimeType: string; base64Data: string; localUrl?: string };
+
 export interface ChatMessage {
+  id: string;
   role: 'user' | 'model';
-  text: string;
+  parts: ChatContentPart[];
+  status?: 'sending' | 'sent' | 'error';
   action?: {
     text: string;
     onClick: () => void;
