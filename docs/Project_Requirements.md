@@ -126,7 +126,7 @@ export const models = {
 | **Styling** | Tailwind CSS 4 |
 | **Database** | PostgreSQL (Neon prod / Local dev) |
 | **ORM** | Prisma |
-| **Auth** | NextAuth.js v5 (Auth.js) |
+| **Auth** | NextAuth.js v5 (Auth.js) -> *Better Auth (Planned)* |
 | **AI SDK** | Vercel AI SDK |
 | **AI Providers** | Gemini, Groq, OpenRouter |
 | **Deployment** | Vercel |

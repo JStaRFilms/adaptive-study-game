@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  
+  // App specific
+  subscription  Subscription?
+  usageRecords  UsageRecord[]
+  studySets     StudySet[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  tier      String   @default("free") // 'free', 'pro', 'unlimited'
+  status    String   @default("active")
+  expiresAt DateTime?
+  
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model UsageRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // 'quiz_generation', 'chat_message', etc.
+  count     Int      @default(1)
+  date      DateTime @default(now()) @db.Date
+  
+  user      User     @relation(fields: [userId], references: [id])
+  
+  @@unique([userId, action, date])
+  @@index([userId, date])
+}
+
+model StudySet {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  materials   StudyMaterial[]
+  quizzes     Quiz[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model StudyMaterial {
+  id          String   @id @default(cuid())
+  type        String   // 'text', 'pdf', 'image', 'url'
+  content     String   // Text content or URL
+  studySetId  String
+  studySet    StudySet @relation(fields: [studySetId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+}
+
+model Quiz {
+  id          String   @id @default(cuid())
+  title       String
+  studySetId  String
+  studySet    StudySet @relation(fields: [studySetId], references: [id], onDelete: Cascade)
+  
+  questions   Question[]
+  results     QuizResult[]
+  
+  createdAt   DateTime @default(now())
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  quizId      String
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  
+  type        String   // 'multiple_choice', 'true_false', etc.
+  content     String   // Question text
+  options     Json?    // Array of options
+  answer      Json     // Correct answer
+  
+  explanation String?
+}
+
+model QuizResult {
+  id          String   @id @default(cuid())
+  quizId      String
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId      String
+  // User relation could be added if results are strictly tied to users, 
+  // but often StudySet->User is enough. Assuming logged in user takes quiz.
+  
+  score       Int
+  maxScore    Int
+  answers     Json     // User's answers
+  
+  takenAt     DateTime @default(now())
+}
