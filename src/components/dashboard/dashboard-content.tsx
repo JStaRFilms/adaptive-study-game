@@ -7,7 +7,7 @@ import { RecentActivity } from '@/components/dashboard/recent-activity';
 import { AISidebar } from '@/components/dashboard/ai-sidebar';
 import { AnimatedSlab } from '@/components/dashboard/animated-slab';
 
-export function DashboardContent() {
+export function DashboardContent({ studySets }: { studySets: any[] }) {
     return (
         <>
             {/* --- DESKTOP VIEW --- */}
@@ -15,7 +15,7 @@ export function DashboardContent() {
                 <TopNav />
                 <div className="grid grid-cols-12 gap-6 max-w-7xl mx-auto mt-6">
                     <StatsGrid />
-                    <RecentActivity />
+                    <RecentActivity studySets={studySets} />
                     <AISidebar />
                 </div>
             </div>
@@ -32,7 +32,7 @@ export function DashboardContent() {
 
                 {/* Layer 2: Animated Slab (Draggable Foreground) */}
                 <AnimatedSlab>
-                    <RecentActivity />
+                    <RecentActivity studySets={studySets} />
                     <AISidebar />
                 </AnimatedSlab>
             </div>

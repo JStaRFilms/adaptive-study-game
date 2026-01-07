@@ -10,10 +10,10 @@ interface AnimatedSlabProps {
 
 export function AnimatedSlab({ children }: AnimatedSlabProps) {
     const controls = useAnimation();
-    const [isOpen, setIsOpen] = useState(false);
+    const [isOpen, setIsOpen] = useState(true);
 
-    // Initial state: condensed (showing stats behind) - lowered to 82vh
-    // Expanded state: full height (covering stats)
+    // Initial state: expanded (full height)
+    // Collapsed state: lowered (showing stats behind)
 
     const toggleOpen = () => {
         setIsOpen(!isOpen);
@@ -41,7 +41,7 @@ export function AnimatedSlab({ children }: AnimatedSlabProps) {
     return (
         <motion.div
             animate={controls}
-            initial={{ y: '78vh' }}
+            initial={{ y: '12vh' }}
             transition={{ duration: 0.4, ease: "easeOut" }} // Smooth, no bounce
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}

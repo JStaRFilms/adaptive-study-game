@@ -63,3 +63,28 @@ export async function getStudySet(id: string) {
         return null;
     }
 }
+
+export async function getStudySets() {
+    const session = await auth();
+    if (!session?.user?.id) return [];
+
+    try {
+        const studySets = await prisma.studySet.findMany({
+            where: {
+                userId: session.user.id,
+            },
+            include: {
+                _count: {
+                    select: { materials: true, quizzes: true }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+        return studySets;
+    } catch (error) {
+        console.error('Failed to fetch study sets:', error);
+        return [];
+    }
+}

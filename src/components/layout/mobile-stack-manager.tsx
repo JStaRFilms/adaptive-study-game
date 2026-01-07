@@ -2,7 +2,6 @@
 
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DashboardContent } from '@/components/dashboard/dashboard-content';
 
 interface MobileStackManagerProps {
     children: React.ReactNode;
@@ -23,21 +22,28 @@ export function MobileStackManager({ children }: MobileStackManagerProps) {
             {/* --- MOBILE: Stack System --- */}
             <div className="md:hidden flex-1 relative overflow-hidden">
 
-                {/* Layer 0: The Base (Dashboard) */}
-                {/* Always mounted to preserve state/scroll */}
-                <motion.div
-                    className="absolute inset-0 z-0 overflow-hidden"
-                    animate={{
-                        scale: isDashboard ? 1 : 0.95,
-                        opacity: isDashboard ? 1 : 0.7,
-                        filter: isDashboard ? 'blur(0px)' : 'blur(2px)'
-                    }}
-                    transition={{ duration: 0.4, ease: "easeOut" }}
-                >
-                    <DashboardContent />
-                </motion.div>
+                {/* 
+                    The `children` prop will be one of:
+                    1. DashboardContent (when on /dashboard)
+                    2. A Slab page (when on /study/[id], /study/new, etc.)
+                    
+                    We always render children. When on a slab route, we ALSO show the 
+                    dashboard behind it as a scaled/blurred background by using 
+                    a persistent mount. But this causes the data issue...
+                    
+                    NEW APPROACH: On mobile, just show children directly.
+                    The slab pages already take care of their own layout.
+                    The stack effect is achieved via page-level animations like slide-in-from-bottom.
+                */}
 
-                {/* Layer 1: The Slab (Active Task) */}
+                {/* When on dashboard, show full dashboard */}
+                {isDashboard && (
+                    <div className="absolute inset-0 z-0 overflow-hidden">
+                        {children}
+                    </div>
+                )}
+
+                {/* When on a slab route, show slab as overlay */}
                 <AnimatePresence mode="wait">
                     {!isDashboard && (
                         <motion.div
