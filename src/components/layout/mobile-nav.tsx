@@ -36,7 +36,7 @@ export function MobileNav() {
                 </Link>
 
                 <Link
-                    href="/study-sets"
+                    href="/study/demo"
                     className={`p-2 transition-colors ml-2 ${isActive('/study-sets') ? 'text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                     <Layers className="w-5 h-5" />
