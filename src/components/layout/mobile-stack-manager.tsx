@@ -38,9 +38,10 @@ export function MobileStackManager({ children }: MobileStackManagerProps) {
                 </motion.div>
 
                 {/* Layer 1: The Slab (Active Task) */}
-                <AnimatePresence>
+                <AnimatePresence mode="wait">
                     {!isDashboard && (
                         <motion.div
+                            key={pathname}
                             initial={{ y: '100%' }}
                             animate={{ y: '0%' }}
                             exit={{ y: '100%' }}
