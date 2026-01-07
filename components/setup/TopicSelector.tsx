@@ -4,16 +4,17 @@ import React, { useState } from 'react';
 import { StudyMode, StudySet, KnowledgeSource } from '../../types';
 import LoadingSpinner from '../common/LoadingSpinner';
 import ProgressBar from '../common/ProgressBar';
+import { useSettings } from '../../hooks/useSettings';
 
 const QuizConfigurator: React.FC<{
     numQuestions: number, setNumQuestions: (n: number) => void,
     knowledgeSource: KnowledgeSource, setKnowledgeSource: (k: KnowledgeSource) => void,
     studyMode: StudyMode, setStudyMode: (s: StudyMode) => void
-}> = ({ numQuestions, setNumQuestions, knowledgeSource, setKnowledgeSource, studyMode, setStudyMode}) => (
+}> = ({ numQuestions, setNumQuestions, knowledgeSource, setKnowledgeSource, studyMode, setStudyMode }) => (
     <>
         <div>
             <label htmlFor="numQuestions" className="block text-lg font-medium text-text-secondary mb-2">Number of Questions</label>
-            <input type="number" id="numQuestions" value={Number.isNaN(numQuestions) ? '' : numQuestions} onChange={e => setNumQuestions(parseInt(e.target.value, 10))} min="5" max="50" className="w-32 p-2 text-center text-xl bg-gray-900 border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"/>
+            <input type="number" id="numQuestions" value={Number.isNaN(numQuestions) ? '' : numQuestions} onChange={e => setNumQuestions(parseInt(e.target.value, 10))} min="5" max="50" className="w-32 p-2 text-center text-xl bg-gray-900 border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary" />
         </div>
         <div>
             <h3 className="text-lg font-medium text-text-secondary mb-3">Knowledge Source</h3>
@@ -24,7 +25,7 @@ const QuizConfigurator: React.FC<{
                 <button onClick={() => setKnowledgeSource(KnowledgeSource.GENERAL)} className={`px-4 py-3 rounded-lg font-semibold border-2 transition-all ${knowledgeSource === KnowledgeSource.GENERAL ? 'bg-brand-primary text-white border-brand-primary' : 'bg-gray-700 hover:bg-gray-600 border-gray-600'}`}>
                     <p className="font-bold">Notes + AI</p><p className="text-xs font-normal opacity-80">Supplement with AI</p>
                 </button>
-                 <button onClick={() => setKnowledgeSource(KnowledgeSource.WEB_SEARCH)} className={`px-4 py-3 rounded-lg font-semibold border-2 transition-all ${knowledgeSource === KnowledgeSource.WEB_SEARCH ? 'bg-brand-primary text-white border-brand-primary' : 'bg-gray-700 hover:bg-gray-600 border-gray-600'}`}>
+                <button onClick={() => setKnowledgeSource(KnowledgeSource.WEB_SEARCH)} className={`px-4 py-3 rounded-lg font-semibold border-2 transition-all ${knowledgeSource === KnowledgeSource.WEB_SEARCH ? 'bg-brand-primary text-white border-brand-primary' : 'bg-gray-700 hover:bg-gray-600 border-gray-600'}`}>
                     <p className="font-bold">Notes + Web</p><p className="text-xs font-normal opacity-80">Use Google Search</p>
                 </button>
             </div>
@@ -54,7 +55,7 @@ interface TopicSelectorProps {
     processingError: string | null;
     progressPercent: number;
     flow: 'quiz' | 'canvas';
-    onStartQuiz?: (config: { numQuestions: number, studyMode: StudyMode, knowledgeSource: KnowledgeSource, selectedTopics: string[], customInstructions: string}) => void;
+    onStartQuiz?: (config: { numQuestions: number, studyMode: StudyMode, knowledgeSource: KnowledgeSource, selectedTopics: string[], customInstructions: string, enableConfidenceCheck: boolean }) => void;
     onGenerateCanvas?: (config: { selectedTopics: string[], customPrompt: string }) => void;
     onBack: () => void;
     onRegenerateTopics: () => void;
@@ -73,13 +74,20 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
     const [files, setFiles] = useState<File[]>([]);
     const [customPrompt, setCustomPrompt] = useState('');
 
+    // Persistent Settings
+    const { settings, updateSettings, isLoaded } = useSettings();
+
+    const handleConfidenceToggle = () => {
+        updateSettings({ enableConfidenceCheck: !settings.enableConfidenceCheck });
+    };
+
     const handleTopicToggle = (topic: string) => setSelectedTopics(prev => prev.includes(topic) ? prev.filter(t => t !== topic) : [...prev, topic]);
     const handleSelectAll = () => topics && setSelectedTopics(topics);
     const handleDeselectAll = () => setSelectedTopics([]);
 
     const handleStartClick = () => {
         if (flow === 'quiz' && onStartQuiz) {
-            onStartQuiz({ numQuestions, studyMode, knowledgeSource, selectedTopics, customInstructions });
+            onStartQuiz({ numQuestions, studyMode, knowledgeSource, selectedTopics, customInstructions, enableConfidenceCheck: settings.enableConfidenceCheck });
         } else if (flow === 'canvas' && onGenerateCanvas) {
             onGenerateCanvas({ selectedTopics, customPrompt });
         }
@@ -108,7 +116,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
 
     if (isProcessing) {
         return (
-             <div className="animate-fade-in w-full max-w-2xl mx-auto">
+            <div className="animate-fade-in w-full max-w-2xl mx-auto">
                 <h1 className="text-3xl sm:text-4xl font-bold text-text-primary mb-2 text-center">Re-analyzing Materials</h1>
                 <p className="text-text-secondary mb-8 text-center">For "{activeSet.name}"</p>
                 <div className="bg-surface-dark p-8 rounded-xl min-h-[40vh] flex flex-col justify-center items-center text-center">
@@ -126,15 +134,15 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
         <div className="animate-fade-in w-full max-w-3xl mx-auto">
             <header className="relative text-center">
                 <button onClick={onBack} className="absolute top-0 left-0 p-2 rounded-full text-gray-400 hover:bg-gray-700 transition-colors" aria-label="Go back">
-                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                 <button onClick={onBack} className="absolute top-0 right-0 p-2 rounded-full text-gray-400 hover:bg-gray-700 transition-colors" aria-label="Close">
+                <button onClick={onBack} className="absolute top-0 right-0 p-2 rounded-full text-gray-400 hover:bg-gray-700 transition-colors" aria-label="Close">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                 </button>
+                </button>
                 <h1 className="text-3xl sm:text-4xl font-bold text-text-primary mb-2">{title}</h1>
                 <p className="text-text-secondary mb-8">For "{activeSet.name}"</p>
             </header>
-            
+
             <div className="bg-surface-dark p-6 sm:p-8 rounded-xl space-y-8">
                 <div>
                     <div className="flex justify-between items-center mb-4">
@@ -167,7 +175,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
                     <h3 className="text-xl font-bold text-text-primary mb-2">Add More Materials</h3>
                     <p className="text-sm text-text-secondary mb-3">You can add supplemental files before generating. This will re-analyze the content to find new topics.</p>
                     <div className="flex flex-col gap-4">
-                        <input type="file" id="reanalyzeUpload" multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,audio/*,.md,.pptx" onChange={handleFileChange} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary file:text-white hover:file:bg-brand-primary"/>
+                        <input type="file" id="reanalyzeUpload" multiple accept=".txt,.pdf,.docx,.xlsx,.csv,image/*,audio/*,.md,.pptx" onChange={handleFileChange} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-secondary file:text-white hover:file:bg-brand-primary" />
                         {files.length > 0 && (
                             <div>
                                 <ul className="space-y-1 text-sm">
@@ -200,7 +208,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
                         {customInstructions && <p className="text-sm text-correct mt-2 animate-fade-in">✓ Your custom focus will be applied.</p>}
                     </div>
                 )}
-                
+
                 {flow === 'canvas' && (
                     <div className="border-t border-gray-700 pt-8">
                         <h3 className="text-2xl font-bold text-text-primary mb-4">Custom Focus <span className="text-base font-normal text-text-secondary">(Optional)</span></h3>
@@ -220,7 +228,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
 
                 {flow === 'quiz' && (
                     <div className="border-t border-gray-700 pt-8 mt-8 space-y-8 text-center">
-                        <QuizConfigurator 
+                        <QuizConfigurator
                             numQuestions={numQuestions}
                             setNumQuestions={setNumQuestions}
                             studyMode={studyMode}
@@ -228,13 +236,28 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
                             knowledgeSource={knowledgeSource}
                             setKnowledgeSource={setKnowledgeSource}
                         />
+                        {/* Persistent Settings Toggle */}
+                        {isLoaded && (
+                            <div className="flex items-center justify-center gap-4 mt-6 p-4 bg-gray-800/50 rounded-lg max-w-md mx-auto">
+                                <span className="text-text-secondary font-medium">Confidence Check Step</span>
+                                <button
+                                    onClick={handleConfidenceToggle}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 focus:ring-offset-gray-900 ${settings.enableConfidenceCheck ? 'bg-brand-primary' : 'bg-gray-600'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.enableConfidenceCheck ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                                <span className={`text-sm ${settings.enableConfidenceCheck ? 'text-text-primary' : 'text-gray-500'}`}>
+                                    {settings.enableConfidenceCheck ? 'On' : 'Off'}
+                                </span>
+                            </div>
+                        )}
                     </div>
                 )}
 
                 <div className="border-t border-gray-700 pt-8 text-center">
                     {processingError && <div className="text-red-400 font-semibold mb-4">{processingError}</div>}
                     <button onClick={handleStartClick} className="w-full sm:w-auto px-12 py-4 bg-brand-primary text-white font-bold text-xl rounded-lg shadow-lg hover:bg-brand-secondary transition-all transform hover:scale-105">
-                         {flow === 'quiz' ? 'Start Quiz' : 'Generate Canvas'}
+                        {flow === 'quiz' ? 'Start Quiz' : 'Generate Canvas'}
                     </button>
                 </div>
             </div>

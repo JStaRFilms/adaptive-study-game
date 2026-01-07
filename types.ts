@@ -85,11 +85,12 @@ export interface StudySet {
 }
 
 export interface QuizConfig {
-    numberOfQuestions: number;
-    mode: StudyMode;
-    knowledgeSource: KnowledgeSource;
-    topics?: string[];
-    customInstructions?: string;
+  numberOfQuestions: number;
+  mode: StudyMode;
+  knowledgeSource: KnowledgeSource;
+  topics?: string[];
+  customInstructions?: string;
+  enableConfidenceCheck?: boolean;
 }
 
 export interface MultipleChoiceQuestion {
@@ -159,8 +160,8 @@ export interface SequenceQuestion {
 export type Question = MultipleChoiceQuestion | TrueFalseQuestion | FillInTheBlankQuestion | OpenEndedQuestion | MatchingQuestion | SequenceQuestion;
 
 export interface WebSource {
-    uri: string;
-    title: string;
+  uri: string;
+  title: string;
 }
 
 export interface Quiz {
@@ -203,16 +204,16 @@ export interface AnswerLog {
 }
 
 export interface QuizResult {
-    id: string;
-    studySetId: string;
-    date: string;
-    score: number;
-    accuracy: number;
-    answerLog: AnswerLog[];
-    webSources?: WebSource[];
-    mode: StudyMode;
-    feedback?: PersonalizedFeedback | null;
-    chatHistory?: ChatMessage[];
+  id: string;
+  studySetId: string;
+  date: string;
+  score: number;
+  accuracy: number;
+  answerLog: AnswerLog[];
+  webSources?: WebSource[];
+  mode: StudyMode;
+  feedback?: PersonalizedFeedback | null;
+  chatHistory?: ChatMessage[];
 }
 
 export interface PredictedQuestion {
@@ -247,7 +248,7 @@ export interface ChatMessage {
 
 export interface PersonalizedFeedback {
   overallSummary: string;
-  strengthTopics: { topic: string; comment:string }[];
+  strengthTopics: { topic: string; comment: string }[];
   weaknessTopics: { topic: string; comment: string; suggestedQuestionCount: number; youtubeSearchQuery: string; }[];
   narrowPasses: { topic: string; questionText: string; userAnswerText: string; comment: string; }[];
   recommendation: string;
@@ -259,9 +260,9 @@ export enum FibValidationStatus {
   INCORRECT = 'INCORRECT',
 }
 export interface FibValidationResult {
-    status: FibValidationStatus;
-    pointsAwarded: number;
-    comment: string;
+  status: FibValidationStatus;
+  pointsAwarded: number;
+  comment: string;
 }
 
 export interface SRSItem {

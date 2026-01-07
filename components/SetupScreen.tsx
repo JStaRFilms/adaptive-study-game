@@ -27,32 +27,32 @@ const ProcessingModal: React.FC<{ title: string; message: string; progress: numb
 );
 
 interface SetupScreenProps {
-  onStart: (parts: PromptPart[], config: QuizConfig, studySetId: string) => void;
-  onStartReading: (set: StudySet) => void;
-  onStartCanvasGeneration: (studySet: StudySet, config: { topics: string[], customPrompt: string }) => void;
-  error: string | null;
-  initialContent?: string | null;
-  onReviewHistory: (result: QuizResult) => void;
-  onPredict: (studySetId: string) => void;
-  studySets: StudySet[];
-  addSet: (set: Omit<StudySet, 'id' | 'createdAt'>) => Promise<StudySet>;
-  updateSet: (set: StudySet) => Promise<void>;
-  deleteSet: (setId: string) => Promise<void>;
-  onShowStats: () => void;
-  history: QuizResult[];
-  onStartSrsQuiz: () => void;
-  reviewPoolCount: number;
+    onStart: (parts: PromptPart[], config: QuizConfig, studySetId: string) => void;
+    onStartReading: (set: StudySet) => void;
+    onStartCanvasGeneration: (studySet: StudySet, config: { topics: string[], customPrompt: string }) => void;
+    error: string | null;
+    initialContent?: string | null;
+    onReviewHistory: (result: QuizResult) => void;
+    onPredict: (studySetId: string) => void;
+    studySets: StudySet[];
+    addSet: (set: Omit<StudySet, 'id' | 'createdAt'>) => Promise<StudySet>;
+    updateSet: (set: StudySet) => Promise<void>;
+    deleteSet: (setId: string) => Promise<void>;
+    onShowStats: () => void;
+    history: QuizResult[];
+    onStartSrsQuiz: () => void;
+    reviewPoolCount: number;
 }
 
 type Action = 'LIST' | 'CREATE_EDIT' | 'HISTORY' | 'TOPIC_SELECTION' | 'CANVAS_TOPIC_SELECTION';
 
-const SetupScreen: React.FC<SetupScreenProps> = ({ 
-    onStart, 
+const SetupScreen: React.FC<SetupScreenProps> = ({
+    onStart,
     onStartReading,
     onStartCanvasGeneration,
-    error, 
-    initialContent, 
-    onReviewHistory, 
+    error,
+    initialContent,
+    onReviewHistory,
     onPredict,
     studySets,
     addSet,
@@ -63,108 +63,108 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     onStartSrsQuiz,
     reviewPoolCount
 }) => {
-  const [action, setAction] = useState<Action>('LIST');
-  
-  const [activeSet, setActiveSet] = useState<StudySet | null>(null);
-  
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isAnalyzingTopics, setIsAnalyzingTopics] = useState(false);
-  const [processingError, setProcessingError] = useState<string|null>(null);
-  const [progressMessage, setProgressMessage] = useState<string | null>(null);
-  const [progressPercent, setProgressPercent] = useState<number>(0);
+    const [action, setAction] = useState<Action>('LIST');
 
-  const [preparedParts, setPreparedParts] = useState<PromptPart[]>([]);
-  const [topics, setTopics] = useState<string[] | null>(null);
+    const [activeSet, setActiveSet] = useState<StudySet | null>(null);
 
-  const resetState = useCallback(() => {
-    setActiveSet(null);
-    setIsProcessing(false);
-    setProcessingError(null);
-    setProgressMessage(null);
-    setProgressPercent(0);
-    setPreparedParts([]);
-    setIsAnalyzingTopics(false);
-    setTopics(null);
-  }, []);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [isAnalyzingTopics, setIsAnalyzingTopics] = useState(false);
+    const [processingError, setProcessingError] = useState<string | null>(null);
+    const [progressMessage, setProgressMessage] = useState<string | null>(null);
+    const [progressPercent, setProgressPercent] = useState<number>(0);
 
-  const handleShowList = useCallback(() => {
-    resetState();
-    setAction('LIST');
-  }, [resetState]);
+    const [preparedParts, setPreparedParts] = useState<PromptPart[]>([]);
+    const [topics, setTopics] = useState<string[] | null>(null);
 
-  useEffect(() => {
-    if (initialContent !== null) {
-      resetState();
-      setAction('CREATE_EDIT');
-    }
-  }, [initialContent, resetState]);
-
-  const onProgress = useCallback((message: string, percent: number) => {
-    setProgressMessage(message);
-    setProgressPercent(percent);
-  }, []);
-
-  const prepareAndAnalyzeTopics = useCallback(async (set: StudySet, parts: PromptPart[], nextAction: Action) => {
-    resetState();
-    setActiveSet(set);
-    setIsProcessing(true);
-    setProcessingError(null);
-    setProgressPercent(0);
-    setPreparedParts(parts);
-
-    try {
-        let currentSet = set;
-        const onTopicProgress = (message: string, percent: number) => {
-            setProgressMessage(message);
-            setProgressPercent(percent);
-        };
-        onTopicProgress('Checking for topics...', 25);
-        
-        if (currentSet.topics && currentSet.topics.length > 0) {
-            onTopicProgress('Loading existing topics...', 100);
-            setTopics(currentSet.topics);
-        } else {
-            onTopicProgress('Analyzing for topics...', 75);
-            const generatedTopics = await identifyCoreConcepts(parts);
-            const updatedSetWithTopics: StudySet = { ...currentSet, topics: generatedTopics };
-            await updateSet(updatedSetWithTopics);
-            setActiveSet(updatedSetWithTopics);
-            setTopics(generatedTopics);
-            onTopicProgress('Topics generated!', 90);
-        }
-        
-        setProgressPercent(100);
-        await new Promise(res => setTimeout(res, 300));
-
-        setAction(nextAction);
-    } catch (err) {
-        console.error("Error preparing for action:", err);
-        const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
-        setProcessingError(errorMessage);
-        setAction('LIST');
-    } finally {
+    const resetState = useCallback(() => {
+        setActiveSet(null);
         setIsProcessing(false);
-    }
-  }, [resetState, updateSet]);
+        setProcessingError(null);
+        setProgressMessage(null);
+        setProgressPercent(0);
+        setPreparedParts([]);
+        setIsAnalyzingTopics(false);
+        setTopics(null);
+    }, []);
+
+    const handleShowList = useCallback(() => {
+        resetState();
+        setAction('LIST');
+    }, [resetState]);
+
+    useEffect(() => {
+        if (initialContent !== null) {
+            resetState();
+            setAction('CREATE_EDIT');
+        }
+    }, [initialContent, resetState]);
+
+    const onProgress = useCallback((message: string, percent: number) => {
+        setProgressMessage(message);
+        setProgressPercent(percent);
+    }, []);
+
+    const prepareAndAnalyzeTopics = useCallback(async (set: StudySet, parts: PromptPart[], nextAction: Action) => {
+        resetState();
+        setActiveSet(set);
+        setIsProcessing(true);
+        setProcessingError(null);
+        setProgressPercent(0);
+        setPreparedParts(parts);
+
+        try {
+            let currentSet = set;
+            const onTopicProgress = (message: string, percent: number) => {
+                setProgressMessage(message);
+                setProgressPercent(percent);
+            };
+            onTopicProgress('Checking for topics...', 25);
+
+            if (currentSet.topics && currentSet.topics.length > 0) {
+                onTopicProgress('Loading existing topics...', 100);
+                setTopics(currentSet.topics);
+            } else {
+                onTopicProgress('Analyzing for topics...', 75);
+                const generatedTopics = await identifyCoreConcepts(parts);
+                const updatedSetWithTopics: StudySet = { ...currentSet, topics: generatedTopics };
+                await updateSet(updatedSetWithTopics);
+                setActiveSet(updatedSetWithTopics);
+                setTopics(generatedTopics);
+                onTopicProgress('Topics generated!', 90);
+            }
+
+            setProgressPercent(100);
+            await new Promise(res => setTimeout(res, 300));
+
+            setAction(nextAction);
+        } catch (err) {
+            console.error("Error preparing for action:", err);
+            const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
+            setProcessingError(errorMessage);
+            setAction('LIST');
+        } finally {
+            setIsProcessing(false);
+        }
+    }, [resetState, updateSet]);
 
 
     const handlePrepareForQuiz = useCallback(async (parts: PromptPart[], set: StudySet) => {
         await prepareAndAnalyzeTopics(set, parts, 'TOPIC_SELECTION');
     }, [prepareAndAnalyzeTopics]);
-    
+
     const handlePrepareForCanvas = useCallback(async (set: StudySet) => {
-        const { parts } = await processFilesToParts(set.content, [], () => {});
+        const { parts } = await processFilesToParts(set.content, [], () => { });
         await prepareAndAnalyzeTopics(set, parts, 'CANVAS_TOPIC_SELECTION');
     }, [prepareAndAnalyzeTopics]);
 
 
-    const fullSaveAndAnalyze = async (data: {name: string, content: string, files: File[], youtubeUrls: string[]}) => {
+    const fullSaveAndAnalyze = async (data: { name: string, content: string, files: File[], youtubeUrls: string[] }) => {
         setIsProcessing(true);
         setProcessingError(null);
 
         try {
             const { combinedText, persistedFiles } = await processFilesToParts(data.content, data.files, onProgress);
-            
+
             let currentSet: StudySet;
             let finalPersistedFiles = persistedFiles;
 
@@ -175,35 +175,35 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
             } else { // Creating
                 currentSet = await addSet({ name: data.name, content: combinedText.trim(), persistedFiles: finalPersistedFiles, topics: [], youtubeUrls: data.youtubeUrls });
             }
-            
+
             // Now that the set is saved, prepare the parts for topic analysis
             const parts: PromptPart[] = [];
             if (currentSet.content) { parts.push({ text: currentSet.content }); }
             if (currentSet.persistedFiles) {
                 currentSet.persistedFiles.forEach(pf => {
-                     if (pf.type.startsWith('image/') || pf.type.startsWith('audio/')) {
+                    if (pf.type.startsWith('image/') || pf.type.startsWith('audio/')) {
                         parts.push({ inlineData: { mimeType: pf.type, data: pf.data } });
-                     }
+                    }
                 });
             }
             if (currentSet.youtubeUrls) {
                 currentSet.youtubeUrls.forEach(url => {
-                    parts.push({text: `\n\n[Content from YouTube video: ${url}]\nThis content should be analyzed by watching the video or reading its transcript.`});
+                    parts.push({ text: `\n\n[Content from YouTube video: ${url}]\nThis content should be analyzed by watching the video or reading its transcript.` });
                 });
             }
 
             setPreparedParts(parts);
-            
+
             setIsProcessing(false);
             setIsAnalyzingTopics(true);
             const generatedTopics = await identifyCoreConcepts(parts);
             setTopics(generatedTopics);
-            
+
             // Save the new topics to the study set
             const updatedSetWithTopics: StudySet = { ...currentSet, topics: generatedTopics };
             await updateSet(updatedSetWithTopics);
             setActiveSet(updatedSetWithTopics);
-            
+
             setIsAnalyzingTopics(false);
             setAction('TOPIC_SELECTION');
         } catch (err) {
@@ -213,22 +213,22 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
             setIsAnalyzingTopics(false);
         }
     };
-    
-    const fullSaveOnly = async (data: {name: string, content: string, files: File[], youtubeUrls: string[]}) => {
+
+    const fullSaveOnly = async (data: { name: string, content: string, files: File[], youtubeUrls: string[] }) => {
         setIsProcessing(true);
         setProcessingError(null);
         try {
             const { combinedText, persistedFiles } = await processFilesToParts(data.content, data.files, onProgress);
-            
+
             if (activeSet) {
-                const contentChanged = activeSet.content !== combinedText.trim() 
-                    || persistedFiles.length > 0 
+                const contentChanged = activeSet.content !== combinedText.trim()
+                    || persistedFiles.length > 0
                     || JSON.stringify(activeSet.youtubeUrls) !== JSON.stringify(data.youtubeUrls);
 
                 const finalPersistedFiles = [...(activeSet.persistedFiles || []), ...persistedFiles];
-                await updateSet({ 
-                    ...activeSet, 
-                    name: data.name, 
+                await updateSet({
+                    ...activeSet,
+                    name: data.name,
                     content: combinedText.trim(),
                     persistedFiles: finalPersistedFiles,
                     youtubeUrls: data.youtubeUrls,
@@ -244,15 +244,16 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
             setIsProcessing(false);
         }
     };
-  
-    const handleStartQuiz = (config: {numQuestions: number, studyMode: any, knowledgeSource: any, selectedTopics: string[], customInstructions: string}) => {
+
+    const handleStartQuiz = (config: { numQuestions: number, studyMode: any, knowledgeSource: any, selectedTopics: string[], customInstructions: string, enableConfidenceCheck: boolean }) => {
         if (!activeSet) return;
         const finalConfig: QuizConfig = {
-          numberOfQuestions: config.numQuestions,
-          mode: config.studyMode,
-          knowledgeSource: config.knowledgeSource,
-          topics: config.selectedTopics,
-          customInstructions: config.customInstructions,
+            numberOfQuestions: config.numQuestions,
+            mode: config.studyMode,
+            knowledgeSource: config.knowledgeSource,
+            topics: config.selectedTopics,
+            customInstructions: config.customInstructions,
+            enableConfidenceCheck: config.enableConfidenceCheck,
         };
         onStart(preparedParts, finalConfig, activeSet.id);
     };
@@ -261,7 +262,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
         if (!activeSet) return;
         onStartCanvasGeneration(activeSet, { topics: config.selectedTopics, customPrompt: config.customPrompt });
     };
-  
+
     const handleRegenerateTopics = async () => {
         if (!activeSet) return;
         setIsAnalyzingTopics(true);
@@ -279,7 +280,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     };
 
     const handleReanalyzeWithFiles = async (files: File[]) => {
-      if (!activeSet) return;
+        if (!activeSet) return;
         setIsProcessing(true);
         setProcessingError(null);
 
@@ -292,7 +293,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                 topics: [] // Invalidate topics since content changed
             };
             await updateSet(updatedSetData);
-            
+
             const parts: PromptPart[] = [];
             if (updatedSetData.content) { parts.push({ text: updatedSetData.content }); }
             if (updatedSetData.persistedFiles) {
@@ -303,7 +304,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                 });
             }
             setPreparedParts(parts);
-            
+
             setIsProcessing(false);
             setIsAnalyzingTopics(true);
             const generatedTopics = await identifyCoreConcepts(parts);
@@ -312,7 +313,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
             const finalSetWithTopics = { ...updatedSetData, topics: generatedTopics };
             await updateSet(finalSetWithTopics);
             setActiveSet(finalSetWithTopics);
-            
+
             setIsAnalyzingTopics(false);
         } catch (err) {
             console.error("Error re-analyzing with files", err);
@@ -321,7 +322,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
             setIsAnalyzingTopics(false);
         }
     };
-  
+
     const handleNewSet = () => {
         resetState();
         setAction('CREATE_EDIT');
@@ -334,8 +335,8 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     };
 
     const handleShowHistory = (set: StudySet) => {
-      setActiveSet(set);
-      setAction('HISTORY');
+        setActiveSet(set);
+        setAction('HISTORY');
     };
 
     const handleDeleteSet = async (id: string) => {
@@ -345,31 +346,31 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     };
 
     if (isProcessing && (action === 'LIST' || action === 'CANVAS_TOPIC_SELECTION') && activeSet) {
-      return (
-          <ProcessingModal
-              title={`Preparing "${activeSet.name}"`}
-              message={progressMessage || 'Analyzing topics...'}
-              progress={progressPercent}
-          />
-      );
+        return (
+            <ProcessingModal
+                title={`Preparing "${activeSet.name}"`}
+                message={progressMessage || 'Analyzing topics...'}
+                progress={progressPercent}
+            />
+        );
     }
 
     switch (action) {
         case 'CREATE_EDIT':
-          return <StudySetForm 
-                    activeSet={activeSet}
-                    initialContent={initialContent}
-                    isProcessing={isProcessing}
-                    isAnalyzingTopics={isAnalyzingTopics}
-                    processingError={processingError}
-                    progressMessage={progressMessage}
-                    progressPercent={progressPercent}
-                    onSave={fullSaveAndAnalyze}
-                    onSaveOnly={fullSaveOnly}
-                    onCancel={handleShowList}
-                 />;
+            return <StudySetForm
+                activeSet={activeSet}
+                initialContent={initialContent}
+                isProcessing={isProcessing}
+                isAnalyzingTopics={isAnalyzingTopics}
+                processingError={processingError}
+                progressMessage={progressMessage}
+                progressPercent={progressPercent}
+                onSave={fullSaveAndAnalyze}
+                onSaveOnly={fullSaveOnly}
+                onCancel={handleShowList}
+            />;
         case 'TOPIC_SELECTION':
-            return activeSet ? <TopicSelector 
+            return activeSet ? <TopicSelector
                 flow="quiz"
                 activeSet={activeSet}
                 topics={topics}
@@ -383,7 +384,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                 onReanalyzeWithFiles={handleReanalyzeWithFiles}
             /> : null;
         case 'CANVAS_TOPIC_SELECTION':
-             return activeSet ? <TopicSelector 
+            return activeSet ? <TopicSelector
                 flow="canvas"
                 activeSet={activeSet}
                 topics={topics}
@@ -397,7 +398,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
                 onReanalyzeWithFiles={handleReanalyzeWithFiles}
             /> : null;
         case 'HISTORY':
-            return activeSet ? <QuizHistoryView 
+            return activeSet ? <QuizHistoryView
                 activeSet={activeSet}
                 history={history.filter(h => h.studySetId === activeSet.id)}
                 onBack={handleShowList}
@@ -405,7 +406,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
             /> : null;
         case 'LIST':
         default:
-            return <StudySetList 
+            return <StudySetList
                 studySets={studySets}
                 error={error}
                 processingError={processingError}
