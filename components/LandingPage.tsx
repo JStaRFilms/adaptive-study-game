@@ -177,7 +177,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
                              <a href="mailto:johnoke.work@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors" aria-label="Email"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12.713l-11.985-9.713h23.971l-11.986 9.713zm-5.425-1.822l-6.575-5.329v12.501l6.575-7.172zm10.85 0l6.575 7.172v-12.501l-6.575 5.329zm-1.557 1.261l-3.868 3.135-3.868-3.135-8.11 8.848h23.956l-8.11-8.848z"/></svg></a>
                         </div>
                         <p className="text-sm text-white/50">© 2025 JStaR Films. All Rights Reserved.</p>
-                        <p className="text-xs text-white/70 mt-2">Powered by the Google Gemini API.</p>
+                        <p className="text-xs text-white/70 mt-2">Powered by GPT-6 Luna and Gemini.</p>
                         <p className="text-xs italic text-white/60 mt-4">Don't forget to refresh the app at least once a day because I update it regularly.</p>
                     </div>
                 </footer>

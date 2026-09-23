@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion, ReadingLayout, CanvasGenerationProgress, ReadingBlock as ReadingBlockType } from './types';
-import { GoogleGenAI, Chat } from '@google/genai';
+import { ChatSession } from './services/chat';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import SetupScreen from './components/SetupScreen';
@@ -68,7 +68,7 @@ const App: React.FC = () => {
   const [migrationChecked, setMigrationChecked] = useState(false);
 
   // Chat State
-  const [chat, setChat] = useState<Chat | null>(null);
+  const [chat, setChat] = useState<ChatSession | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isAITyping, setIsAITyping] = useState(false);
@@ -148,16 +148,11 @@ const App: React.FC = () => {
         setQuiz(generatedQuiz);
 
         // Initialize Chat
-        const firstKey = (process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY)?.split(',')[0].trim();
-        if (firstKey && set) {
+        if (set) {
           try {
-            const ai = new GoogleGenAI({ apiKey: firstKey });
             const historyForSet = history.filter(r => r.studySetId === studySetId);
             const systemInstruction = getStudyChatSystemInstruction(set, generatedQuiz, historyForSet);
-            const newChat = ai.chats.create({
-              model: 'gemini-2.5-flash',
-              config: { systemInstruction },
-            });
+            const newChat = new ChatSession(systemInstruction);
             setChat(newChat);
             setChatMessages([
               { role: 'model', text: `Hi! I'm your AI study coach. I have context on your notes for "${set.name}" and the questions in this quiz. Ask me anything about the current question!` }
@@ -445,17 +440,9 @@ const App: React.FC = () => {
 
     if (reviewSet) {
       try {
-        const firstKey = (process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY)?.split(',')[0].trim();
-        if (firstKey) {
-          const ai = new GoogleGenAI({ apiKey: firstKey });
-          const systemInstruction = getReviewChatSystemInstruction(reviewSet, resultToReview, resultToReview.feedback || null);
-          const newChat = ai.chats.create({
-            model: 'gemini-2.5-flash',
-            config: { systemInstruction },
-          });
-          setChat(newChat);
-          setChatError(null);
-        }
+        const systemInstruction = getReviewChatSystemInstruction(reviewSet, resultToReview, resultToReview.feedback || null);
+        setChat(new ChatSession(systemInstruction));
+        setChatError(null);
       } catch (e) {
         console.error("Failed to initialize review chat", e);
         setChatError("Could not start AI review chat session.");
@@ -602,26 +589,18 @@ const App: React.FC = () => {
       setCurrentStudySet(updatedSet);
 
       // Initialize chat for the newly generated canvas
-      const firstKey = (process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY)?.split(',')[0].trim();
-      if (firstKey) {
-        try {
-          const ai = new GoogleGenAI({ apiKey: firstKey });
-          const historyForSet = history.filter(r => r.studySetId === studySet.id);
-          const systemInstruction = getReadingCanvasChatSystemInstruction(updatedSet, layout, historyForSet);
-          const newChat = ai.chats.create({
-            model: 'gemini-2.5-flash',
-            config: { systemInstruction },
-          });
-          setChat(newChat);
-          // This is a new canvas, so chat history should be new.
-          setChatMessages([
-            { role: 'model', text: `Hello! I'm your AI tutor for "${updatedSet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }
-          ]);
-          setChatError(null);
-        } catch (e) {
-          console.error("Failed to initialize reading chat after canvas generation", e);
-          setChatError("Could not start AI chat session.");
-        }
+      try {
+        const historyForSet = history.filter(r => r.studySetId === studySet.id);
+        const systemInstruction = getReadingCanvasChatSystemInstruction(updatedSet, layout, historyForSet);
+        setChat(new ChatSession(systemInstruction));
+        // This is a new canvas, so chat history should be new.
+        setChatMessages([
+          { role: 'model', text: `Hello! I'm your AI tutor for "${updatedSet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }
+        ]);
+        setChatError(null);
+      } catch (e) {
+        console.error("Failed to initialize reading chat after canvas generation", e);
+        setChatError("Could not start AI chat session.");
       }
 
       setAppState(AppState.READING_CANVAS);
@@ -641,27 +620,19 @@ const App: React.FC = () => {
 
     if (studySet.readingLayout) {
       // Chat Initialization for existing Reading Canvas
-      const firstKey = (process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY)?.split(',')[0].trim();
-      if (firstKey) {
-        try {
-          const ai = new GoogleGenAI({ apiKey: firstKey });
-          const historyForSet = history.filter(r => r.studySetId === studySet.id);
-          const systemInstruction = getReadingCanvasChatSystemInstruction(studySet, studySet.readingLayout, historyForSet);
-          const newChat = ai.chats.create({
-            model: 'gemini-2.5-flash',
-            config: { systemInstruction },
-          });
-          setChat(newChat);
-          const initialMessages: ChatMessage[] = studySet.readingChatHistory ? JSON.parse(JSON.stringify(studySet.readingChatHistory)) : [];
-          if (initialMessages.length === 0) {
-            initialMessages.push({ role: 'model', text: `Hello! I'm your AI tutor for "${studySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` });
-          }
-          setChatMessages(initialMessages);
-          setChatError(null);
-        } catch (e) {
-          console.error("Failed to initialize reading chat", e);
-          setChatError("Could not start AI chat session.");
+      try {
+        const historyForSet = history.filter(r => r.studySetId === studySet.id);
+        const systemInstruction = getReadingCanvasChatSystemInstruction(studySet, studySet.readingLayout, historyForSet);
+        setChat(new ChatSession(systemInstruction));
+        const initialMessages: ChatMessage[] = studySet.readingChatHistory ? JSON.parse(JSON.stringify(studySet.readingChatHistory)) : [];
+        if (initialMessages.length === 0) {
+          initialMessages.push({ role: 'model', text: `Hello! I'm your AI tutor for "${studySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` });
         }
+        setChatMessages(initialMessages);
+        setChatError(null);
+      } catch (e) {
+        console.error("Failed to initialize reading chat", e);
+        setChatError("Could not start AI chat session.");
       }
       setAppState(AppState.READING_CANVAS);
     } else {

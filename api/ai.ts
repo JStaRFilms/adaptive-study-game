@@ -1,0 +1,106 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import * as ai from '../server/aiService';
+import { KnowledgeSource, StudyMode, type OpenEndedAnswer, type PredictedQuestion, type PromptPart, type Question, type QuizConfig, type QuizResult, type ReadingBlock, type ReadingLayout } from '../types';
+
+type VercelRequest = IncomingMessage & { body?: unknown };
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+const isPart = (value: unknown): value is PromptPart => isRecord(value) && (
+  typeof value.text === 'string' || (isRecord(value.inlineData) && typeof value.inlineData.mimeType === 'string' && typeof value.inlineData.data === 'string')
+);
+const parts = (value: unknown): PromptPart[] => {
+  if (!Array.isArray(value) || !value.every(isPart)) throw new Error('Invalid study materials.');
+  return value;
+};
+const isQuizConfig = (value: unknown): value is QuizConfig => isRecord(value) &&
+  Number.isInteger(value.numberOfQuestions) && Number(value.numberOfQuestions) >= 1 && Number(value.numberOfQuestions) <= 50 &&
+  typeof value.mode === 'string' && Object.values(StudyMode).some(mode => mode === value.mode) &&
+  typeof value.knowledgeSource === 'string' && Object.values(KnowledgeSource).some(source => source === value.knowledgeSource);
+const text = (value: unknown): string => {
+  if (typeof value !== 'string') throw new Error('Invalid text input.');
+  return value;
+};
+
+async function readBody(req: VercelRequest): Promise<unknown> {
+  if (req.body !== undefined) return req.body;
+  let body = '';
+  for await (const chunk of req) {
+    body += chunk.toString();
+    if (body.length > 4_000_000) throw new Error('Request is too large.');
+  }
+  return JSON.parse(body);
+}
+
+export default async function handler(req: VercelRequest, res: ServerResponse): Promise<void> {
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method !== 'POST') {
+    res.writeHead(405).end();
+    return;
+  }
+  if (process.env.VERCEL && process.env.AI_API_ENABLED !== 'true') {
+    res.writeHead(503).end('AI requests are disabled on this deployment.');
+    return;
+  }
+  try {
+    const body = await readBody(req);
+    if (!isRecord(body) || typeof body.action !== 'string' || !Array.isArray(body.args)) throw new Error('Invalid request.');
+    const args: unknown[] = body.args;
+    if (JSON.stringify(args).length > 4_000_000) throw new Error('Request is too large.');
+    if (body.action === 'buildReadingLayoutInParallel' || body.action === 'generatePersonalizedFeedbackStreamed') {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.flushHeaders();
+      const send = (data: unknown) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+      if (body.action === 'buildReadingLayoutInParallel') {
+        const layout = await ai.buildReadingLayoutInParallel(parts(args[0]), progress => send({ progress }), args[1] as string[] | undefined);
+        send({ result: layout });
+      } else {
+        await ai.generatePersonalizedFeedbackStreamed(args[0] as QuizResult[], partial => send({ feedback: partial }));
+      }
+      res.end();
+      return;
+    }
+    let result: unknown;
+    switch (body.action) {
+      case 'generateQuiz':
+        if (!isQuizConfig(args[1])) throw new Error('Invalid quiz settings.');
+        result = await ai.generateQuiz(parts(args[0]), args[1]);
+        break;
+      case 'identifyCoreConcepts':
+        result = await ai.identifyCoreConcepts(parts(args[0]), args[1] === undefined ? undefined : text(args[1]));
+        break;
+      case 'summarizeConcept':
+        result = await ai.summarizeConcept(parts(args[0]), text(args[1]));
+        break;
+      case 'generateSubConcepts':
+        result = await ai.generateSubConcepts(args[0] as ReadingBlock);
+        break;
+      case 'reflowLayoutForExpansion':
+        result = await ai.reflowLayoutForExpansion(args[0] as ReadingLayout, text(args[1]), args[2] === undefined ? undefined : text(args[2]));
+        break;
+      case 'gradeExam':
+        result = await ai.gradeExam(args[0] as Question[], args[1] as OpenEndedAnswer);
+        break;
+      case 'generateExamPrediction':
+        result = await ai.generateExamPrediction(args[0]);
+        break;
+      case 'generateStudyGuideForPrediction':
+        result = await ai.generateStudyGuideForPrediction(args[0] as PredictedQuestion);
+        break;
+      case 'validateFillInTheBlankAnswer':
+        result = await ai.validateFillInTheBlankAnswer(text(args[0]), text(args[1]), text(args[2]));
+        break;
+      default: throw new Error('Unknown AI task.');
+    }
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(result ?? null));
+  } catch (error) {
+    console.error('AI request failed:', error);
+    const message = error instanceof Error ? error.message : 'AI request failed.';
+    if (res.headersSent) {
+      res.end(`data: ${JSON.stringify({ error: message })}\n\n`);
+    } else {
+      res.statusCode = error instanceof SyntaxError ? 400 : 500;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: message }));
+    }
+  }
+}
