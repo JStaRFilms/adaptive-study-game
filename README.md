@@ -102,28 +102,32 @@ The frontend needs its same-origin API handlers. Use the Vite dev server locally
 
 ### Prerequisites
 
-- Node.js and npm
+- Node.js and pnpm 10.33.2
 - An OpenRouter key for `openai/gpt-6-luna`
 - A Gemini key for YouTube videos, uploaded audio and the Google-grounded web-search quiz mode
 
 ### Configuration and data flow
 
-Set `OPENROUTER_API_KEY` and `GEMINI_API_KEY` in an ignored `.env.local` for local development and as server-only environment variables on Vercel. Do not use `VITE_` prefixes or paste either key into the browser. Older `API_KEY_POOL` and `API_KEY` variables are no longer used. Rotate any keys previously committed to Git.
+Set `OPENROUTER_API_KEY` and `GEMINI_API_KEY` in ignored `.env.local` for local development and as server-only environment variables on Vercel. Do not use `VITE_` prefixes or paste keys into the browser. Older `API_KEY_POOL` and `API_KEY` variables are no longer used. Rotate any keys previously committed to Git.
 
-The Vite UI keeps study sets and quiz history in browser IndexedDB. It sends the required study material to `/api/ai` and chat messages to `/api/chat` on the same origin. Vercel Functions call Luna for text and images. The server calls Gemini for audio, YouTube video extraction and Google Search grounding. Study sets are not stored on the server. A running function may reuse a YouTube extraction for up to 30 minutes; a new function instance will fetch it again. Grounded quiz citations still come from Gemini's grounding metadata. OpenRouter JSON schemas are translated from the existing Gemini schemas. There is no database schema change.
+The account implementation needs `DATABASE_URL_POOLED` (or `DATABASE_URL`), `BETTER_AUTH_URL` (the app origin), and a random `BETTER_AUTH_SECRET` of at least 32 characters. Better Auth's four tables and the two app tables in `server/sql/001_public_accounts.sql` were applied to the owner's confirmed empty Neon project and branch. The local email/password flow and concurrent quota admission passed against that branch; the temporary test user was removed. Keep database URLs and secrets in ignored local or server-only settings, never in Git.
+
+Local `pnpm dev` offers email/password test accounts when `AUTH_DEV_PASSWORD_ENABLED=true` is set in `.env.local`, without Google credentials. Email verification and password recovery are unavailable, and Vercel disables this method entirely. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from your own Google OAuth web client when ready; then authorize the exact app URL plus `/api/auth/callback/google`. The UI shows Google only after both values are present. Test how Google links to existing email/password accounts before using both methods with the same data.
+
+The Vite UI keeps study sets and quiz history in a separate browser IndexedDB database per signed-in user. Existing anonymous browser data is not assigned to an account. AI requests go to `/api/ai` and `/api/chat` on the same origin; these endpoints require a session and configured daily user/global quotas before reaching OpenRouter or Gemini. The local test configuration uses `AI_DAILY_USER_UNITS=10`, `AI_DAILY_GLOBAL_UNITS=100` and `AI_MAX_OUTPUT_TOKENS=8192`; these are provisional, not approved public-launch limits. The server refuses AI calls if any limit is missing. Admission is atomic and charged even if a provider fails. A reading layout costs ten units plus any video sources; other requests cost one unit per operation, with video extraction and feedback accounted separately. Units are a coarse allowance, **not** a currency-denominated spending ceiling. The output-token cap applies to OpenRouter and Gemini text generation, not the separate YouTube extraction request. Do not open public access without an independent provider spending cap and abuse controls.
 
 ### Running locally
 
 1. Use pnpm 10.33.2 and run `pnpm install --frozen-lockfile`.
-2. Add the two keys to `.env.local` without committing the file.
-3. Run `pnpm dev` and open the displayed Vite URL. Vite runs the two API handlers locally.
-4. Run `pnpm exec tsc --noEmit` and `pnpm build` for static checks.
+2. Copy `.env.example` to ignored `.env.local` and fill the database URL, auth URL and auth secret. This machine already has local auth settings. Leave the Google fields empty to test email/password. Do not enable public AI access until the spending cap and abuse controls are ready.
+3. Run `pnpm dev` and open the displayed Vite URL. Vite runs the auth, AI and chat handlers locally.
+4. Run `pnpm test:local`, `pnpm exec tsc --noEmit` and `pnpm build`. Local tests use fake IndexedDB and never contact Neon or an AI provider.
 
-A static file server or `pnpm preview` alone cannot serve `/api/ai` and `/api/chat`. On Vercel, `vercel.json` builds the Vite frontend into `dist` and the files under `api/` run as functions. The AI endpoints return 503 on Vercel unless you explicitly set server-only `AI_API_ENABLED=true`. Do not enable them on a public deployment until access controls and a durable rate limit are in place. The server hides keys, but the unauthenticated API could still be called by anyone who can reach the site.
+A static file server or `pnpm preview` alone cannot serve `/api/auth/*`, `/api/ai` and `/api/chat`. On Vercel, `vercel.json` builds the Vite frontend into `dist` and the files under `api/` run as functions. The AI endpoints return 503 on Vercel unless you explicitly set server-only `AI_API_ENABLED=true`. No Vercel deployment or AI gate change was made. Keep public AI access off until Google login, a provider spend cap, abuse controls and launch approval are complete.
 
 ## 🗺️ Roadmap
 
-Public-account launch requirements and later agent tasks are in [docs/features/DeferredWork.md](docs/features/DeferredWork.md).
+Public-account launch requirements are in [docs/features/PublicAccounts.md](docs/features/PublicAccounts.md). Later agent tasks are in [docs/features/DeferredWork.md](docs/features/DeferredWork.md).
 
 - [x] **Deeper Analysis**: Provide users with insights into their weak spots and suggest topics to focus on. (Implemented!)
 - [x] **More Question Types**: Introduce matching and sequencing questions. (Implemented!)

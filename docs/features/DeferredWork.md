@@ -4,22 +4,22 @@ This is a handoff for later agents, not a claim that the features below have shi
 
 ## Decisions and launch boundary
 
-The agreed first release uses Google sign-in, a fixed free tier and browser-local study data. Accounts and quotas use Neon. Study sets and progress do **not** sync between devices in this first phase. Additional sign-in methods, paid plans and cloud sync are later work.
+The agreed public release uses Google sign-in, a fixed free tier and browser-local study data. Email/password test accounts require `AUTH_DEV_PASSWORD_ENABLED=true` in local development and are disabled on Vercel. Accounts and quotas use Neon. Study sets and progress do **not** sync between devices in this first phase. Additional sign-in methods, paid plans and cloud sync are later work.
 
 The following work is **required before a public launch**, not deferred:
 
-- Complete Google sign-in, server-side session verification, profile creation and account isolation. Neon Managed Auth is the proposed provider, not yet integrated. For production, configure the owner's Google OAuth credentials and trusted redirect domains.
+- Complete Google sign-in, server-side session verification, profile creation and account isolation. Self-host Better Auth on same-origin Vercel Functions, backed by Neon Postgres. Configure the owner's Google OAuth credentials and callback URL; do not enable Neon Auth.
 - Check identity and enforce per-user quotas before *every* `/api/ai` and `/api/chat` call, including video extraction, audio, grounded search and streamed chat. Decide the actual free-tier numbers with the owner. Include an overall spend ceiling and abuse controls so creating many accounts cannot bypass limits.
 - Separate each signed-in user's browser data. Never show one user's IndexedDB records to another user on the same browser. Offer an explicit, reversible way to claim existing anonymous data; do not silently attach it to the first Google account that signs in. Keep export/backup working.
 - Leave `AI_API_ENABLED` off on Vercel until access control, quotas and local tests pass. No production rollout is authorized by this document.
 
-The current `revival/openrouter-luna` work is a Vite/React app with Vercel Functions. `utils/db.ts` defines IndexedDB v3 stores named `studySets`, `quizHistory`, `predictions` and `srsItems`; `hooks/useSettings.ts` uses localStorage. `types.ts` contains the stored shapes. `components/setup/DataManagementModal.tsx` exports and imports the four IndexedDB stores. `api/ai.ts` and `api/chat.ts` have a deployment gate but no authentication or durable quota enforcement yet. The separate `Feature_study_creation` worktree is a different Next.js rewrite, not the baseline for these tasks.
+The current `revival/openrouter-luna` work is a Vite/React app with Vercel Functions. `utils/db.ts` defines IndexedDB v3 stores named `studySets`, `quizHistory`, `predictions` and `srsItems`; `hooks/useSettings.ts` uses localStorage. `types.ts` contains the stored shapes. `components/setup/DataManagementModal.tsx` exports and imports the four IndexedDB stores. `api/ai.ts` and `api/chat.ts` have session and quota checks. Local email/password and concurrent quota admission passed against the owner's Neon branch, but Google OAuth and paid provider paths remain untested; the Vercel deployment gate remains closed. The separate `Feature_study_creation` worktree is a different Next.js rewrite, not the baseline for these tasks.
 
-### First-release design, not yet built
+### First-release status and remaining design
 
-The React client will sign in with Google, keep study records in an account-isolated browser store, and send a session token with AI requests. Each Vercel Function will verify that token before reading the user's profile or reserving free-tier usage in Neon. Only then will it send study material to OpenRouter or Gemini. The function will record the outcome and apply per-user and site-wide limits. It must not accept a client-supplied user ID or plan as authority.
+The React client uses a same-origin Better Auth handler and keeps study records in an account-isolated browser store. Local testing uses email/password; Google becomes available when its credentials are configured. Each Vercel Function verifies the server-side session and charges allowance in Neon before it contacts OpenRouter or Gemini. The current implementation charges even on failures and has no outcome log. It must not accept a client-supplied user ID or plan as authority.
 
-Neon Managed Auth would own its user and session records. Proposed app-owned tables are `profiles` keyed by auth user ID, plus usage and quota-reservation records keyed by user ID, time window and AI action. The owner has not chosen numeric limits or approved a schema migration. No app-owned study-set table is needed for the first local-data release. This plan must be reviewed against the actual Neon project and Vercel session-verification path before coding it.
+Better Auth owns its user and session records in Neon Postgres. The applied app tables are `profiles` and `ai_daily_usage`, with per-user and global daily unit rows. Local limits are provisional; the owner has not chosen public limits or a spending ceiling. The credential shared in chat remains the owner's rotation task. No app-owned study-set table is needed for the first local-data release. See [PublicAccounts.md](PublicAccounts.md) for the planned client and server data flow.
 
 ## Follow-up 1: Cloud sync for study data
 

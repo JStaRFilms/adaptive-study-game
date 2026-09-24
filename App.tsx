@@ -25,16 +25,7 @@ import { usePredictions } from './hooks/usePredictions';
 import { useSRS } from './hooks/useSRS';
 import { useSettings } from './hooks/useSettings';
 import { processFilesToParts } from './utils/fileProcessor';
-import { initializeDb } from './utils/db';
-import MigrationScreen from './components/MigrationScreen';
 import ProgressBar from './components/common/ProgressBar';
-
-const LEGACY_STORAGE_KEYS = [
-  'adaptive-study-game-sets',
-  'adaptive-study-game-history',
-  'adaptive-study-game-predictions',
-  'adaptive-study-game-srs',
-];
 
 const App: React.FC = () => {
   const [showLanding, setShowLanding] = useState(true);
@@ -63,10 +54,6 @@ const App: React.FC = () => {
   const [feedback, setFeedback] = useState<Partial<PersonalizedFeedback> | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
 
-  // Migration State
-  const [isMigrating, setIsMigrating] = useState(false);
-  const [migrationChecked, setMigrationChecked] = useState(false);
-
   // Chat State
   const [chat, setChat] = useState<ChatSession | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -82,25 +69,6 @@ const App: React.FC = () => {
   const [, updateSRSItem, getReviewPool] = useSRS();
   const { settings } = useSettings();
 
-  useEffect(() => {
-    const checkForMigration = async () => {
-      // Check if any old data exists in localStorage
-      const needsMigration = LEGACY_STORAGE_KEYS.some(key => localStorage.getItem(key) !== null);
-
-      if (needsMigration) {
-        setIsMigrating(true);
-        // Trigger the database initialization which will run the migration logic.
-        // Awaiting this ensures we don't proceed until the migration is complete.
-        await initializeDb();
-        setIsMigrating(false);
-      }
-
-      setMigrationChecked(true);
-    };
-
-    checkForMigration();
-  }, []); // Empty dependency array ensures this runs only once on mount.
-
   const isPredictionFlow = [
     AppState.PREDICTION_SETUP,
     AppState.PREDICTING,
@@ -108,14 +76,14 @@ const App: React.FC = () => {
   ].includes(appState);
 
   useEffect(() => {
-    if (isPredictionFlow || isMigrating) {
+    if (isPredictionFlow) {
       document.body.classList.remove('bg-background-dark', 'font-sans');
       document.body.classList.add('bg-pattern', 'font-serif');
     } else {
       document.body.classList.remove('bg-pattern', 'font-serif');
       document.body.classList.add('bg-background-dark', 'font-sans');
     }
-  }, [isPredictionFlow, isMigrating]);
+  }, [isPredictionFlow]);
 
 
   const handleLaunchApp = useCallback(() => {
@@ -910,14 +878,6 @@ const App: React.FC = () => {
       setChatMessages([{ role: 'model', text: `You are reviewing your quiz on "${reviewSet?.name}". Feel free to ask me anything about your performance or the questions.` }]);
     }
   }, [appState, currentStudySet, currentResult, studySets]);
-
-  if (!migrationChecked) {
-    return <div className="flex justify-center items-center min-h-screen"><LoadingSpinner /></div>;
-  }
-
-  if (isMigrating) {
-    return <MigrationScreen />;
-  }
 
   if (showLanding) {
     return <LandingPage onLaunch={handleLaunchApp} onLaunchWithContent={handleLaunchWithContent} />;

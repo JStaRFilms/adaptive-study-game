@@ -1,0 +1,47 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { createAiClient } from '../server/provider';
+
+test('text calls require an output ceiling before contacting a provider', async () => {
+  const previousLimit = process.env.AI_MAX_OUTPUT_TOKENS;
+  const previousFetch = globalThis.fetch;
+  delete process.env.AI_MAX_OUTPUT_TOKENS;
+  globalThis.fetch = async () => { throw new Error('A provider must not be contacted.'); };
+  try {
+    await assert.rejects(
+      createAiClient().models.generateContent({ model: 'offline-test', contents: { parts: [{ text: 'hello' }] } }),
+      /AI_MAX_OUTPUT_TOKENS must be an integer/,
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousLimit === undefined) delete process.env.AI_MAX_OUTPUT_TOKENS;
+    else process.env.AI_MAX_OUTPUT_TOKENS = previousLimit;
+  }
+});
+
+test('OpenRouter requests include the configured output ceiling', async () => {
+  const previousLimit = process.env.AI_MAX_OUTPUT_TOKENS;
+  const previousKey = process.env.OPENROUTER_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.AI_MAX_OUTPUT_TOKENS = '1024';
+  process.env.OPENROUTER_API_KEY = 'offline-test-key';
+  let calls = 0;
+  globalThis.fetch = async (input, init) => {
+    calls++;
+    assert.equal(String(input), 'https://openrouter.ai/api/v1/chat/completions');
+    assert.equal(typeof init?.body, 'string');
+    assert.match(init.body, /"max_tokens":1024/);
+    return Response.json({ choices: [{ message: { content: 'ok' } }] });
+  };
+  try {
+    const response = await createAiClient().models.generateContent({ model: 'offline-test', contents: { parts: [{ text: 'hello' }] } });
+    assert.equal(response.text, 'ok');
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousLimit === undefined) delete process.env.AI_MAX_OUTPUT_TOKENS;
+    else process.env.AI_MAX_OUTPUT_TOKENS = previousLimit;
+    if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previousKey;
+  }
+});

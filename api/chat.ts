@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { resolveYouTube } from '../server/provider';
+import { resolveYouTube, outputTokenLimit } from '../server/provider';
+import { getAuthenticatedUserId, isSameOrigin } from '../server/auth';
+import { admitAiRequest } from '../server/quota';
 import { modelFor } from '../services/aiConstants';
 
 type VercelRequest = IncomingMessage & { body?: unknown };
@@ -15,6 +17,15 @@ export default async function handler(req: VercelRequest, res: ServerResponse): 
     res.writeHead(503).end('AI requests are disabled on this deployment.');
     return;
   }
+  if (!isSameOrigin(req)) { res.writeHead(403).end('Invalid request origin.'); return; }
+  let userId: string | null;
+  try {
+    userId = await getAuthenticatedUserId(req);
+  } catch {
+    res.writeHead(503).end('Authentication is unavailable.');
+    return;
+  }
+  if (!userId) { res.writeHead(401).end('Sign in to use AI.'); return; }
   try {
     let body = req.body;
     if (body === undefined) {
@@ -31,13 +42,21 @@ export default async function handler(req: VercelRequest, res: ServerResponse): 
     if (!process.env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is not configured.');
     const sourceLines = [...body.systemInstruction.matchAll(/Source YouTube URLs Used:\*\* ([^\n]+)/g)];
     const videoUrls = sourceLines.flatMap(match => match[1].match(/https?:\/\/[^\s,]+/g) ?? []);
+    if (videoUrls.length > 3) throw new Error('Chat supports at most three video sources.');
+    let maxTokens: number;
+    try { maxTokens = outputTokenLimit(); }
+    catch { res.writeHead(503).end('AI output limit is not configured.'); return; }
+    let admitted: boolean;
+    try { admitted = await admitAiRequest(userId, 1 + videoUrls.length); }
+    catch { res.writeHead(503).end('AI quotas are unavailable.'); return; }
+    if (!admitted) { res.writeHead(429).end('Daily AI limit reached.'); return; }
     const verifiedVideos = videoUrls.length ? await resolveYouTube(videoUrls.map(url => ({ text: `[Content from YouTube video: ${url}]` }))) : [];
     const verifiedContext = verifiedVideos.map(part => 'text' in part ? part.text : '').join('\n');
     const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
       body: JSON.stringify({
-        model: modelFor.chat, stream: true,
+        model: modelFor.chat, stream: true, max_tokens: maxTokens,
         messages: [{ role: 'system', content: `${body.systemInstruction}\n${verifiedContext}` }, ...body.messages],
       }),
     });

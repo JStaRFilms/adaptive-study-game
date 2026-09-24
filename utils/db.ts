@@ -1,8 +1,15 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { StudySet, QuizResult, PredictionResult, SRSItem } from '../types';
+import { getActiveAccountId } from './activeAccount';
 
 export type StoreName = 'studySets' | 'quizHistory' | 'predictions' | 'srsItems';
 export const STORE_NAMES: StoreName[] = ['studySets', 'quizHistory', 'predictions', 'srsItems'];
+const LEGACY_KEYS: Record<StoreName, string> = {
+  studySets: 'adaptive-study-game-sets',
+  quizHistory: 'adaptive-study-game-history',
+  predictions: 'adaptive-study-game-predictions',
+  srsItems: 'adaptive-study-game-srs',
+};
 
 interface AppDB extends DBSchema {
   studySets: {
@@ -27,55 +34,17 @@ interface AppDB extends DBSchema {
   };
 }
 
-const DB_NAME = 'adaptive-study-game-db';
-const DB_VERSION = 3; // Bump version to 3 to resolve the "version less than existing" error.
+const DB_VERSION = 3;
+// The anonymous database retains its original name. Never copy it on sign-in.
+const accountDbName = () => `adaptive-study-game-db-account-${encodeURIComponent(getActiveAccountId())}`;
 
 let dbPromise: Promise<IDBPDatabase<AppDB>> | null = null;
 
 export const getDb = (): Promise<IDBPDatabase<AppDB>> => {
   if (!dbPromise) {
-    dbPromise = openDB<AppDB>(DB_NAME, DB_VERSION, {
-      upgrade: async (db, oldVersion, newVersion, transaction) => {
-        console.log(`Upgrading database from version ${oldVersion} to ${newVersion}`);
-        
-        // Migration from localStorage to IndexedDB.
-        // This runs for anyone on a version before 2 (new users, or users from before the db existed).
-        if (oldVersion < 2) {
-            console.log("Attempting migration from localStorage to IndexedDB...");
-            try {
-                const storeMap: { [key: string]: StoreName } = {
-                    'adaptive-study-game-sets': 'studySets',
-                    'adaptive-study-game-history': 'quizHistory',
-                    'adaptive-study-game-predictions': 'predictions',
-                    'adaptive-study-game-srs': 'srsItems',
-                };
-
-                for (const [localStorageKey, storeName] of Object.entries(storeMap)) {
-                    const dataStr = localStorage.getItem(localStorageKey);
-                    if (dataStr) {
-                        console.log(`Found data in localStorage for key: ${localStorageKey}`);
-                        const data = JSON.parse(dataStr);
-                        if (Array.isArray(data) && data.length > 0) {
-                            const store = transaction.objectStore(storeName);
-                            console.log(`Migrating ${data.length} items to '${storeName}'...`);
-                            await Promise.all(data.map(item => store.put(item)));
-                            localStorage.removeItem(localStorageKey);
-                            console.log(`Migration for '${storeName}' complete. Removed from localStorage.`);
-                        }
-                    }
-                }
-                console.log("Migration finished successfully.");
-            } catch (error) {
-                console.error("Migration failed, transaction will abort.", error);
-                transaction.abort();
-            }
-        }
-
-        // Schema creation and sanity check.
-        // This runs for anyone on a version before 3. It creates stores if they are missing.
-        // This is the main fix to ensure the database schema is correct for all users.
+    dbPromise = openDB<AppDB>(accountDbName(), DB_VERSION, {
+      upgrade: (db, oldVersion) => {
         if (oldVersion < 3) {
-            console.log("Ensuring database schema is up to date for v3...");
             if (!db.objectStoreNames.contains('studySets')) {
                 const store = db.createObjectStore('studySets', { keyPath: 'id' });
                 store.createIndex('createdAt', 'createdAt');
@@ -101,13 +70,36 @@ export const getDb = (): Promise<IDBPDatabase<AppDB>> => {
   return dbPromise;
 };
 
-/**
- * Ensures the database is initialized, running any pending upgrade operations.
- * This should be awaited to ensure migrations are complete before proceeding.
- */
-export const initializeDb = async (): Promise<void> => {
-    await getDb();
-};
+// Read-only preview for a deliberate JSON export and manual import. Never assign
+// anonymous records to whichever account happens to sign in first.
+export async function getAnonymousData(): Promise<Partial<Record<StoreName, unknown[]>>> {
+  const backup: Partial<Record<StoreName, unknown[]>> = {};
+  if (typeof indexedDB.databases === 'function') {
+    const databases = await indexedDB.databases();
+    if (databases.some(database => database.name === 'adaptive-study-game-db')) {
+      const anonymous = await openDB<AppDB>('adaptive-study-game-db');
+      try {
+        for (const store of STORE_NAMES) {
+          if (anonymous.objectStoreNames.contains(store)) backup[store] = await anonymous.getAll(store);
+        }
+      } finally {
+        anonymous.close();
+      }
+    }
+  }
+  for (const store of STORE_NAMES) {
+    const stored = localStorage.getItem(LEGACY_KEYS[store]);
+    if (!stored) continue;
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) continue;
+    const existing = backup[store] ?? [];
+    const hasId = (value: unknown): value is { id: string } =>
+      typeof value === 'object' && value !== null && 'id' in value && typeof value.id === 'string';
+    const ids = new Set(existing.filter(hasId).map(item => item.id));
+    backup[store] = [...existing, ...parsed.filter(hasId).filter(item => !ids.has(item.id))];
+  }
+  return backup;
+}
 
 export const getAll = async <T extends StoreName>(storeName: T): Promise<AppDB[T]['value'][]> => {
   const db = await getDb();

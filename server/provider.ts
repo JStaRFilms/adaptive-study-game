@@ -23,6 +23,15 @@ export interface AiClient {
 
 const geminiKey = () => process.env.GEMINI_API_KEY;
 
+export function outputTokenLimit(): number {
+  const value = process.env.AI_MAX_OUTPUT_TOKENS;
+  const limit = Number(value);
+  if (!value || !/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(limit) || limit > 16_384) {
+    throw new Error('AI_MAX_OUTPUT_TOKENS must be an integer from 1 to 16384.');
+  }
+  return limit;
+}
+
 const youtubeMarker = /\[Content from YouTube video: (https?:\/\/[^\]\s]+)\][^\n]*/g;
 
 // The old app sent a URL as text and asked the model to watch it. Extract video content first.
@@ -100,6 +109,7 @@ export function createAiClient(): AiClient {
   return {
     models: {
       async generateContent({ model, contents, config }: Request): Promise<AiResponse> {
+        const maxTokens = outputTokenLimit();
         const parts = await resolveYouTube(contents.parts);
         const geminiOnly = Boolean(config?.tools?.length) || parts.some(part =>
           'inlineData' in part && !part.inlineData.mimeType.startsWith('image/'));
@@ -114,6 +124,7 @@ export function createAiClient(): AiClient {
               responseMimeType: config?.responseMimeType,
               responseSchema: config?.responseSchema,
               tools: config?.tools,
+              maxOutputTokens: maxTokens,
             },
           });
           return { text: response.text ?? '', candidates: response.candidates };
@@ -127,6 +138,7 @@ export function createAiClient(): AiClient {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
           body: JSON.stringify({
             model,
+            max_tokens: maxTokens,
             messages: [
               ...(config?.systemInstruction ? [{ role: 'system', content: config.systemInstruction }] : []),
               { role: 'user', content },

@@ -313,11 +313,14 @@ export const buildReadingLayoutInParallel = async (
     onProgress({ stage: 'Identifying core concepts...', progress: 10 });
     const concepts = (focusTopics && focusTopics.length > 0)
         ? focusTopics
-        : await identifyCoreConcepts(parts);
+        : (await identifyCoreConcepts(parts)).slice(0, 8);
 
     const totalConcepts = concepts.length;
     if (totalConcepts === 0) {
         throw new Error("No concepts could be identified from the provided materials.");
+    }
+    if (totalConcepts > 8) {
+        throw new Error("Reading layouts support at most eight concepts.");
     }
 
     // Stage 2: Summarize concepts in parallel

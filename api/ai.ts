@@ -1,5 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import * as ai from '../server/aiService';
+import { getAuthenticatedUserId, isSameOrigin } from '../server/auth';
+import { admitAiRequest } from '../server/quota';
+import { outputTokenLimit } from '../server/provider';
 import { KnowledgeSource, StudyMode, type OpenEndedAnswer, type PredictedQuestion, type PromptPart, type Question, type QuizConfig, type QuizResult, type ReadingBlock, type ReadingLayout } from '../types';
 
 type VercelRequest = IncomingMessage & { body?: unknown };
@@ -40,11 +43,35 @@ export default async function handler(req: VercelRequest, res: ServerResponse): 
     res.writeHead(503).end('AI requests are disabled on this deployment.');
     return;
   }
+  if (!isSameOrigin(req)) { res.writeHead(403).end('Invalid request origin.'); return; }
+  let userId: string | null;
+  try {
+    userId = await getAuthenticatedUserId(req);
+  } catch {
+    res.writeHead(503).end('Authentication is unavailable.');
+    return;
+  }
+  if (!userId) { res.writeHead(401).end('Sign in to use AI.'); return; }
   try {
     const body = await readBody(req);
     if (!isRecord(body) || typeof body.action !== 'string' || !Array.isArray(body.args)) throw new Error('Invalid request.');
     const args: unknown[] = body.args;
-    if (JSON.stringify(args).length > 4_000_000) throw new Error('Request is too large.');
+    const serializedArgs = JSON.stringify(args);
+    if (serializedArgs.length > 4_000_000) throw new Error('Request is too large.');
+    const videoCount = [...serializedArgs.matchAll(/\[Content from YouTube video: https?:\/\/[^\]\s]+\]/g)].length;
+    if (videoCount > 3) throw new Error('At most three video sources are allowed.');
+    if (body.action === 'buildReadingLayoutInParallel' && args[1] !== undefined &&
+      (!Array.isArray(args[1]) || args[1].length > 8 || !args[1].every(topic => typeof topic === 'string' && topic.length <= 200))) {
+      throw new Error('Too many focus topics.');
+    }
+    const units = (body.action === 'buildReadingLayoutInParallel' ? 10 :
+      body.action === 'generatePersonalizedFeedbackStreamed' ? 3 : 1) + videoCount;
+    try { outputTokenLimit(); }
+    catch { res.writeHead(503).end('AI output limit is not configured.'); return; }
+    let admitted: boolean;
+    try { admitted = await admitAiRequest(userId, units); }
+    catch { res.writeHead(503).end('AI quotas are unavailable.'); return; }
+    if (!admitted) { res.writeHead(429).end('Daily AI limit reached.'); return; }
     if (body.action === 'buildReadingLayoutInParallel' || body.action === 'generatePersonalizedFeedbackStreamed') {
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.flushHeaders();
