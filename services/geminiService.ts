@@ -1,10 +1,16 @@
 import type { AnswerLog, BlockContent, CanvasGenerationProgress, FibValidationResult, OpenEndedAnswer, PersonalizedFeedback, PredictedQuestion, PromptPart, Question, Quiz, QuizConfig, QuizResult, ReadingBlock, ReadingLayout, StudyGuide, SubConcept } from '../types';
 
+function requestBody(action: string, args: unknown[]): string {
+  const includedArgs = [...args];
+  while (includedArgs.length && includedArgs[includedArgs.length - 1] === undefined) includedArgs.pop();
+  return JSON.stringify({ action, args: includedArgs });
+}
+
 async function call<T>(action: string, args: unknown[]): Promise<T> {
   const response = await fetch('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, args }),
+    body: requestBody(action, args),
   });
   const result: unknown = await response.json();
   if (!response.ok) {
@@ -26,7 +32,7 @@ export const validateFillInTheBlankAnswer = (question: string, correct: string, 
 
 async function stream(action: string, args: unknown[], onEvent: (event: Record<string, unknown>) => void): Promise<void> {
   const response = await fetch('/api/ai', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, args }),
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody(action, args),
   });
   if (!response.ok || !response.body) throw new Error(`AI request failed (${response.status}).`);
   const reader = response.body.getReader();

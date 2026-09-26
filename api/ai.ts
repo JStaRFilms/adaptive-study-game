@@ -22,6 +22,7 @@ const text = (value: unknown): string => {
   if (typeof value !== 'string') throw new Error('Invalid text input.');
   return value;
 };
+const optionalText = (value: unknown): string | undefined => value == null ? undefined : text(value);
 
 async function readBody(req: VercelRequest): Promise<unknown> {
   if (req.body !== undefined) return req.body;
@@ -60,7 +61,7 @@ export default async function handler(req: VercelRequest, res: ServerResponse): 
     if (serializedArgs.length > 4_000_000) throw new Error('Request is too large.');
     const videoCount = [...serializedArgs.matchAll(/\[Content from YouTube video: https?:\/\/[^\]\s]+\]/g)].length;
     if (videoCount > 3) throw new Error('At most three video sources are allowed.');
-    if (body.action === 'buildReadingLayoutInParallel' && args[1] !== undefined &&
+    if (body.action === 'buildReadingLayoutInParallel' && args[1] != null &&
       (!Array.isArray(args[1]) || args[1].length > 8 || !args[1].every(topic => typeof topic === 'string' && topic.length <= 200))) {
       throw new Error('Too many focus topics.');
     }
@@ -92,7 +93,7 @@ export default async function handler(req: VercelRequest, res: ServerResponse): 
         result = await ai.generateQuiz(parts(args[0]), args[1]);
         break;
       case 'identifyCoreConcepts':
-        result = await ai.identifyCoreConcepts(parts(args[0]), args[1] === undefined ? undefined : text(args[1]));
+        result = await ai.identifyCoreConcepts(parts(args[0]), optionalText(args[1]));
         break;
       case 'summarizeConcept':
         result = await ai.summarizeConcept(parts(args[0]), text(args[1]));
@@ -101,7 +102,7 @@ export default async function handler(req: VercelRequest, res: ServerResponse): 
         result = await ai.generateSubConcepts(args[0] as ReadingBlock);
         break;
       case 'reflowLayoutForExpansion':
-        result = await ai.reflowLayoutForExpansion(args[0] as ReadingLayout, text(args[1]), args[2] === undefined ? undefined : text(args[2]));
+        result = await ai.reflowLayoutForExpansion(args[0] as ReadingLayout, text(args[1]), optionalText(args[2]));
         break;
       case 'gradeExam':
         result = await ai.gradeExam(args[0] as Question[], args[1] as OpenEndedAnswer);
