@@ -23,6 +23,12 @@ export interface AiClient {
 
 const geminiKey = () => process.env.GEMINI_API_KEY;
 
+export const openRouterAttribution = {
+  'HTTP-Referer': 'https://study.jstarstudios.com/',
+  'X-OpenRouter-Title': 'JStar Study',
+  'X-OpenRouter-App-Visibility': 'hidden',
+};
+
 export function outputTokenLimit(): number {
   const value = process.env.AI_MAX_OUTPUT_TOKENS;
   const limit = Number(value);
@@ -135,7 +141,7 @@ export function createAiClient(): AiClient {
           : { type: 'image_url', image_url: { url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}` } });
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, ...openRouterAttribution },
           body: JSON.stringify({
             model,
             max_tokens: maxTokens,

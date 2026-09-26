@@ -19,7 +19,7 @@ test('text calls require an output ceiling before contacting a provider', async 
   }
 });
 
-test('OpenRouter requests include the configured output ceiling', async () => {
+test('OpenRouter requests include the output ceiling and hidden app attribution', async () => {
   const previousLimit = process.env.AI_MAX_OUTPUT_TOKENS;
   const previousKey = process.env.OPENROUTER_API_KEY;
   const previousFetch = globalThis.fetch;
@@ -31,6 +31,10 @@ test('OpenRouter requests include the configured output ceiling', async () => {
     assert.equal(String(input), 'https://openrouter.ai/api/v1/chat/completions');
     assert.equal(typeof init?.body, 'string');
     assert.match(init.body, /"max_tokens":1024/);
+    const headers = new Headers(init.headers);
+    assert.equal(headers.get('HTTP-Referer'), 'https://study.jstarstudios.com/');
+    assert.equal(headers.get('X-OpenRouter-Title'), 'JStar Study');
+    assert.equal(headers.get('X-OpenRouter-App-Visibility'), 'hidden');
     return Response.json({ choices: [{ message: { content: 'ok' } }] });
   };
   try {

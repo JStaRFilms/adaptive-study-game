@@ -129,7 +129,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
 
                 <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-black/50 backdrop-blur-md' : 'bg-transparent'}`}>
                     <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16 sm:h-20">
-                        <div className="font-extrabold text-lg sm:text-xl">🎯 Adaptive Study</div>
+                        <div className="font-extrabold text-lg sm:text-xl">JStar Study</div>
                         <a 
                            href="https://wa.link/9o4a9c"
                            target="_blank" 

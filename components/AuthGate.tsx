@@ -66,7 +66,7 @@ export default function AuthGate() {
 
     return <main className="min-h-screen flex items-center justify-center bg-background-dark p-6 text-white">
       <div className="w-full max-w-sm space-y-5 text-center">
-        <h1 className="text-2xl font-semibold">Adaptive Study Game</h1>
+        <h1 className="text-2xl font-semibold">JStar Study</h1>
         <p className="text-text-secondary">Sign in to keep your study data separate on this device.</p>
         {!methods && !methodsError && <p role="status" className="text-sm text-text-secondary">Loading sign-in options…</p>}
         {methods?.password && <form onSubmit={handleEmail} className="space-y-3 text-left">

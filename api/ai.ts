@@ -63,7 +63,9 @@ export default async function handler(req: VercelRequest, res: ServerResponse): 
     if (videoCount > 3) throw new Error('At most three video sources are allowed.');
     if (body.action === 'buildReadingLayoutInParallel' && args[1] != null &&
       (!Array.isArray(args[1]) || args[1].length > 8 || !args[1].every(topic => typeof topic === 'string' && topic.length <= 200))) {
-      throw new Error('Too many focus topics.');
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ error: 'Choose up to 8 focus topics, each 200 characters or fewer.' }));
+      return;
     }
     const units = (body.action === 'buildReadingLayoutInParallel' ? 10 :
       body.action === 'generatePersonalizedFeedbackStreamed' ? 3 : 1) + videoCount;
@@ -72,7 +74,11 @@ export default async function handler(req: VercelRequest, res: ServerResponse): 
     let admitted: boolean;
     try { admitted = await admitAiRequest(userId, units); }
     catch { res.writeHead(503).end('AI quotas are unavailable.'); return; }
-    if (!admitted) { res.writeHead(429).end('Daily AI limit reached.'); return; }
+    if (!admitted) {
+      res.writeHead(429, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ error: 'Daily AI limit reached. Try again after the UTC reset.' }));
+      return;
+    }
     if (body.action === 'buildReadingLayoutInParallel' || body.action === 'generatePersonalizedFeedbackStreamed') {
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.flushHeaders();

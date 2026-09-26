@@ -545,7 +545,7 @@ const App: React.FC = () => {
 
       if (config.customPrompt && config.customPrompt.trim()) {
         setCanvasProgress({ stage: 'Analyzing custom focus...', progress: 5 });
-        topicsForLayout = await identifyCoreConcepts(allParts, config.customPrompt.trim());
+        topicsForLayout = (await identifyCoreConcepts(allParts, config.customPrompt.trim())).slice(0, 8);
       }
 
       const layout = await buildReadingLayoutInParallel(allParts, (progressUpdate) => {

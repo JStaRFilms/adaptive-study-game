@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { resolveYouTube, outputTokenLimit } from '../server/provider';
+import { resolveYouTube, outputTokenLimit, openRouterAttribution } from '../server/provider';
 import { getAuthenticatedUserId, isSameOrigin } from '../server/auth';
 import { admitAiRequest } from '../server/quota';
 import { modelFor } from '../services/aiConstants';
@@ -49,12 +49,16 @@ export default async function handler(req: VercelRequest, res: ServerResponse): 
     let admitted: boolean;
     try { admitted = await admitAiRequest(userId, 1 + videoUrls.length); }
     catch { res.writeHead(503).end('AI quotas are unavailable.'); return; }
-    if (!admitted) { res.writeHead(429).end('Daily AI limit reached.'); return; }
+    if (!admitted) {
+      res.writeHead(429, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ error: 'Daily AI limit reached. Try again after the UTC reset.' }));
+      return;
+    }
     const verifiedVideos = videoUrls.length ? await resolveYouTube(videoUrls.map(url => ({ text: `[Content from YouTube video: ${url}]` }))) : [];
     const verifiedContext = verifiedVideos.map(part => 'text' in part ? part.text : '').join('\n');
     const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, ...openRouterAttribution },
       body: JSON.stringify({
         model: modelFor.chat, stream: true, max_tokens: maxTokens,
         messages: [{ role: 'system', content: `${body.systemInstruction}\n${verifiedContext}` }, ...body.messages],

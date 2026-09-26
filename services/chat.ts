@@ -1,3 +1,5 @@
+import { readApiError } from './apiErrors';
+
 type Message = { role: 'user' | 'assistant'; content: string };
 
 export class ChatSession {
@@ -11,7 +13,8 @@ export class ChatSession {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ systemInstruction: this.systemInstruction, messages: [...this.history, { role: 'user', content: message }] }),
     });
-    if (!response.ok || !response.body) throw new Error(`Chat failed (${response.status}).`);
+    if (!response.ok) throw await readApiError(response, 'Chat failed');
+    if (!response.body) throw new Error('Chat failed (empty stream).');
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';

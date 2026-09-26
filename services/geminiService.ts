@@ -1,4 +1,5 @@
 import type { AnswerLog, BlockContent, CanvasGenerationProgress, FibValidationResult, OpenEndedAnswer, PersonalizedFeedback, PredictedQuestion, PromptPart, Question, Quiz, QuizConfig, QuizResult, ReadingBlock, ReadingLayout, StudyGuide, SubConcept } from '../types';
+import { readApiError } from './apiErrors';
 
 function requestBody(action: string, args: unknown[]): string {
   const includedArgs = [...args];
@@ -12,11 +13,8 @@ async function call<T>(action: string, args: unknown[]): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: requestBody(action, args),
   });
+  if (!response.ok) throw await readApiError(response, 'AI request failed');
   const result: unknown = await response.json();
-  if (!response.ok) {
-    const error = result && typeof result === 'object' && 'error' in result ? result.error : null;
-    throw new Error(typeof error === 'string' ? error : `AI request failed (${response.status}).`);
-  }
   return result as T;
 }
 
@@ -34,7 +32,8 @@ async function stream(action: string, args: unknown[], onEvent: (event: Record<s
   const response = await fetch('/api/ai', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody(action, args),
   });
-  if (!response.ok || !response.body) throw new Error(`AI request failed (${response.status}).`);
+  if (!response.ok) throw await readApiError(response, 'AI request failed');
+  if (!response.body) throw new Error('AI request failed (empty stream).');
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
