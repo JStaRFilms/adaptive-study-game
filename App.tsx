@@ -409,7 +409,7 @@ const App: React.FC = () => {
     if (reviewSet) {
       try {
         const systemInstruction = getReviewChatSystemInstruction(reviewSet, resultToReview, resultToReview.feedback || null);
-        setChat(new ChatSession(systemInstruction));
+        setChat(new ChatSession(systemInstruction, initialMessages));
         setChatError(null);
       } catch (e) {
         console.error("Failed to initialize review chat", e);
@@ -591,11 +591,11 @@ const App: React.FC = () => {
       try {
         const historyForSet = history.filter(r => r.studySetId === studySet.id);
         const systemInstruction = getReadingCanvasChatSystemInstruction(studySet, studySet.readingLayout, historyForSet);
-        setChat(new ChatSession(systemInstruction));
         const initialMessages: ChatMessage[] = studySet.readingChatHistory ? JSON.parse(JSON.stringify(studySet.readingChatHistory)) : [];
         if (initialMessages.length === 0) {
           initialMessages.push({ role: 'model', text: `Hello! I'm your AI tutor for "${studySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` });
         }
+        setChat(new ChatSession(systemInstruction, initialMessages));
         setChatMessages(initialMessages);
         setChatError(null);
       } catch (e) {

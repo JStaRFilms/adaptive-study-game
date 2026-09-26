@@ -1,11 +1,16 @@
+import type { ChatMessage } from '../types';
 import { readApiError } from './apiErrors';
 
 type Message = { role: 'user' | 'assistant'; content: string };
 
 export class ChatSession {
-  private history: Message[] = [];
+  private history: Message[];
 
-  constructor(private readonly systemInstruction: string) {}
+  constructor(private readonly systemInstruction: string, previousMessages: ChatMessage[] = []) {
+    this.history = previousMessages.filter(message => message.text.trim()).map((message): Message => ({
+      role: message.role === 'model' ? 'assistant' : 'user', content: message.text,
+    })).slice(-58);
+  }
 
   async *sendMessageStream({ message }: { message: string }): AsyncGenerator<{ text: string }> {
     const response = await fetch('/api/chat', {
@@ -38,6 +43,7 @@ export class ChatSession {
       }
       if (!answer.trim()) throw new Error('The AI returned an empty chat reply.');
       this.history.push({ role: 'user', content: message }, { role: 'assistant', content: answer });
+      if (this.history.length > 58) this.history.splice(0, this.history.length - 58);
     } finally {
       reader.releaseLock();
     }

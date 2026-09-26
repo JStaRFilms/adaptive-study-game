@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import * as ai from '../server/aiService';
 import { getAuthenticatedUserId, isSameOrigin } from '../server/auth';
 import { admitAiRequest } from '../server/quota';
-import { outputTokenLimit } from '../server/provider';
+import { assertYouTubeUrl, outputTokenLimit } from '../server/provider';
 import { KnowledgeSource, StudyMode, type OpenEndedAnswer, type PredictedQuestion, type PromptPart, type Question, type QuizConfig, type QuizResult, type ReadingBlock, type ReadingLayout } from '../types';
 
 type VercelRequest = IncomingMessage & { body?: unknown };
@@ -59,16 +59,64 @@ export default async function handler(req: VercelRequest, res: ServerResponse): 
     const args: unknown[] = body.args;
     const serializedArgs = JSON.stringify(args);
     if (serializedArgs.length > 4_000_000) throw new Error('Request is too large.');
-    const videoCount = [...serializedArgs.matchAll(/\[Content from YouTube video: https?:\/\/[^\]\s]+\]/g)].length;
-    if (videoCount > 3) throw new Error('At most three video sources are allowed.');
-    if (body.action === 'buildReadingLayoutInParallel' && args[1] != null &&
-      (!Array.isArray(args[1]) || args[1].length > 8 || !args[1].every(topic => typeof topic === 'string' && topic.length <= 200))) {
+    const videoUrls = [...serializedArgs.matchAll(/\[Content from YouTube video: (https?:\/\/[^\]\s]+)\]/g)].map(match => match[1]);
+    if (videoUrls.length > 3) throw new Error('At most three video sources are allowed.');
+    try {
+      videoUrls.forEach(assertYouTubeUrl);
+      switch (body.action) {
+        case 'buildReadingLayoutInParallel':
+          parts(args[0]);
+          if (args[1] != null && (!Array.isArray(args[1]) || args[1].length > 8 ||
+            !args[1].every(topic => typeof topic === 'string' && topic.length <= 200))) {
+            throw new Error('Choose up to 8 focus topics, each 200 characters or fewer.');
+          }
+          break;
+        case 'generateQuiz':
+          parts(args[0]);
+          if (!isQuizConfig(args[1])) throw new Error('Invalid quiz settings.');
+          break;
+        case 'identifyCoreConcepts':
+          parts(args[0]);
+          optionalText(args[1]);
+          break;
+        case 'summarizeConcept':
+          parts(args[0]);
+          text(args[1]);
+          break;
+        case 'reflowLayoutForExpansion':
+          if (!isRecord(args[0]) || !Array.isArray(args[0].blocks)) throw new Error('Invalid reading layout.');
+          text(args[1]);
+          optionalText(args[2]);
+          break;
+        case 'validateFillInTheBlankAnswer':
+          text(args[0]);
+          text(args[1]);
+          text(args[2]);
+          break;
+        case 'generatePersonalizedFeedbackStreamed':
+          if (!Array.isArray(args[0])) throw new Error('Invalid quiz results.');
+          break;
+        case 'gradeExam':
+          if (!Array.isArray(args[0]) || !isRecord(args[1]) || typeof args[1].text !== 'string') throw new Error('Invalid exam answers.');
+          break;
+        case 'generateExamPrediction':
+          if (!isRecord(args[0]) || !['coreNotesParts', 'pastQuestionsParts', 'pastTestsParts', 'otherMaterialsParts']
+            .every(key => Array.isArray(args[0][key]) && args[0][key].every(isPart))) throw new Error('Invalid prediction materials.');
+          break;
+        case 'generateSubConcepts':
+        case 'generateStudyGuideForPrediction':
+          if (!isRecord(args[0])) throw new Error('Invalid AI request.');
+          break;
+        default:
+          throw new Error('Unknown AI task.');
+      }
+    } catch (error) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
-        .end(JSON.stringify({ error: 'Choose up to 8 focus topics, each 200 characters or fewer.' }));
+        .end(JSON.stringify({ error: error instanceof Error ? error.message : 'Invalid AI request.' }));
       return;
     }
     const units = (body.action === 'buildReadingLayoutInParallel' ? 10 :
-      body.action === 'generatePersonalizedFeedbackStreamed' ? 3 : 1) + videoCount;
+      body.action === 'generatePersonalizedFeedbackStreamed' ? 3 : 1) + videoUrls.length;
     try { outputTokenLimit(); }
     catch { res.writeHead(503).end('AI output limit is not configured.'); return; }
     let admitted: boolean;

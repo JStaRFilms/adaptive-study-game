@@ -90,7 +90,9 @@ export async function getAnonymousData(): Promise<Partial<Record<StoreName, unkn
   for (const store of STORE_NAMES) {
     const stored = localStorage.getItem(LEGACY_KEYS[store]);
     if (!stored) continue;
-    const parsed: unknown = JSON.parse(stored);
+    let parsed: unknown;
+    try { parsed = JSON.parse(stored); }
+    catch { continue; }
     if (!Array.isArray(parsed)) continue;
     const existing = backup[store] ?? [];
     const hasId = (value: unknown): value is { id: string } =>

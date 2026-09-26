@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { resolveYouTube, outputTokenLimit, openRouterAttribution } from '../server/provider';
+import { assertYouTubeUrl, resolveYouTube, outputTokenLimit, openRouterAttribution } from '../server/provider';
 import { getAuthenticatedUserId, isSameOrigin } from '../server/auth';
 import { admitAiRequest } from '../server/quota';
 import { modelFor } from '../services/aiConstants';
@@ -43,6 +43,12 @@ export default async function handler(req: VercelRequest, res: ServerResponse): 
     const sourceLines = [...body.systemInstruction.matchAll(/Source YouTube URLs Used:\*\* ([^\n]+)/g)];
     const videoUrls = sourceLines.flatMap(match => match[1].match(/https?:\/\/[^\s,]+/g) ?? []);
     if (videoUrls.length > 3) throw new Error('Chat supports at most three video sources.');
+    try { videoUrls.forEach(assertYouTubeUrl); }
+    catch (error) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ error: error instanceof Error ? error.message : 'Invalid YouTube URL.' }));
+      return;
+    }
     let maxTokens: number;
     try { maxTokens = outputTokenLimit(); }
     catch { res.writeHead(503).end('AI output limit is not configured.'); return; }

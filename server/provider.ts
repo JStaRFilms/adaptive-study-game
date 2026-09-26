@@ -41,11 +41,16 @@ export function outputTokenLimit(): number {
 const youtubeMarker = /\[Content from YouTube video: (https?:\/\/[^\]\s]+)\][^\n]*/g;
 
 // The old app sent a URL as text and asked the model to watch it. Extract video content first.
+export function assertYouTubeUrl(url: string): void {
+  let parsed: URL;
+  try { parsed = new URL(url); }
+  catch { throw new Error('Invalid YouTube URL.'); }
+  if (!['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'].includes(parsed.hostname) ||
+    !['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported YouTube URL.');
+}
+
 async function readYouTube(url: string): Promise<string> {
-  const parsed = new URL(url);
-  if (!['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'].includes(parsed.hostname)) {
-    throw new Error('Unsupported YouTube URL.');
-  }
+  assertYouTubeUrl(url);
   const key = geminiKey();
   if (!key) throw new Error('GEMINI_API_KEY is needed to read YouTube videos.');
   const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
@@ -90,7 +95,7 @@ export async function resolveYouTube(parts: PromptPart[]): Promise<PromptPart[]>
     let text = part.text;
     for (const url of urls) {
       const summary = await videoSummary(url);
-      text = text.replace(`[Content from YouTube video: ${url}]`, `[Verified content from YouTube video: ${url}]\n${summary}`);
+      text = text.replace(`[Content from YouTube video: ${url}]`, () => `[Verified content from YouTube video: ${url}]\n${summary}`);
     }
     return { text };
   }));

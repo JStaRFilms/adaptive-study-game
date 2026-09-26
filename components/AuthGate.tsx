@@ -26,6 +26,18 @@ export default function AuthGate() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const userId = sessionUserId(data);
+  const [readyUserId, setReadyUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      activateAccount(userId);
+      setReadyUserId(userId);
+    } catch {
+      window.location.reload();
+    }
+  }, [userId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -45,7 +57,6 @@ export default function AuthGate() {
     Authentication is unavailable. Reload to try again.
   </main>;
 
-  const userId = sessionUserId(data);
   if (!userId) {
     const handleEmail = async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -102,12 +113,9 @@ export default function AuthGate() {
     </main>;
   }
 
-  try {
-    activateAccount(userId);
-  } catch {
-    window.location.reload();
-    return null;
-  }
+  if (readyUserId !== userId) return <main role="status" className="min-h-screen grid place-items-center bg-background-dark text-white">
+    {readyUserId ? 'Switching accounts…' : 'Opening your study data…'}
+  </main>;
 
   return <>
     <button className="fixed bottom-3 right-3 z-40 rounded bg-black/75 px-3 py-2 text-xs text-white shadow" onClick={async () => {

@@ -34,6 +34,9 @@ test('sign-in leaves anonymous records untouched and requires reload to switch a
   assert.deepEqual(await untouched.getAll('studySets'), [{ id: 'old-set' }]);
   untouched.close();
   assert.ok(localStorage.getItem('adaptive-study-game-sets'));
+  localStorage.setItem('adaptive-study-game-history', '{broken');
+  assert.equal((await getAnonymousData()).studySets?.length, 2);
+  assert.equal(localStorage.getItem('adaptive-study-game-history'), '{broken');
   assert.throws(() => activateAccount('google-account-b'), /Reload before changing accounts/);
   account.close();
 });

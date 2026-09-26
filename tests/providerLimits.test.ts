@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createAiClient } from '../server/provider';
+import { assertYouTubeUrl, createAiClient, resolveYouTube } from '../server/provider';
 
 test('text calls require an output ceiling before contacting a provider', async () => {
   const previousLimit = process.env.AI_MAX_OUTPUT_TOKENS;
@@ -47,5 +47,26 @@ test('OpenRouter requests include the output ceiling and hidden app attribution'
     else process.env.AI_MAX_OUTPUT_TOKENS = previousLimit;
     if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY;
     else process.env.OPENROUTER_API_KEY = previousKey;
+  }
+});
+
+test('YouTube summaries are inserted literally and malformed URLs are rejected before provider calls', async () => {
+  assert.throws(() => assertYouTubeUrl('https://%'), /Invalid YouTube URL/);
+  assert.throws(() => assertYouTubeUrl('https://example.com/video'), /Unsupported YouTube URL/);
+  const previousKey = process.env.GEMINI_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = 'offline-test-key';
+  const url = 'https://www.youtube.com/watch?v=offline-literal';
+  globalThis.fetch = async input => {
+    assert.equal(String(input), 'https://generativelanguage.googleapis.com/v1beta/interactions');
+    return Response.json({ output_text: "Keep $& and $' literal" });
+  };
+  try {
+    const result = await resolveYouTube([{ text: `Review [Content from YouTube video: ${url}] notes` }]);
+    assert.deepEqual(result, [{ text: `Review [Verified content from YouTube video: ${url}]\nKeep $& and $' literal notes` }]);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousKey;
   }
 });
