@@ -89,6 +89,27 @@ test('resumed chat sends previously visible turns to the model', async () => {
   }
 });
 
+test('a cleared chat sends no turns from the previous session', async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: { messages: { role: string; content: string }[] }[] = [];
+  globalThis.fetch = async (_input, init) => {
+    requests.push(JSON.parse(String(init?.body)));
+    return new Response('data: {"text":"ok"}\n\n');
+  };
+  try {
+    const oldSession = new ChatSession('Study coach', [
+      { role: 'user', text: 'My old question' },
+      { role: 'model', text: 'Old answer' },
+    ]);
+    for await (const _chunk of oldSession.sendMessageStream({ message: 'Before clearing' })) { /* consume reply */ }
+    const clearedSession = new ChatSession('Study coach');
+    for await (const _chunk of clearedSession.sendMessageStream({ message: 'After clearing' })) { /* consume reply */ }
+    assert.deepEqual(requests[1].messages, [{ role: 'user', content: 'After clearing' }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('AI calls show the message from older plain-text quota responses', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response('Daily AI limit reached.', { status: 429 });

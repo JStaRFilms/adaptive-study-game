@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StudySet } from '../../types';
+import { maxVideoSources } from '../../services/aiConstants';
 import LoadingSpinner from '../common/LoadingSpinner';
 import ProgressBar from '../common/ProgressBar';
 
@@ -35,7 +36,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ files, onFileChange, onRemo
   </div>
 );
 
-const YoutubeUrlUploader: React.FC<{
+export const YoutubeUrlUploader: React.FC<{
   urls: string[];
   onAddUrl: (url: string) => void;
   onRemoveUrl: (url: string) => void;
@@ -43,7 +44,7 @@ const YoutubeUrlUploader: React.FC<{
   const [currentUrl, setCurrentUrl] = useState('');
 
   const handleAddClick = () => {
-    if (currentUrl.trim() && (currentUrl.includes('youtube.com') || currentUrl.includes('youtu.be'))) {
+    if (urls.length < maxVideoSources && currentUrl.trim() && (currentUrl.includes('youtube.com') || currentUrl.includes('youtu.be'))) {
       onAddUrl(currentUrl);
       setCurrentUrl('');
     }
@@ -52,18 +53,20 @@ const YoutubeUrlUploader: React.FC<{
   return (
     <div>
       <label htmlFor="youtubeUrl" className="block text-lg font-medium text-text-secondary mb-3">Add YouTube Videos</label>
-      <p className="text-sm text-gray-400 mb-2">Provide links to YouTube videos for the AI to analyze.</p>
+      <p className="text-sm text-gray-400 mb-2">Provide up to {maxVideoSources} YouTube videos for the AI to analyze.</p>
+      {urls.length > maxVideoSources && <p role="alert" className="text-sm text-yellow-400 mb-2">Remove videos until no more than {maxVideoSources} remain before using AI.</p>}
       <div className="flex gap-2">
         <input 
           type="url" 
           id="youtubeUrl" 
-          value={currentUrl} 
+          value={currentUrl}
+          disabled={urls.length >= maxVideoSources}
           onChange={e => setCurrentUrl(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddClick(); }}}
           placeholder="https://www.youtube.com/watch?v=..."
           className="w-full p-2 bg-background-dark border-2 border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary"
         />
-        <button type="button" onClick={handleAddClick} className="px-4 py-2 bg-brand-secondary text-white font-bold rounded-lg hover:bg-brand-primary whitespace-nowrap">Add URL</button>
+        <button type="button" onClick={handleAddClick} disabled={urls.length >= maxVideoSources} className="px-4 py-2 bg-brand-secondary text-white font-bold rounded-lg hover:bg-brand-primary whitespace-nowrap disabled:bg-gray-500">Add URL</button>
       </div>
        {urls.length > 0 && (
         <div className="mt-4 text-left text-sm text-text-secondary bg-background-dark/50 p-3 rounded-md">
@@ -155,7 +158,7 @@ const StudySetForm: React.FC<StudySetFormProps> = ({
     };
 
     const handleAddUrl = (url: string) => {
-        if (!youtubeUrls.includes(url)) {
+        if (!youtubeUrls.includes(url) && youtubeUrls.length < maxVideoSources) {
             setYoutubeUrls(prev => [...prev, url]);
         }
     }
@@ -170,6 +173,11 @@ const StudySetForm: React.FC<StudySetFormProps> = ({
             return; 
         }
         
+        if (youtubeUrls.length > maxVideoSources) {
+            setInternalError(`Remove videos until no more than ${maxVideoSources} remain.`);
+            return;
+        }
+
         const hasContent = content.trim().length > 0 || files.length > 0 || youtubeUrls.length > 0;
         if (!hasContent) { 
             setInternalError("Please provide some study material (text, files, or YouTube URLs) to analyze."); 

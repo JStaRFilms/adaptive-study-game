@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:local": "node --import tsx --test tests/storage.test.ts tests/apiGate.test.ts tests/quota.test.ts tests/providerLimits.test.ts tests/authMethods.test.ts tests/aiRequest.test.ts tests/topicSelector.test.ts"
+    "test:local": "node --import tsx --test tests/storage.test.ts tests/apiGate.test.ts tests/quota.test.ts tests/providerLimits.test.ts tests/authMethods.test.ts tests/aiRequest.test.ts tests/topicSelector.test.ts tests/youtubeForm.test.ts"
   },
   "dependencies": {
     "@google/genai": "^1.10.0",

@@ -4,6 +4,7 @@ import { getAuthenticatedUserId, isSameOrigin } from '../server/auth';
 import { admitAiRequest } from '../server/quota';
 import { assertYouTubeUrl, outputTokenLimit } from '../server/provider';
 import { KnowledgeSource, StudyMode, type OpenEndedAnswer, type PredictedQuestion, type PromptPart, type Question, type QuizConfig, type QuizResult, type ReadingBlock, type ReadingLayout } from '../types';
+import { maxVideoSources } from '../services/aiConstants';
 
 type VercelRequest = IncomingMessage & { body?: unknown };
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -60,7 +61,7 @@ export default async function handler(req: VercelRequest, res: ServerResponse): 
     const serializedArgs = JSON.stringify(args);
     if (serializedArgs.length > 4_000_000) throw new Error('Request is too large.');
     const videoUrls = [...serializedArgs.matchAll(/\[Content from YouTube video: (https?:\/\/[^\]\s]+)\]/g)].map(match => match[1]);
-    if (videoUrls.length > 3) throw new Error('At most three video sources are allowed.');
+    if (videoUrls.length > maxVideoSources) throw new Error(`At most ${maxVideoSources} video sources are allowed.`);
     try {
       videoUrls.forEach(assertYouTubeUrl);
       switch (body.action) {

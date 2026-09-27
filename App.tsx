@@ -366,9 +366,10 @@ const App: React.FC = () => {
     setAnswerLog(resultToReview.answerLog);
 
     // Load chat for review, re-hydrating buttons and preventing duplicates
-    const initialMessages: ChatMessage[] = resultToReview.chatHistory
+    const savedMessages: ChatMessage[] = resultToReview.chatHistory
       ? JSON.parse(JSON.stringify(resultToReview.chatHistory))
       : [];
+    const initialMessages = [...savedMessages];
 
     if (initialMessages.length === 0 && reviewSet) {
       initialMessages.push({ role: 'model', text: `You are reviewing your quiz on "${reviewSet.name}". Feel free to ask me anything about your performance or the questions.` });
@@ -409,7 +410,7 @@ const App: React.FC = () => {
     if (reviewSet) {
       try {
         const systemInstruction = getReviewChatSystemInstruction(reviewSet, resultToReview, resultToReview.feedback || null);
-        setChat(new ChatSession(systemInstruction, initialMessages));
+        setChat(new ChatSession(systemInstruction, savedMessages));
         setChatError(null);
       } catch (e) {
         console.error("Failed to initialize review chat", e);
@@ -871,13 +872,18 @@ const App: React.FC = () => {
   }, [chat, isAITyping, handleStartCustomQuiz, currentStudySet, appState, handleUpdateCanvas]);
 
   const handleClearChat = useCallback(() => {
-    if (appState === AppState.READING_CANVAS && currentStudySet) {
+    if (appState === AppState.READING_CANVAS && currentStudySet?.readingLayout) {
+      const historyForSet = history.filter(result => result.studySetId === currentStudySet.id);
+      const systemInstruction = getReadingCanvasChatSystemInstruction(currentStudySet, currentStudySet.readingLayout, historyForSet);
+      setChat(new ChatSession(systemInstruction));
       setChatMessages([{ role: 'model', text: `Hello! I'm your AI tutor for "${currentStudySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }]);
-    } else if (appState === AppState.REVIEWING && currentResult) {
-      const reviewSet = studySets.find(s => s.id === currentResult.studySetId);
-      setChatMessages([{ role: 'model', text: `You are reviewing your quiz on "${reviewSet?.name}". Feel free to ask me anything about your performance or the questions.` }]);
+    } else if (appState === AppState.REVIEWING && currentResult && currentStudySet) {
+      const systemInstruction = getReviewChatSystemInstruction(currentStudySet, currentResult, currentResult.feedback || null);
+      setChat(new ChatSession(systemInstruction));
+      setChatMessages([{ role: 'model', text: `You are reviewing your quiz on "${currentStudySet.name}". Feel free to ask me anything about your performance or the questions.` }]);
     }
-  }, [appState, currentStudySet, currentResult, studySets]);
+    setChatError(null);
+  }, [appState, currentStudySet, currentResult, history]);
 
   if (showLanding) {
     return <LandingPage onLaunch={handleLaunchApp} onLaunchWithContent={handleLaunchWithContent} />;

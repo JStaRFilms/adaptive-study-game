@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StudySet, PromptPart } from '../../types';
+import { maxVideoSources } from '../../services/aiConstants';
 import Modal from '../common/Modal';
 import Tooltip from '../common/Tooltip';
 import DataManagementModal from './DataManagementModal';
@@ -52,12 +53,18 @@ const StudySetList: React.FC<StudySetListProps> = ({
   const handleReadClick = (set: StudySet) => {
     if (set.readingLayout) {
       onStartReading(set);
+    } else if ((set.youtubeUrls?.length ?? 0) > maxVideoSources) {
+      onEditSet(set);
     } else {
       onPrepareForCanvas(set);
     }
   };
 
   const handlePrepareWrapper = (set: StudySet) => {
+    if ((set.youtubeUrls?.length ?? 0) > maxVideoSources) {
+      onEditSet(set);
+      return;
+    }
     const parts: PromptPart[] = [];
     if (set.content?.trim()) {
         parts.push({ text: set.content.trim() });
@@ -137,6 +144,7 @@ const StudySetList: React.FC<StudySetListProps> = ({
                     {set.youtubeUrls && set.youtubeUrls.length > 0 && <span className="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>{set.youtubeUrls.length} videos</span>}
                     <span className="truncate">{set.content.substring(0, 100)}...</span>
                 </div>
+                {(set.youtubeUrls?.length ?? 0) > maxVideoSources && <p className="text-sm text-yellow-400 mt-1">Edit this set to keep up to {maxVideoSources} videos before generating a quiz or canvas.</p>}
               </div>
               <div className="flex gap-2 flex-shrink-0 self-end sm:self-center flex-wrap justify-end">
                 <Tooltip text="Visual Reading Canvas" position="top">

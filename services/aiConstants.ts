@@ -1,3 +1,5 @@
+export const maxVideoSources = 3;
+
 // Normal study requests use Luna. Gemini is selected server-side for audio,
 // YouTube ingestion and grounded Google Search quizzes.
 export const modelFor = {
