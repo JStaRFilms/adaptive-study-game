@@ -166,14 +166,14 @@ const StudySetForm: React.FC<StudySetFormProps> = ({
         setYoutubeUrls(prev => prev.filter(url => url !== urlToRemove));
     }
 
-    const validateAndSubmit = (submitAction: (data: any) => void) => {
+    const validateAndSubmit = (submitAction: (data: { name: string; content: string; files: File[]; youtubeUrls: string[] }) => void, analyze: boolean) => {
         setInternalError(null);
         if (!name.trim()) { 
             setInternalError("Please provide a name for your new study set.");
             return; 
         }
         
-        if (youtubeUrls.length > maxVideoSources) {
+        if (analyze && youtubeUrls.length > maxVideoSources) {
             setInternalError(`Remove videos until no more than ${maxVideoSources} remain.`);
             return;
         }
@@ -219,8 +219,8 @@ const StudySetForm: React.FC<StudySetFormProps> = ({
             
             {(processingError || internalError) && !isProcessing && <div className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg relative mt-6" role="alert"><span className="block sm:inline">{processingError || internalError}</span></div>}
             <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
-                <button onClick={() => validateAndSubmit(onSave)} disabled={isProcessing || isAnalyzingTopics || !name.trim()} className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 flex items-center justify-center gap-2">Next: Configure Quiz</button>
-                <button onClick={() => validateAndSubmit(onSaveOnly)} disabled={isProcessing || isAnalyzingTopics || !name.trim()} className="w-full sm:w-auto px-6 py-3 bg-brand-secondary text-white font-bold rounded-lg hover:bg-brand-primary transition-all disabled:bg-gray-500">{activeSet ? 'Save Changes' : 'Save & Close'}</button>
+                <button onClick={() => validateAndSubmit(onSave, true)} disabled={isProcessing || isAnalyzingTopics || !name.trim()} className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white font-bold text-lg rounded-lg shadow-lg hover:bg-brand-secondary transition-all disabled:bg-gray-500 flex items-center justify-center gap-2">Next: Configure Quiz</button>
+                <button onClick={() => validateAndSubmit(onSaveOnly, false)} disabled={isProcessing || isAnalyzingTopics || !name.trim()} className="w-full sm:w-auto px-6 py-3 bg-brand-secondary text-white font-bold rounded-lg hover:bg-brand-primary transition-all disabled:bg-gray-500">{activeSet ? 'Save Changes' : 'Save & Close'}</button>
                 <button onClick={onCancel} disabled={isProcessing || isAnalyzingTopics} className="w-full sm:w-auto px-6 py-3 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-500 transition-all disabled:opacity-50">Cancel</button>
             </div>
         </div>

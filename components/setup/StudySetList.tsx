@@ -51,10 +51,10 @@ const StudySetList: React.FC<StudySetListProps> = ({
   };
 
   const handleReadClick = (set: StudySet) => {
-    if (set.readingLayout) {
-      onStartReading(set);
-    } else if ((set.youtubeUrls?.length ?? 0) > maxVideoSources) {
+    if ((set.youtubeUrls?.length ?? 0) > maxVideoSources) {
       onEditSet(set);
+    } else if (set.readingLayout) {
+      onStartReading(set);
     } else {
       onPrepareForCanvas(set);
     }

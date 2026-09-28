@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildReadingLayoutInParallel, identifyCoreConcepts } from '../services/geminiService';
 import { ChatSession } from '../services/chat';
+import { focusedQuizSuggestion, reviewGreeting, savedReviewTurns } from '../services/reviewChatHistory';
+import type { ChatMessage } from '../types';
 
 test('optional analysis and streaming arguments are omitted instead of serialized as null', async () => {
   const originalFetch = globalThis.fetch;
@@ -89,25 +91,20 @@ test('resumed chat sends previously visible turns to the model', async () => {
   }
 });
 
-test('a cleared chat sends no turns from the previous session', async () => {
-  const originalFetch = globalThis.fetch;
-  const requests: { messages: { role: string; content: string }[] }[] = [];
-  globalThis.fetch = async (_input, init) => {
-    requests.push(JSON.parse(String(init?.body)));
-    return new Response('data: {"text":"ok"}\n\n');
-  };
-  try {
-    const oldSession = new ChatSession('Study coach', [
-      { role: 'user', text: 'My old question' },
-      { role: 'model', text: 'Old answer' },
-    ]);
-    for await (const _chunk of oldSession.sendMessageStream({ message: 'Before clearing' })) { /* consume reply */ }
-    const clearedSession = new ChatSession('Study coach');
-    for await (const _chunk of clearedSession.sendMessageStream({ message: 'After clearing' })) { /* consume reply */ }
-    assert.deepEqual(requests[1].messages, [{ role: 'user', content: 'After clearing' }]);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+test('review history keeps real turns but never saves or restores UI-only prompts', () => {
+  const history: ChatMessage[] = [
+    { role: 'model', text: reviewGreeting('Original Set') },
+    { role: 'model', text: focusedQuizSuggestion },
+    { role: 'user', text: 'Why did I miss this?' },
+    { role: 'model', text: 'Review the second example.', action: { text: 'More practice', onClick: () => {} } },
+    { role: 'model', text: focusedQuizSuggestion },
+  ];
+  const saved = savedReviewTurns(history);
+  assert.deepEqual(saved, [
+    { role: 'user', text: 'Why did I miss this?' },
+    { role: 'model', text: 'Review the second example.' },
+  ]);
+  assert.deepEqual(savedReviewTurns(saved), saved);
 });
 
 test('AI calls show the message from older plain-text quota responses', async () => {

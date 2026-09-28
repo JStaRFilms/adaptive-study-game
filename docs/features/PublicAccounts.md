@@ -26,6 +26,8 @@ A same-origin auth handler avoids relying on third-party session cookies. Test l
 4. The function calls Luna or the Gemini-only path and sends the response. Study content stays in IndexedDB unless included in that AI request. Neon does not store study content in this phase.
 5. Signing out unmounts the app, drops in-memory study data and returns to sign-in. The local database remains on the device unless the user deliberately clears it.
 
+Review-chat history in account-scoped IndexedDB excludes client-generated greetings and focused-quiz prompts, so reopening a review does not send them as past model replies. Clearing a reading canvas stores a null layout and empty chat history, then rebuilds the tutor context from the empty canvas. No Neon study-content table is involved.
+
 The old anonymous IndexedDB and localStorage keys stay untouched on sign-in. In Data Management, a signed-in user can review record counts, download an anonymous backup, then explicitly import that JSON into the current account. Export the current account first: the existing import merges by ID and may overwrite collisions. On browsers without `indexedDB.databases()`, old localStorage records can be reviewed; use an existing JSON backup for the old IndexedDB database. Account switching must never display the previous account's records.
 
 ## Database schema

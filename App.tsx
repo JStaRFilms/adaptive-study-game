@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion, ReadingLayout, CanvasGenerationProgress, ReadingBlock as ReadingBlockType } from './types';
 import { ChatSession } from './services/chat';
+import { focusedQuizSuggestion, reviewGreeting, savedReviewTurns } from './services/reviewChatHistory';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import SetupScreen from './components/SetupScreen';
@@ -308,7 +309,7 @@ const App: React.FC = () => {
 
   const saveReviewChatIfDirty = useCallback(async () => {
     if (appState === AppState.REVIEWING && currentResult) {
-      const cleanedChatHistory = chatMessages.map(({ action, ...rest }) => rest);
+      const cleanedChatHistory = savedReviewTurns(chatMessages);
       // Only update if there's a change to prevent unnecessary writes
       if (JSON.stringify(cleanedChatHistory) !== JSON.stringify(currentResult.chatHistory || [])) {
         const updatedResult = { ...currentResult, chatHistory: cleanedChatHistory };
@@ -366,13 +367,11 @@ const App: React.FC = () => {
     setAnswerLog(resultToReview.answerLog);
 
     // Load chat for review, re-hydrating buttons and preventing duplicates
-    const savedMessages: ChatMessage[] = resultToReview.chatHistory
-      ? JSON.parse(JSON.stringify(resultToReview.chatHistory))
-      : [];
-    const initialMessages = [...savedMessages];
+    const savedMessages = savedReviewTurns(resultToReview.chatHistory || []);
+    const initialMessages = savedMessages.map(message => ({ ...message }));
 
     if (initialMessages.length === 0 && reviewSet) {
-      initialMessages.push({ role: 'model', text: `You are reviewing your quiz on "${reviewSet.name}". Feel free to ask me anything about your performance or the questions.` });
+      initialMessages.push({ role: 'model', text: reviewGreeting(reviewSet.name) });
     }
 
     let hasWeaknessSuggestion = initialMessages.some(msg => msg.action && msg.action.text.includes('Create Focused Quiz'));
@@ -396,7 +395,7 @@ const App: React.FC = () => {
     if (weaknessTopics && weaknessTopics.length > 0 && !hasWeaknessSuggestion && reviewSet) {
       const suggestionMessage: ChatMessage = {
         role: 'model',
-        text: "Based on your results, I've identified some areas we can work on. I can create a quiz to help you practice.",
+        text: focusedQuizSuggestion,
         action: {
           text: `Create Focused Quiz (${weaknessTopics.length} topic${weaknessTopics.length > 1 ? 's' : ''})`,
           onClick: () => handleStartFocusedQuiz(weaknessTopics, reviewSet)
@@ -871,19 +870,23 @@ const App: React.FC = () => {
     }
   }, [chat, isAITyping, handleStartCustomQuiz, currentStudySet, appState, handleUpdateCanvas]);
 
-  const handleClearChat = useCallback(() => {
-    if (appState === AppState.READING_CANVAS && currentStudySet?.readingLayout) {
-      const historyForSet = history.filter(result => result.studySetId === currentStudySet.id);
-      const systemInstruction = getReadingCanvasChatSystemInstruction(currentStudySet, currentStudySet.readingLayout, historyForSet);
+  const handleClearChat = useCallback((clearedSet?: StudySet) => {
+    if (isAITyping) return;
+    const studySet = clearedSet ?? currentStudySet;
+    if (appState === AppState.READING_CANVAS && studySet) {
+      if (clearedSet) setCurrentStudySet(clearedSet);
+      const historyForSet = history.filter(result => result.studySetId === studySet.id);
+      const layout = studySet.readingLayout ?? { blocks: [], columns: 24, rows: 0 };
+      const systemInstruction = getReadingCanvasChatSystemInstruction(studySet, layout, historyForSet);
       setChat(new ChatSession(systemInstruction));
-      setChatMessages([{ role: 'model', text: `Hello! I'm your AI tutor for "${currentStudySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }]);
-    } else if (appState === AppState.REVIEWING && currentResult && currentStudySet) {
-      const systemInstruction = getReviewChatSystemInstruction(currentStudySet, currentResult, currentResult.feedback || null);
+      setChatMessages([{ role: 'model', text: `Hello! I'm your AI tutor for "${studySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }]);
+    } else if (appState === AppState.REVIEWING && currentResult && studySet) {
+      const systemInstruction = getReviewChatSystemInstruction(studySet, currentResult, currentResult.feedback || null);
       setChat(new ChatSession(systemInstruction));
-      setChatMessages([{ role: 'model', text: `You are reviewing your quiz on "${currentStudySet.name}". Feel free to ask me anything about your performance or the questions.` }]);
+      setChatMessages([{ role: 'model', text: reviewGreeting(studySet.name) }]);
     }
     setChatError(null);
-  }, [appState, currentStudySet, currentResult, history]);
+  }, [appState, currentStudySet, currentResult, history, isAITyping]);
 
   if (showLanding) {
     return <LandingPage onLaunch={handleLaunchApp} onLaunchWithContent={handleLaunchWithContent} />;
