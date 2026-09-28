@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildReadingLayoutInParallel, identifyCoreConcepts } from '../services/geminiService';
 import { ChatSession } from '../services/chat';
-import { focusedQuizSuggestion, reviewGreeting, savedReviewTurns } from '../services/reviewChatHistory';
+import { focusedQuizSuggestion, reviewGreeting, savedReviewHistory, savedReviewTurns } from '../services/reviewChatHistory';
 import type { ChatMessage } from '../types';
 
 test('optional analysis and streaming arguments are omitted instead of serialized as null', async () => {
@@ -91,20 +91,21 @@ test('resumed chat sends previously visible turns to the model', async () => {
   }
 });
 
-test('review history keeps real turns but never saves or restores UI-only prompts', () => {
+test('review keeps one UI offer for reopening but sends only real turns to the model', () => {
   const history: ChatMessage[] = [
     { role: 'model', text: reviewGreeting('Original Set') },
-    { role: 'model', text: focusedQuizSuggestion },
+    { role: 'model', text: focusedQuizSuggestion, action: { text: 'Create Focused Quiz', onClick: () => {} } },
     { role: 'user', text: 'Why did I miss this?' },
     { role: 'model', text: 'Review the second example.', action: { text: 'More practice', onClick: () => {} } },
-    { role: 'model', text: focusedQuizSuggestion },
   ];
-  const saved = savedReviewTurns(history);
+  const saved = savedReviewHistory(history);
   assert.deepEqual(saved, [
+    { role: 'model', text: focusedQuizSuggestion },
     { role: 'user', text: 'Why did I miss this?' },
     { role: 'model', text: 'Review the second example.' },
   ]);
-  assert.deepEqual(savedReviewTurns(saved), saved);
+  assert.deepEqual(savedReviewHistory(saved), saved);
+  assert.deepEqual(savedReviewTurns(saved), saved.slice(1));
 });
 
 test('AI calls show the message from older plain-text quota responses', async () => {

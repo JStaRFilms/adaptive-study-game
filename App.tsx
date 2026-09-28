@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion, ReadingLayout, CanvasGenerationProgress, ReadingBlock as ReadingBlockType } from './types';
 import { ChatSession } from './services/chat';
-import { focusedQuizSuggestion, reviewGreeting, savedReviewTurns } from './services/reviewChatHistory';
+import { focusedQuizSuggestion, reviewGreeting, savedReviewHistory, savedReviewTurns } from './services/reviewChatHistory';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import SetupScreen from './components/SetupScreen';
@@ -309,7 +309,7 @@ const App: React.FC = () => {
 
   const saveReviewChatIfDirty = useCallback(async () => {
     if (appState === AppState.REVIEWING && currentResult) {
-      const cleanedChatHistory = savedReviewTurns(chatMessages);
+      const cleanedChatHistory = savedReviewHistory(chatMessages);
       // Only update if there's a change to prevent unnecessary writes
       if (JSON.stringify(cleanedChatHistory) !== JSON.stringify(currentResult.chatHistory || [])) {
         const updatedResult = { ...currentResult, chatHistory: cleanedChatHistory };
@@ -367,11 +367,12 @@ const App: React.FC = () => {
     setAnswerLog(resultToReview.answerLog);
 
     // Load chat for review, re-hydrating buttons and preventing duplicates
-    const savedMessages = savedReviewTurns(resultToReview.chatHistory || []);
+    const savedMessages = savedReviewHistory(resultToReview.chatHistory || []);
+    const modelMessages = savedReviewTurns(savedMessages);
     const initialMessages = savedMessages.map(message => ({ ...message }));
 
-    if (initialMessages.length === 0 && reviewSet) {
-      initialMessages.push({ role: 'model', text: reviewGreeting(reviewSet.name) });
+    if (modelMessages.length === 0 && reviewSet) {
+      initialMessages.unshift({ role: 'model', text: reviewGreeting(reviewSet.name) });
     }
 
     let hasWeaknessSuggestion = initialMessages.some(msg => msg.action && msg.action.text.includes('Create Focused Quiz'));
@@ -409,7 +410,7 @@ const App: React.FC = () => {
     if (reviewSet) {
       try {
         const systemInstruction = getReviewChatSystemInstruction(reviewSet, resultToReview, resultToReview.feedback || null);
-        setChat(new ChatSession(systemInstruction, savedMessages));
+        setChat(new ChatSession(systemInstruction, modelMessages));
         setChatError(null);
       } catch (e) {
         console.error("Failed to initialize review chat", e);

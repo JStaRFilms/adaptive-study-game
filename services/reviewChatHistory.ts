@@ -6,9 +6,11 @@ const greetingSuffix = '". Feel free to ask me anything about your performance o
 export const reviewGreeting = (name: string) => `${greetingPrefix}${name}${greetingSuffix}`;
 export const focusedQuizSuggestion = "Based on your results, I've identified some areas we can work on. I can create a quiz to help you practice.";
 
-export const savedReviewTurns = (messages: ChatMessage[]): ChatMessage[] =>
+export const savedReviewHistory = (messages: ChatMessage[]): ChatMessage[] =>
   messages
     .filter(message => message.role === 'user' ||
-      (message.text !== focusedQuizSuggestion &&
-        !(message.text.startsWith(greetingPrefix) && message.text.endsWith(greetingSuffix))))
+      !(message.text.startsWith(greetingPrefix) && message.text.endsWith(greetingSuffix)))
     .map(({ action, ...message }) => message);
+
+export const savedReviewTurns = (messages: ChatMessage[]): ChatMessage[] =>
+  savedReviewHistory(messages).filter(message => message.role === 'user' || message.text !== focusedQuizSuggestion);
