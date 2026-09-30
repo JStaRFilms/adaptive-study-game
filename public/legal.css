@@ -1,0 +1,15 @@
+:root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; background: #111827; color: #f9fafb; line-height: 1.7; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+header, main, footer { max-width: 780px; margin: auto; padding: 24px; }
+header { border-bottom: 1px solid #374151; }
+nav { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+a { color: #5eead4; text-underline-offset: 4px; }
+a:hover { color: #fff; }
+a:focus-visible { outline: 2px solid #5eead4; outline-offset: 4px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; margin-right: auto; }
+h1 { font-size: clamp(2rem, 6vw, 2.75rem); line-height: 1.2; }
+h2 { font-size: 1.25rem; margin-top: 32px; }
+p, li { color: #d1d5db; }
+.date, footer { color: #9ca3af; font-size: .9rem; }
+footer { border-top: 1px solid #374151; }
