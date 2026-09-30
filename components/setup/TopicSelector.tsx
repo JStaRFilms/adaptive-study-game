@@ -66,7 +66,7 @@ interface TopicSelectorProps {
 const TopicSelector: React.FC<TopicSelectorProps> = ({
     activeSet, topics, isAnalyzingTopics, isProcessing, processingError, progressPercent, flow, onStartQuiz, onGenerateCanvas, onBack, onRegenerateTopics, onReanalyzeWithFiles
 }) => {
-    const [selectedTopics, setSelectedTopics] = useState<string[]>(topics || []);
+    const [selectedTopics, setSelectedTopics] = useState<string[]>(flow === 'canvas' ? (topics || []).slice(0, 8) : topics || []);
     const [customInstructions, setCustomInstructions] = useState('');
     const [numQuestions, setNumQuestions] = useState(10);
     const [studyMode, setStudyMode] = useState<StudyMode>(StudyMode.PRACTICE);
@@ -81,8 +81,8 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
         updateSettings({ enableConfidenceCheck: !settings.enableConfidenceCheck });
     };
 
-    const handleTopicToggle = (topic: string) => setSelectedTopics(prev => prev.includes(topic) ? prev.filter(t => t !== topic) : [...prev, topic]);
-    const handleSelectAll = () => topics && setSelectedTopics(topics);
+    const handleTopicToggle = (topic: string) => setSelectedTopics(prev => prev.includes(topic) ? prev.filter(t => t !== topic) : flow === 'canvas' && prev.length >= 8 ? prev : [...prev, topic]);
+    const handleSelectAll = () => topics && setSelectedTopics(flow === 'canvas' ? topics.slice(0, 8) : topics);
     const handleDeselectAll = () => setSelectedTopics([]);
 
     const handleStartClick = () => {
@@ -144,6 +144,11 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
             </header>
 
             <div className="bg-surface-dark p-6 sm:p-8 rounded-xl space-y-8">
+                <p className="text-sm text-text-secondary">
+                    {flow === 'canvas'
+                        ? 'A canvas uses 10 AI units. A custom prompt adds 1 unit for topic analysis.'
+                        : 'A quiz uses 1 AI unit total, not 1 per question.'} Video sources add 1 unit each per request.
+                </p>
                 <div>
                     <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-3">
@@ -158,12 +163,13 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
                             <button onClick={handleDeselectAll} className="text-sm font-semibold text-brand-primary hover:underline">Deselect All</button>
                         </div>
                     </div>
+                    {flow === 'canvas' && <p className="text-sm text-text-secondary mb-3">{selectedTopics.length} of 8 topics selected. Deselect one to choose another.</p>}
                     {isAnalyzingTopics ? (
                         <div className="flex justify-center items-center h-24"><LoadingSpinner /></div>
                     ) : (
                         <div className="flex flex-wrap gap-2">
                             {topics?.map(topic => (
-                                <button key={topic} onClick={() => handleTopicToggle(topic)} className={`px-3 py-2 text-sm rounded-full transition-all border-2 ${selectedTopics.includes(topic) ? 'bg-brand-primary border-brand-primary text-white font-bold' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}>
+                                <button key={topic} onClick={() => handleTopicToggle(topic)} disabled={flow === 'canvas' && !selectedTopics.includes(topic) && selectedTopics.length >= 8} className={`px-3 py-2 text-sm rounded-full transition-all border-2 disabled:opacity-40 disabled:cursor-not-allowed ${selectedTopics.includes(topic) ? 'bg-brand-primary border-brand-primary text-white font-bold' : 'bg-gray-700 border-gray-600 hover:bg-gray-600'}`}>
                                     {selectedTopics.includes(topic) ? '✓ ' : ''}{topic}
                                 </button>
                             ))}
@@ -214,7 +220,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({
                         <h3 className="text-2xl font-bold text-text-primary mb-4">Custom Focus <span className="text-base font-normal text-text-secondary">(Optional)</span></h3>
                         <p className="text-text-secondary mb-3 text-sm">
                             Describe what you want the canvas to focus on. For example, "Create a timeline of the key events" or "Compare and contrast the main characters".
-                            <strong className="text-yellow-400 block mt-1">Using a custom prompt will override the topic selections above.</strong>
+                            <strong className="text-yellow-400 block mt-1">A custom prompt replaces your selections with up to 8 generated topics.</strong>
                         </p>
                         <textarea
                             value={customPrompt}

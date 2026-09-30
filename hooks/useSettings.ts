@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { getActiveAccountId } from '../utils/activeAccount';
 
-const STORAGE_KEY = 'adaptive-study-game-settings';
+const storageKey = () => `adaptive-study-game-settings-account-${encodeURIComponent(getActiveAccountId())}`;
 
 export interface AppSettings {
     enableConfidenceCheck: boolean;
@@ -15,7 +16,7 @@ export function useSettings() {
     const [isLoaded, setIsLoaded] = useState(false);
 
     useEffect(() => {
-        const stored = localStorage.getItem(STORAGE_KEY);
+        const stored = localStorage.getItem(storageKey());
         if (stored) {
             try {
                 setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(stored) });
@@ -29,7 +30,7 @@ export function useSettings() {
     const updateSettings = (newSettings: Partial<AppSettings>) => {
         setSettings(prev => {
             const updated = { ...prev, ...newSettings };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            localStorage.setItem(storageKey(), JSON.stringify(updated));
             return updated;
         });
     };

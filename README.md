@@ -1,8 +1,8 @@
-# Adaptive Study Game
+# JStar Study
 
 ![App Screenshot](https://storage.googleapis.com/project-screenshots/adaptive-study-game/landing-page-preview.gif)
 
-An intelligent study tool that uses the Google Gemini API to transform your notes, documents, and even YouTube videos into an interactive, gamified quest for knowledge. With a personal AI tutor to guide you, diverse question types to challenge you, and a powerful analytics engine to track your progress, this app is designed to help you learn faster and more effectively.
+A study tool that turns notes, documents and YouTube videos into quizzes, reading canvases and exam practice. It uses GPT-6 Luna through OpenRouter for ordinary AI requests and Gemini for video, audio and Google-grounded search. With a personal AI tutor to guide you, diverse question types to challenge you, and a powerful analytics engine to track your progress, this app is designed to help you learn faster and more effectively.
 
 <p align="center">
   <img alt="React" src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB"/>
@@ -61,10 +61,10 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 
 ## 🚀 Project Philosophy
 > This project is built on a few core principles:
-> 1.  **AI-First Experience**: Leveraging the powerful Gemini family of models, using `gemini-2.5-flash` for fast, real-time interactions and `gemini-2.5-pro` for high-quality analysis and generation tasks.
+> 1.  **AI-First Experience**: Luna handles most AI requests, with Gemini retained for video, audio and Google-grounded search.
 > 2.  **Performance-Oriented Architecture**: Employs advanced patterns like **"Parallel Pipelines"** and **"Guided Generation"** to break down complex AI tasks into smaller, simultaneous jobs. This significantly reduces latency for features like quiz and canvas generation while ensuring reliable, well-structured output.
-> 3.  **Frictionless Development**: By using browser-native ES Modules and a CDN (`esm.sh`), the project avoids complex build steps. There's no `npm install`, no bundler configuration—just modern web technologies.
-> 4.  **User-Centric Design**: The entire experience is designed to be intuitive, engaging, and effective for learning. Data is stored locally in the user's browser, ensuring privacy and persistence without a backend.
+> 3.  **Development**: Vite builds the React UI. Vercel Functions handle AI requests without exposing API keys in the browser.
+> 4.  **Local Data**: Study sets and history stay in browser IndexedDB. AI requests send the materials needed for each task through a Vercel Function to OpenRouter or Gemini.
 
 
 ## 🛠️ How It Works
@@ -82,13 +82,13 @@ An intelligent study tool that uses the Google Gemini API to transform your note
 
 
 ## 💻 Tech Stack
-This app is built with a modern, build-free stack, focusing on performance and developer experience.
+The frontend is built with React, TypeScript and Vite. Vercel Functions handle AI requests.
 
 -   **Core Framework**: [React](https://react.dev/) (with Hooks) & [TypeScript](https://www.typescriptlang.org/) for a robust and type-safe UI.
--   **AI Engine**: [Google Gemini API](https://ai.google.dev/) using a suite of models (`gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`) for intelligent features.
+-   **AI Engine**: [OpenRouter](https://openrouter.ai/) with `openai/gpt-6-luna`, plus [Gemini](https://ai.google.dev/) for video, audio and grounded search.
 -   **Styling**: [Tailwind CSS](https://tailwindcss.com/) for a utility-first, responsive design system.
 -   **Animation**: [Framer Motion](https://www.framer.com/motion/) for fluid, physics-based UI animations.
--   **Module System**: Browser-native ES Modules loaded directly from the [esm.sh](https://esm.sh/) CDN. This eliminates the need for local `node_modules` or a bundling step.
+-   **Build**: Vite bundles the frontend. AI requests go to same-origin Vercel Functions.
 -   **Client-Side File Processing**:
     -   [PDF.js](https://mozilla.github.io/pdf.js/) for parsing `.pdf` files.
     -   [Mammoth.js](https://github.com/mwilliamson/mammoth.js) for extracting text from `.docx` files.
@@ -98,73 +98,36 @@ This app is built with a modern, build-free stack, focusing on performance and d
 
 ## 🔧 Getting Started
 
-This application is designed to run in a web-based development environment that can serve static files and provide environment variables.
+The frontend needs its same-origin API handlers. Use the Vite dev server locally or deploy the Vite app with its Vercel Functions.
 
 ### Prerequisites
 
-- A modern web browser (e.g., Chrome, Firefox, Safari, Edge).
-- A Google Gemini API Key.
+- Node.js and pnpm 10.33.2
+- An OpenRouter key for `openai/gpt-6-luna`
+- A Gemini key for YouTube videos, uploaded audio and the Google-grounded web-search quiz mode
 
-### Configuration
+### Configuration and data flow
 
-The application requires a Google Gemini API key to function. The key(s) must be available as an environment variable. The app checks for variables in the following order of precedence:
+Set `OPENROUTER_API_KEY` and `GEMINI_API_KEY` in ignored `.env.local` for local development and as server-only environment variables on Vercel. Do not use `VITE_` prefixes or paste keys into the browser. Older `API_KEY_POOL` and `API_KEY` variables are no longer used. Rotate any keys previously committed to Git.
 
-1.  **`API_KEY_POOL`**: For one or more keys, comma-separated. **This is the recommended method** for enabling load balancing and failover.
-2.  **`API_KEY`**: A fallback for a single key, supported for backward compatibility.
-3.  **`GEMINI_API_KEY`**: A final fallback, primarily for compatibility with certain development environments (like Vite configs that expose this variable).
+The account implementation needs `DATABASE_URL_POOLED` (or `DATABASE_URL`), `BETTER_AUTH_URL` (the app origin), and a random `BETTER_AUTH_SECRET` of at least 32 characters. Better Auth's four tables and the two app tables in `server/sql/001_public_accounts.sql` were applied to the owner's confirmed empty Neon project and branch. The local email/password flow and concurrent quota admission passed against that branch; the temporary test user was removed. Keep database URLs and secrets in ignored local or server-only settings, never in Git.
 
-#### Recommended Method (for one or more keys)
+Local `pnpm dev` offers email/password test accounts when `AUTH_DEV_PASSWORD_ENABLED=true` is set in `.env.local`, without Google credentials. Email verification and password recovery are unavailable, and Vercel disables this method entirely. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from your own Google OAuth web client when ready; then authorize the exact app URL plus `/api/auth/callback/google`. The UI shows Google only after both values are present. Test how Google links to existing email/password accounts before using both methods with the same data.
 
-Use the `API_KEY_POOL` environment variable.
+The Vite UI keeps study sets and quiz history in a separate browser IndexedDB database per signed-in user. Existing anonymous browser data is not assigned to an account. AI requests go to `/api/ai` and `/api/chat` on the same origin; these endpoints require a session and configured daily user/global quotas before reaching OpenRouter or Gemini. The local test configuration uses `AI_DAILY_USER_UNITS=25`, `AI_DAILY_GLOBAL_UNITS=100` and `AI_MAX_OUTPUT_TOKENS=8192`; these are provisional, not approved public-launch limits. The server refuses AI calls if any limit is missing. Admission is atomic and charged even if a provider fails. A reading layout costs ten units and supports up to eight selected topics; streamed feedback costs three units, and quiz generation costs one unit for the whole quiz, not per question. Other requests cost one unit each. Video sources add one unit each per request, and a canvas custom prompt adds a separate topic-analysis request. Invalid over-limit canvas topic requests are rejected before admission. Units are a coarse allowance, **not** a currency-denominated spending ceiling. The output-token cap applies to OpenRouter and Gemini text generation, not the separate YouTube extraction request. Do not open public access without an independent provider spending cap and abuse controls.
 
-**Example with multiple keys:**
-`API_KEY_POOL="key_one,key_two,key_three"`
+### Running locally
 
-**Example with a single key:**
-`API_KEY_POOL="my_only_key"`
+1. Use pnpm 10.33.2 and run `pnpm install --frozen-lockfile`.
+2. Copy `.env.example` to ignored `.env.local` and fill the database URL, auth URL and auth secret. This machine already has local auth settings. Leave the Google fields empty to test email/password. Do not enable public AI access until the spending cap and abuse controls are ready.
+3. Run `pnpm dev` and open the displayed Vite URL. Vite runs the auth, AI and chat handlers locally.
+4. Run `pnpm test:local`, `pnpm exec tsc --noEmit` and `pnpm build`. Local tests use fake IndexedDB and never contact Neon or an AI provider.
 
-#### Fallback Methods (for a single key)
-
-If `API_KEY_POOL` is not set, the app will look for `API_KEY` or `GEMINI_API_KEY`.
-
-**Example:**
-`API_KEY="my_single_key"`
-
-or
-
-`GEMINI_API_KEY="my_single_key"`
-
-**Note**: It is best practice to use `API_KEY_POOL`. If `API_KEY_POOL` is set, all other key variables will be **ignored**.
-
-### Running the Application
-
-1. Ensure one of the API key environment variables is set (`API_KEY_POOL`, `API_KEY`, or `GEMINI_API_KEY`).
-2. Serve the `index.html` file from the root of the project directory.
-3. Open the served URL in your web browser. The application will initialize and be ready to use.
-
-**Note**: This is a live web application under active development. If you are using a hosted version, please refresh the page periodically to access the latest features and improvements.
-
-# vite.config.ts
-import path from 'path';
-import { defineConfig, loadEnv } from 'vite';
-
-export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
-    return {
-      define: {
-        'process.env.API_KEY_POOL': JSON.stringify(env.API_KEY_POOL),
-        'process.env.API_KEY': JSON.stringify(env.API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
-      resolve: {
-        alias: {
-          '@': path.resolve(__dirname, '.'),
-        }
-      }
-    };
-});
+A static file server or `pnpm preview` alone cannot serve `/api/auth/*`, `/api/ai` and `/api/chat`. On Vercel, `vercel.json` builds the Vite frontend into `dist` and the files under `api/` run as functions. The AI endpoints return 503 on Vercel unless you explicitly set server-only `AI_API_ENABLED=true`. No Vercel deployment or AI gate change was made. Keep public AI access off until Google login, a provider spend cap, abuse controls and launch approval are complete.
 
 ## 🗺️ Roadmap
+
+Public-account launch requirements are in [docs/features/PublicAccounts.md](docs/features/PublicAccounts.md). Later agent tasks are in [docs/features/DeferredWork.md](docs/features/DeferredWork.md).
 
 - [x] **Deeper Analysis**: Provide users with insights into their weak spots and suggest topics to focus on. (Implemented!)
 - [x] **More Question Types**: Introduce matching and sequencing questions. (Implemented!)

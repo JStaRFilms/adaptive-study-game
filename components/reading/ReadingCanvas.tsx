@@ -176,7 +176,7 @@ interface ReadingCanvasProps {
   onSendMessage: (message: string) => void;
   onToggleChat: () => void;
   onCloseChat: () => void;
-  onClearChat: () => void;
+  onClearChat: (clearedSet?: StudySet) => void;
   onStartCustomQuiz: (topics: string[], studySet: StudySet | null, numQuestions?: number) => void;
   pendingUIAction: { type: string; payload: any } | null;
   onActionConsumed: () => void;
@@ -196,7 +196,7 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   useEffect(() => {
-    setCurrentLayout(studySet.readingLayout);
+    setCurrentLayout(studySet.readingLayout ?? (appState === AppState.READING_CANVAS ? { blocks: [], columns: 24, rows: 0 } : null));
     // Find if any block is expanded in the current layout to set the expandedBlockId
     const expandedParent = studySet.readingLayout?.blocks.find(b => 
         studySet.readingLayout?.blocks.some(sub => sub.parentId === b.id)
@@ -341,28 +341,22 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
   };
 
   const handleClearCanvasClick = async () => {
+    if (isAITyping || isUpdatingCanvas) return;
     if (window.confirm("Are you sure you want to clear the entire canvas? This cannot be undone. You can then build a new canvas from scratch using the AI chat.")) {
+        setIsRegenerating(true);
         setError(null);
-        setExpandedBlockId(null);
-        
-        // This clears the persistent state. The next time the user enters this screen,
-        // they will see the setup/topic selection screen.
-        await updateSet({
-            ...studySet,
-            readingLayout: null,
-            subConceptCache: {}
-        });
-
-        // This clears the visual state for the current session, showing a blank canvas
-        // without navigating away, allowing the user to build a new one with the AI.
-        setCurrentLayout({
-            blocks: [],
-            columns: 24,
-            rows: 0
-        });
-
-        // Clear the chat to provide a fresh start for building the new canvas.
-        onClearChat();
+        try {
+            // Keep the persisted set and the tutor's in-memory context in sync.
+            const clearedSet = { ...studySet, readingLayout: null, subConceptCache: {}, readingChatHistory: [] };
+            await updateSet(clearedSet);
+            setExpandedBlockId(null);
+            setCurrentLayout({ blocks: [], columns: 24, rows: 0 });
+            onClearChat(clearedSet);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to clear canvas.');
+        } finally {
+            setIsRegenerating(false);
+        }
     }
   };
   
@@ -429,7 +423,7 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
             <p className="text-text-secondary">"{studySet.name}"</p>
         </div>
         <div className="flex gap-2 self-start sm:self-center flex-wrap justify-start sm:justify-end">
-            <button onClick={handleClearCanvasClick} disabled={isRegenerating || isLoadingAI} className="px-4 py-2 bg-incorrect text-white font-bold rounded-lg hover:bg-red-600 transition-all flex items-center gap-2 disabled:bg-gray-500 disabled:cursor-not-allowed">
+            <button onClick={handleClearCanvasClick} disabled={isRegenerating || isLoadingAI || isAITyping || isUpdatingCanvas} className="px-4 py-2 bg-incorrect text-white font-bold rounded-lg hover:bg-red-600 transition-all flex items-center gap-2 disabled:bg-gray-500 disabled:cursor-not-allowed">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
                 Clear Canvas
             </button>
@@ -501,11 +495,11 @@ const ReadingCanvas: React.FC<ReadingCanvasProps> = ({
         onClose={onCloseChat}
         onSendMessage={(msg) => onSendMessage(msg)}
         messages={chatMessages}
-        isTyping={isAITyping}
+        isTyping={isAITyping || isRegenerating}
         error={chatError}
         isEnabled={isChatEnabled}
         disabledTooltipText="Chat is unavailable"
-        onClearChat={onClearChat}
+        onClearChat={() => onClearChat()}
       />
     </div>
   );

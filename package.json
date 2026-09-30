@@ -2,29 +2,36 @@
   "name": "adaptive-study-game",
   "private": true,
   "version": "0.0.0",
+  "packageManager": "pnpm@10.33.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:local": "node --import tsx --test tests/storage.test.ts tests/apiGate.test.ts tests/quota.test.ts tests/providerLimits.test.ts tests/authMethods.test.ts tests/aiRequest.test.ts tests/topicSelector.test.ts tests/youtubeForm.test.ts"
   },
   "dependencies": {
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
     "@google/genai": "^1.10.0",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
+    "better-auth": "^1.7.5",
     "framer-motion": "^11.18.2",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.0",
     "jspdf": "^3.0.1",
     "mammoth": "^1.9.1",
     "pdfjs-dist": "^5.3.93",
+    "pg": "^8.23.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.1.9",
+    "fake-indexeddb": "^6.2.5",
+    "tsx": "^4.23.15",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

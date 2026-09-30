@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-const ANNOUNCEMENT_ID = 'reading-canvas-interactive-questions-20240801'; // Change this ID for new announcements
+const ANNOUNCEMENT_ID = 'account-isolated-study-20260926';
 const ANNOUNCEMENT_MESSAGE = (
     <>
-        <strong>✨ Major Update!</strong> Explore your notes with the new visual Reading Canvas and master concepts with interactive Matching & Sequence questions!
+        <strong>Account sign-in is here.</strong> Study sets stay on this device and are kept separate for each account.
     </>
 );
 

@@ -153,7 +153,16 @@ const SetupScreen: React.FC<SetupScreenProps> = ({
     }, [prepareAndAnalyzeTopics]);
 
     const handlePrepareForCanvas = useCallback(async (set: StudySet) => {
-        const { parts } = await processFilesToParts(set.content, [], () => { });
+        const parts: PromptPart[] = [];
+        if (set.content.trim()) parts.push({ text: set.content.trim() });
+        for (const file of set.persistedFiles || []) {
+            if (file.type.startsWith('image/') || file.type.startsWith('audio/')) {
+                parts.push({ inlineData: { mimeType: file.type, data: file.data } });
+            }
+        }
+        for (const url of set.youtubeUrls || []) {
+            parts.push({ text: `\n\n[Content from YouTube video: ${url}]\nThis content should be analyzed by watching the video or reading its transcript.` });
+        }
         await prepareAndAnalyzeTopics(set, parts, 'CANVAS_TOPIC_SELECTION');
     }, [prepareAndAnalyzeTopics]);
 

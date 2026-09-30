@@ -184,7 +184,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch, onLaunchWithContent
                             <a href="/terms.html" className="hover:text-white underline underline-offset-4">Terms of service</a>
                         </nav>
                         <p className="text-sm text-white/50">© 2025 JStaR Films. All Rights Reserved.</p>
-                        <p className="text-xs text-white/70 mt-2">Powered by the Google Gemini API.</p>
+                        <p className="text-xs text-white/70 mt-2">Powered by GPT-6 Luna and Gemini.</p>
                         <p className="text-xs italic text-white/60 mt-4">Don't forget to refresh the app at least once a day because I update it regularly.</p>
                     </div>
                 </footer>

@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import Modal from '../common/Modal';
 import LoadingSpinner from '../common/LoadingSpinner';
-import { getDb, STORE_NAMES, StoreName } from '../../utils/db';
+import { getDb, getAnonymousData, STORE_NAMES, StoreName } from '../../utils/db';
 import { QuizResult } from '../../types';
 
 interface DataManagementModalProps {
@@ -15,6 +15,7 @@ const DataManagementModal: React.FC<DataManagementModalProps> = ({ isOpen, onClo
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [error, setError] = useState('');
   const [confirmImport, setConfirmImport] = useState(false);
+  const [anonymousBackup, setAnonymousBackup] = useState<Partial<Record<StoreName, unknown[]>> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileToImport = useRef<File | null>(null);
 
@@ -101,6 +102,33 @@ const DataManagementModal: React.FC<DataManagementModalProps> = ({ isOpen, onClo
         setIsLoading(false);
         setTimeout(() => setFeedbackMessage(''), 3000);
     }
+  };
+
+  const reviewAnonymousData = async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      const backup = await getAnonymousData();
+      setAnonymousBackup(backup);
+      if (!Object.values(backup).some(items => items?.length)) setFeedbackMessage('No anonymous records found.');
+    } catch {
+      setError('Could not read old local data. If you have a JSON backup, import it from file instead.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const downloadAnonymousData = () => {
+    if (!anonymousBackup) return;
+    const blob = new Blob([JSON.stringify(anonymousBackup)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'adaptive-study-anonymous-backup.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   };
 
   const handleImportClick = () => {
@@ -197,6 +225,14 @@ const DataManagementModal: React.FC<DataManagementModalProps> = ({ isOpen, onClo
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L12 5.414V13a1 1 0 11-2 0V5.414L8.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
                 Import from File
               </button>
+            </div>
+            <div className="space-y-2 border-t border-gray-700 pt-4 text-sm">
+              <p>Old anonymous data is not assigned to your account. Review and download it first, then use Import from File only if this is the right account. Export your current account before importing; matching IDs can be overwritten.</p>
+              <button onClick={reviewAnonymousData} disabled={isLoading} className="underline disabled:opacity-50">Review old local data</button>
+              {anonymousBackup && Object.values(anonymousBackup).some(items => items?.length) && <div>
+                <p>{STORE_NAMES.map(store => `${store}: ${anonymousBackup[store]?.length ?? 0}`).join(' · ')}</p>
+                <button onClick={downloadAnonymousData} className="mt-2 underline">Download anonymous backup</button>
+              </div>}
             </div>
           </div>
           

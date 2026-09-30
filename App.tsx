@@ -2,7 +2,8 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { AppState, Quiz, QuizConfig, StudyMode, AnswerLog, PromptPart, QuizResult, OpenEndedAnswer, PredictedQuestion, StudySet, PersonalizedFeedback, KnowledgeSource, ChatMessage, Question, QuestionType, MultipleChoiceQuestion, UserAnswer, MatchingQuestion, SequenceQuestion, ReadingLayout, CanvasGenerationProgress, ReadingBlock as ReadingBlockType } from './types';
-import { GoogleGenAI, Chat } from '@google/genai';
+import { ChatSession } from './services/chat';
+import { focusedQuizSuggestion, reviewGreeting, savedReviewHistory, savedReviewTurns } from './services/reviewChatHistory';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import SetupScreen from './components/SetupScreen';
@@ -25,16 +26,7 @@ import { usePredictions } from './hooks/usePredictions';
 import { useSRS } from './hooks/useSRS';
 import { useSettings } from './hooks/useSettings';
 import { processFilesToParts } from './utils/fileProcessor';
-import { initializeDb } from './utils/db';
-import MigrationScreen from './components/MigrationScreen';
 import ProgressBar from './components/common/ProgressBar';
-
-const LEGACY_STORAGE_KEYS = [
-  'adaptive-study-game-sets',
-  'adaptive-study-game-history',
-  'adaptive-study-game-predictions',
-  'adaptive-study-game-srs',
-];
 
 const App: React.FC = () => {
   const [showLanding, setShowLanding] = useState(true);
@@ -63,12 +55,8 @@ const App: React.FC = () => {
   const [feedback, setFeedback] = useState<Partial<PersonalizedFeedback> | null>(null);
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
 
-  // Migration State
-  const [isMigrating, setIsMigrating] = useState(false);
-  const [migrationChecked, setMigrationChecked] = useState(false);
-
   // Chat State
-  const [chat, setChat] = useState<Chat | null>(null);
+  const [chat, setChat] = useState<ChatSession | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isAITyping, setIsAITyping] = useState(false);
@@ -82,25 +70,6 @@ const App: React.FC = () => {
   const [, updateSRSItem, getReviewPool] = useSRS();
   const { settings } = useSettings();
 
-  useEffect(() => {
-    const checkForMigration = async () => {
-      // Check if any old data exists in localStorage
-      const needsMigration = LEGACY_STORAGE_KEYS.some(key => localStorage.getItem(key) !== null);
-
-      if (needsMigration) {
-        setIsMigrating(true);
-        // Trigger the database initialization which will run the migration logic.
-        // Awaiting this ensures we don't proceed until the migration is complete.
-        await initializeDb();
-        setIsMigrating(false);
-      }
-
-      setMigrationChecked(true);
-    };
-
-    checkForMigration();
-  }, []); // Empty dependency array ensures this runs only once on mount.
-
   const isPredictionFlow = [
     AppState.PREDICTION_SETUP,
     AppState.PREDICTING,
@@ -108,14 +77,14 @@ const App: React.FC = () => {
   ].includes(appState);
 
   useEffect(() => {
-    if (isPredictionFlow || isMigrating) {
+    if (isPredictionFlow) {
       document.body.classList.remove('bg-background-dark', 'font-sans');
       document.body.classList.add('bg-pattern', 'font-serif');
     } else {
       document.body.classList.remove('bg-pattern', 'font-serif');
       document.body.classList.add('bg-background-dark', 'font-sans');
     }
-  }, [isPredictionFlow, isMigrating]);
+  }, [isPredictionFlow]);
 
 
   const handleLaunchApp = useCallback(() => {
@@ -148,16 +117,11 @@ const App: React.FC = () => {
         setQuiz(generatedQuiz);
 
         // Initialize Chat
-        const firstKey = (process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY)?.split(',')[0].trim();
-        if (firstKey && set) {
+        if (set) {
           try {
-            const ai = new GoogleGenAI({ apiKey: firstKey });
             const historyForSet = history.filter(r => r.studySetId === studySetId);
             const systemInstruction = getStudyChatSystemInstruction(set, generatedQuiz, historyForSet);
-            const newChat = ai.chats.create({
-              model: 'gemini-2.5-flash',
-              config: { systemInstruction },
-            });
+            const newChat = new ChatSession(systemInstruction);
             setChat(newChat);
             setChatMessages([
               { role: 'model', text: `Hi! I'm your AI study coach. I have context on your notes for "${set.name}" and the questions in this quiz. Ask me anything about the current question!` }
@@ -345,7 +309,7 @@ const App: React.FC = () => {
 
   const saveReviewChatIfDirty = useCallback(async () => {
     if (appState === AppState.REVIEWING && currentResult) {
-      const cleanedChatHistory = chatMessages.map(({ action, ...rest }) => rest);
+      const cleanedChatHistory = savedReviewHistory(chatMessages);
       // Only update if there's a change to prevent unnecessary writes
       if (JSON.stringify(cleanedChatHistory) !== JSON.stringify(currentResult.chatHistory || [])) {
         const updatedResult = { ...currentResult, chatHistory: cleanedChatHistory };
@@ -403,12 +367,12 @@ const App: React.FC = () => {
     setAnswerLog(resultToReview.answerLog);
 
     // Load chat for review, re-hydrating buttons and preventing duplicates
-    const initialMessages: ChatMessage[] = resultToReview.chatHistory
-      ? JSON.parse(JSON.stringify(resultToReview.chatHistory))
-      : [];
+    const savedMessages = savedReviewHistory(resultToReview.chatHistory || []);
+    const modelMessages = savedReviewTurns(savedMessages);
+    const initialMessages = savedMessages.map(message => ({ ...message }));
 
-    if (initialMessages.length === 0 && reviewSet) {
-      initialMessages.push({ role: 'model', text: `You are reviewing your quiz on "${reviewSet.name}". Feel free to ask me anything about your performance or the questions.` });
+    if (modelMessages.length === 0 && reviewSet) {
+      initialMessages.unshift({ role: 'model', text: reviewGreeting(reviewSet.name) });
     }
 
     let hasWeaknessSuggestion = initialMessages.some(msg => msg.action && msg.action.text.includes('Create Focused Quiz'));
@@ -432,7 +396,7 @@ const App: React.FC = () => {
     if (weaknessTopics && weaknessTopics.length > 0 && !hasWeaknessSuggestion && reviewSet) {
       const suggestionMessage: ChatMessage = {
         role: 'model',
-        text: "Based on your results, I've identified some areas we can work on. I can create a quiz to help you practice.",
+        text: focusedQuizSuggestion,
         action: {
           text: `Create Focused Quiz (${weaknessTopics.length} topic${weaknessTopics.length > 1 ? 's' : ''})`,
           onClick: () => handleStartFocusedQuiz(weaknessTopics, reviewSet)
@@ -445,17 +409,9 @@ const App: React.FC = () => {
 
     if (reviewSet) {
       try {
-        const firstKey = (process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY)?.split(',')[0].trim();
-        if (firstKey) {
-          const ai = new GoogleGenAI({ apiKey: firstKey });
-          const systemInstruction = getReviewChatSystemInstruction(reviewSet, resultToReview, resultToReview.feedback || null);
-          const newChat = ai.chats.create({
-            model: 'gemini-2.5-flash',
-            config: { systemInstruction },
-          });
-          setChat(newChat);
-          setChatError(null);
-        }
+        const systemInstruction = getReviewChatSystemInstruction(reviewSet, resultToReview, resultToReview.feedback || null);
+        setChat(new ChatSession(systemInstruction, modelMessages));
+        setChatError(null);
       } catch (e) {
         console.error("Failed to initialize review chat", e);
         setChatError("Could not start AI review chat session.");
@@ -590,7 +546,7 @@ const App: React.FC = () => {
 
       if (config.customPrompt && config.customPrompt.trim()) {
         setCanvasProgress({ stage: 'Analyzing custom focus...', progress: 5 });
-        topicsForLayout = await identifyCoreConcepts(allParts, config.customPrompt.trim());
+        topicsForLayout = (await identifyCoreConcepts(allParts, config.customPrompt.trim())).slice(0, 8);
       }
 
       const layout = await buildReadingLayoutInParallel(allParts, (progressUpdate) => {
@@ -602,26 +558,18 @@ const App: React.FC = () => {
       setCurrentStudySet(updatedSet);
 
       // Initialize chat for the newly generated canvas
-      const firstKey = (process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY)?.split(',')[0].trim();
-      if (firstKey) {
-        try {
-          const ai = new GoogleGenAI({ apiKey: firstKey });
-          const historyForSet = history.filter(r => r.studySetId === studySet.id);
-          const systemInstruction = getReadingCanvasChatSystemInstruction(updatedSet, layout, historyForSet);
-          const newChat = ai.chats.create({
-            model: 'gemini-2.5-flash',
-            config: { systemInstruction },
-          });
-          setChat(newChat);
-          // This is a new canvas, so chat history should be new.
-          setChatMessages([
-            { role: 'model', text: `Hello! I'm your AI tutor for "${updatedSet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }
-          ]);
-          setChatError(null);
-        } catch (e) {
-          console.error("Failed to initialize reading chat after canvas generation", e);
-          setChatError("Could not start AI chat session.");
-        }
+      try {
+        const historyForSet = history.filter(r => r.studySetId === studySet.id);
+        const systemInstruction = getReadingCanvasChatSystemInstruction(updatedSet, layout, historyForSet);
+        setChat(new ChatSession(systemInstruction));
+        // This is a new canvas, so chat history should be new.
+        setChatMessages([
+          { role: 'model', text: `Hello! I'm your AI tutor for "${updatedSet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }
+        ]);
+        setChatError(null);
+      } catch (e) {
+        console.error("Failed to initialize reading chat after canvas generation", e);
+        setChatError("Could not start AI chat session.");
       }
 
       setAppState(AppState.READING_CANVAS);
@@ -641,27 +589,19 @@ const App: React.FC = () => {
 
     if (studySet.readingLayout) {
       // Chat Initialization for existing Reading Canvas
-      const firstKey = (process.env.API_KEY_POOL || process.env.API_KEY || process.env.GEMINI_API_KEY)?.split(',')[0].trim();
-      if (firstKey) {
-        try {
-          const ai = new GoogleGenAI({ apiKey: firstKey });
-          const historyForSet = history.filter(r => r.studySetId === studySet.id);
-          const systemInstruction = getReadingCanvasChatSystemInstruction(studySet, studySet.readingLayout, historyForSet);
-          const newChat = ai.chats.create({
-            model: 'gemini-2.5-flash',
-            config: { systemInstruction },
-          });
-          setChat(newChat);
-          const initialMessages: ChatMessage[] = studySet.readingChatHistory ? JSON.parse(JSON.stringify(studySet.readingChatHistory)) : [];
-          if (initialMessages.length === 0) {
-            initialMessages.push({ role: 'model', text: `Hello! I'm your AI tutor for "${studySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` });
-          }
-          setChatMessages(initialMessages);
-          setChatError(null);
-        } catch (e) {
-          console.error("Failed to initialize reading chat", e);
-          setChatError("Could not start AI chat session.");
+      try {
+        const historyForSet = history.filter(r => r.studySetId === studySet.id);
+        const systemInstruction = getReadingCanvasChatSystemInstruction(studySet, studySet.readingLayout, historyForSet);
+        const initialMessages: ChatMessage[] = studySet.readingChatHistory ? JSON.parse(JSON.stringify(studySet.readingChatHistory)) : [];
+        if (initialMessages.length === 0) {
+          initialMessages.push({ role: 'model', text: `Hello! I'm your AI tutor for "${studySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` });
         }
+        setChat(new ChatSession(systemInstruction, initialMessages));
+        setChatMessages(initialMessages);
+        setChatError(null);
+      } catch (e) {
+        console.error("Failed to initialize reading chat", e);
+        setChatError("Could not start AI chat session.");
       }
       setAppState(AppState.READING_CANVAS);
     } else {
@@ -931,22 +871,23 @@ const App: React.FC = () => {
     }
   }, [chat, isAITyping, handleStartCustomQuiz, currentStudySet, appState, handleUpdateCanvas]);
 
-  const handleClearChat = useCallback(() => {
-    if (appState === AppState.READING_CANVAS && currentStudySet) {
-      setChatMessages([{ role: 'model', text: `Hello! I'm your AI tutor for "${currentStudySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }]);
-    } else if (appState === AppState.REVIEWING && currentResult) {
-      const reviewSet = studySets.find(s => s.id === currentResult.studySetId);
-      setChatMessages([{ role: 'model', text: `You are reviewing your quiz on "${reviewSet?.name}". Feel free to ask me anything about your performance or the questions.` }]);
+  const handleClearChat = useCallback((clearedSet?: StudySet) => {
+    if (isAITyping) return;
+    const studySet = clearedSet ?? currentStudySet;
+    if (appState === AppState.READING_CANVAS && studySet) {
+      if (clearedSet) setCurrentStudySet(clearedSet);
+      const historyForSet = history.filter(result => result.studySetId === studySet.id);
+      const layout = studySet.readingLayout ?? { blocks: [], columns: 24, rows: 0 };
+      const systemInstruction = getReadingCanvasChatSystemInstruction(studySet, layout, historyForSet);
+      setChat(new ChatSession(systemInstruction));
+      setChatMessages([{ role: 'model', text: `Hello! I'm your AI tutor for "${studySet.name}". Ask me anything about the concepts on the canvas, or ask me to create a custom quiz for you!` }]);
+    } else if (appState === AppState.REVIEWING && currentResult && studySet) {
+      const systemInstruction = getReviewChatSystemInstruction(studySet, currentResult, currentResult.feedback || null);
+      setChat(new ChatSession(systemInstruction));
+      setChatMessages([{ role: 'model', text: reviewGreeting(studySet.name) }]);
     }
-  }, [appState, currentStudySet, currentResult, studySets]);
-
-  if (!migrationChecked) {
-    return <div className="flex justify-center items-center min-h-screen"><LoadingSpinner /></div>;
-  }
-
-  if (isMigrating) {
-    return <MigrationScreen />;
-  }
+    setChatError(null);
+  }, [appState, currentStudySet, currentResult, history, isAITyping]);
 
   if (showLanding) {
     return <LandingPage onLaunch={handleLaunchApp} onLaunchWithContent={handleLaunchWithContent} />;
