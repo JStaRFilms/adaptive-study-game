@@ -1,4 +1,4 @@
-import { getDatabasePool } from './database';
+import { getDatabasePool } from './database.js';
 
 function configuredLimit(name: string): number {
   const value = process.env[name];

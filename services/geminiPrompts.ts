@@ -1,6 +1,6 @@
 
 
-import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, StudySet, Quiz, QuizResult, PersonalizedFeedback, QuestionType, MatchingQuestion, SequenceQuestion, ReadingLayout, ReadingBlock, BlockContent } from '../types';
+import { KnowledgeSource, StudyMode, PromptPart, OpenEndedQuestion, Question, PredictedQuestion, StudySet, Quiz, QuizResult, PersonalizedFeedback, QuestionType, MatchingQuestion, SequenceQuestion, ReadingLayout, ReadingBlock, BlockContent } from '../types.js';
 
 export const getQuizSystemInstruction = (numberOfQuestions: number, knowledgeSource: KnowledgeSource, mode: StudyMode, topics?: string[], customInstructions?: string): string => {
     let baseInstruction = '';

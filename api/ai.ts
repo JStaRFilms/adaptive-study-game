@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import * as ai from '../server/aiService';
-import { getAuthenticatedUserId, isSameOrigin } from '../server/auth';
-import { admitAiRequest } from '../server/quota';
-import { assertYouTubeUrl, outputTokenLimit } from '../server/provider';
-import { KnowledgeSource, StudyMode, type OpenEndedAnswer, type PredictedQuestion, type PromptPart, type Question, type QuizConfig, type QuizResult, type ReadingBlock, type ReadingLayout } from '../types';
-import { maxVideoSources } from '../services/aiConstants';
+import * as ai from '../server/aiService.js';
+import { getAuthenticatedUserId, isSameOrigin } from '../server/auth.js';
+import { admitAiRequest } from '../server/quota.js';
+import { assertYouTubeUrl, outputTokenLimit } from '../server/provider.js';
+import { KnowledgeSource, StudyMode, type OpenEndedAnswer, type PredictedQuestion, type PromptPart, type Question, type QuizConfig, type QuizResult, type ReadingBlock, type ReadingLayout } from '../types.js';
+import { maxVideoSources } from '../services/aiConstants.js';
 
 type VercelRequest = IncomingMessage & { body?: unknown };
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);

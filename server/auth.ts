@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { fromNodeHeaders } from 'better-auth/node';
 import type { IncomingMessage } from 'node:http';
-import { getDatabasePool } from './database';
+import { getDatabasePool } from './database.js';
 
 export function getAuthMethods() {
   return {

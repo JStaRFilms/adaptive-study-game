@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { assertYouTubeUrl, resolveYouTube, outputTokenLimit, openRouterAttribution } from '../server/provider';
-import { getAuthenticatedUserId, isSameOrigin } from '../server/auth';
-import { admitAiRequest } from '../server/quota';
-import { modelFor } from '../services/aiConstants';
+import { assertYouTubeUrl, resolveYouTube, outputTokenLimit, openRouterAttribution } from '../server/provider.js';
+import { getAuthenticatedUserId, isSameOrigin } from '../server/auth.js';
+import { admitAiRequest } from '../server/quota.js';
+import { modelFor } from '../services/aiConstants.js';
 
 type VercelRequest = IncomingMessage & { body?: unknown };
 type ChatMessage = { role: 'user' | 'assistant'; content: string };

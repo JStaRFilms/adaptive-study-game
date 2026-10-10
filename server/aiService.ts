@@ -1,10 +1,10 @@
 
 
-import { AiClient, AiResponse, createAiClient } from './provider';
-import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion, ReadingLayout, ReadingBlock, SubConcept, BlockContent, CanvasGenerationProgress } from '../types';
-import { getQuizSchema, coreConceptsSchema, batchGradingSchema, predictionSchema, fibValidationSchema, studyGuideSchema, topicAnalysisSchema, narrowPassesSchema, summaryRecommendationSchema, readingLayoutSchema, subConceptsSchema, reflowedLayoutSchema, conceptSummarySchema } from '../services/geminiSchemas';
-import { getQuizSystemInstruction, getCoreConceptsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFibValidationSystemInstruction, getStudyGuideInstruction, getTopicAnalysisInstruction, getNarrowPassesInstruction, getSummaryRecommendationInstruction, getGridLayoutDesignInstruction, getReadingSubConceptGenerationSystemInstruction, getReadingLayoutReflowSystemInstruction, getConceptSummaryInstruction } from '../services/geminiPrompts';
-import { type ModelIdentifier, modelFor } from '../services/aiConstants';
+import { AiClient, AiResponse, createAiClient } from './provider.js';
+import { Quiz, Question, QuestionType, PromptPart, QuizConfig, KnowledgeSource, WebSource, OpenEndedAnswer, AnswerLog, PredictedQuestion, PersonalizedFeedback, FibValidationResult, FibValidationStatus, QuizResult, StudyGuide, MultipleChoiceQuestion, MatchingQuestion, SequenceQuestion, ReadingLayout, ReadingBlock, SubConcept, BlockContent, CanvasGenerationProgress } from '../types.js';
+import { getQuizSchema, coreConceptsSchema, batchGradingSchema, predictionSchema, fibValidationSchema, studyGuideSchema, topicAnalysisSchema, narrowPassesSchema, summaryRecommendationSchema, readingLayoutSchema, subConceptsSchema, reflowedLayoutSchema, conceptSummarySchema } from '../services/geminiSchemas.js';
+import { getQuizSystemInstruction, getCoreConceptsInstruction, getGradingSystemInstruction, getPredictionSystemInstruction, getPredictionUserPromptParts, getFibValidationSystemInstruction, getStudyGuideInstruction, getTopicAnalysisInstruction, getNarrowPassesInstruction, getSummaryRecommendationInstruction, getGridLayoutDesignInstruction, getReadingSubConceptGenerationSystemInstruction, getReadingLayoutReflowSystemInstruction, getConceptSummaryInstruction } from '../services/geminiPrompts.js';
+import { type ModelIdentifier, modelFor } from '../services/aiConstants.js';
 
 async function apiCallWithRetry<T>(
     apiFunction: (client: AiClient, model: string) => Promise<T>,

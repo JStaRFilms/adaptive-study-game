@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { toNodeHandler } from 'better-auth/node';
-import { getAuth } from '../../server/auth';
+import { getAuth } from '../../server/auth.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   res.setHeader('Cache-Control', 'no-store');

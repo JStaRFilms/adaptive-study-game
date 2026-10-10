@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { getAuthMethods } from '../server/auth';
+import { getAuthMethods } from '../server/auth.js';
 
 export default function handler(req: IncomingMessage, res: ServerResponse): void {
   res.setHeader('Cache-Control', 'no-store');
