@@ -1,10 +1,16 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { toNodeHandler } from 'better-auth/node';
-import { getAuth } from '../../server/auth.js';
+import { getAuth } from '../server/auth.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   res.setHeader('Cache-Control', 'no-store');
   try {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const authPath = url.searchParams.get('authPath');
+    if (authPath) {
+      url.searchParams.delete('authPath');
+      req.url = `/api/auth/${authPath}${url.search}`;
+    }
     await toNodeHandler(getAuth())(req, res);
   } catch {
     console.error('Auth request failed.');

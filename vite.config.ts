@@ -15,7 +15,7 @@ export default defineConfig(({ command, mode }) => {
         server.middlewares.use(async (req, res, next) => {
           if (!req.url?.startsWith('/api/auth/')) return next();
           try {
-            const { default: handler } = await server.ssrLoadModule('/api/auth/[...path].ts');
+            const { default: handler } = await server.ssrLoadModule('/api/auth.ts');
             await handler(req, res);
           } catch (error) {
             next(error);

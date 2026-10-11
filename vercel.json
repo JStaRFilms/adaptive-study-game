@@ -1,4 +1,7 @@
 {
   "buildCommand": "pnpm build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/auth/:path*", "destination": "/api/auth?authPath=:path*" }
+  ]
 }
