@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import App from '../App';
 import { authClient } from '../services/authClient';
 import { activateAccount } from '../utils/activeAccount';
+import LoginExample from './LoginExample';
+import './AuthGate.css';
 
 type AuthMethods = { password: boolean; google: boolean };
 
@@ -52,8 +54,8 @@ export default function AuthGate() {
     return () => controller.abort();
   }, []);
 
-  if (isPending) return <main className="min-h-screen grid place-items-center">Checking your session…</main>;
-  if (error) return <main role="alert" className="min-h-screen grid place-items-center bg-background-dark p-6 text-white">
+  if (isPending) return <main role="status" className="login-status">Checking your session…</main>;
+  if (error) return <main role="alert" className="login-status">
     Authentication is unavailable. Reload to try again.
   </main>;
 
@@ -75,42 +77,74 @@ export default function AuthGate() {
       }
     };
 
-    return <main className="min-h-screen flex items-center justify-center bg-background-dark p-6 text-white">
-      <div className="w-full max-w-sm space-y-5 text-center">
-        <h1 className="text-2xl font-semibold">JStar Study</h1>
-        <p className="text-text-secondary">Sign in to keep your study data separate on this device.</p>
-        {!methods && !methodsError && <p role="status" className="text-sm text-text-secondary">Loading sign-in options…</p>}
-        {methods?.password && <form onSubmit={handleEmail} className="space-y-3 text-left">
-          {registering && <label className="block text-sm">Name
-            <input required maxLength={100} autoComplete="name" value={name} onChange={event => setName(event.target.value)} className="mt-1 w-full rounded bg-surface-dark p-2 text-white" />
-          </label>}
-          <label className="block text-sm">Email
-            <input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} className="mt-1 w-full rounded bg-surface-dark p-2 text-white" />
-          </label>
-          <label className="block text-sm">Password
-            <input required type="password" minLength={8} maxLength={128} autoComplete={registering ? 'new-password' : 'current-password'} value={password} onChange={event => setPassword(event.target.value)} className="mt-1 w-full rounded bg-surface-dark p-2 text-white" />
-          </label>
-          <button disabled={submitting} className="w-full rounded-lg bg-brand-primary px-5 py-3 font-semibold hover:bg-brand-secondary disabled:opacity-50">{registering ? 'Create test account' : 'Sign in'}</button>
-          <button type="button" className="w-full text-sm underline" onClick={() => { setRegistering(!registering); setSignInError(null); }}>
-            {registering ? 'I already have an account' : 'Create a test account'}
-          </button>
-          <p className="text-xs text-text-secondary">Development only. Email verification and password recovery are not available yet.</p>
-        </form>}
-        {methods?.google && <button disabled={submitting} className="rounded-lg bg-brand-primary px-5 py-3 font-semibold hover:bg-brand-secondary disabled:opacity-50" onClick={async () => {
-          setSignInError(null);
-          try {
-            const result = await authClient.signIn.social({ provider: 'google', callbackURL: window.location.origin });
-            if (result.error) setSignInError('Google sign-in is unavailable. Please try again later.');
-          } catch {
-            setSignInError('Google sign-in is unavailable. Please try again later.');
-          }
-        }}>Continue with Google</button>}
-        {methodsError && <p role="alert" className="text-sm text-red-300">Sign-in options are unavailable. Reload to try again.</p>}
-        {methods && !methods.password && !methods.google && <p role="alert" className="text-sm text-red-300">Sign-in is not configured on this deployment.</p>}
-        {signInError && <p role="alert" className="text-sm text-red-300">{signInError}</p>}
-        <p className="text-xs text-text-secondary">Your study data stays in this browser. Clearing browser data deletes it.</p>
-      </div>
-    </main>;
+    return <div className="login-page">
+      <header className="login-header">
+        <div className="login-brand">
+          <img src="/brand/logo-mark.png" alt="" width="296" height="224" />
+          <span>JStar Study</span>
+        </div>
+        <p>A place to study, not just store notes.</p>
+      </header>
+      <main className="login-content">
+        <section className="login-intro" aria-labelledby="login-heading">
+          <p className="login-eyebrow">STUDY WITH PURPOSE</p>
+          <h1 id="login-heading"><span>Make what you</span><span>read <em>stick.</em></span></h1>
+          <p className="login-support"><span>Turn your notes into questions.</span>{' '}<span>Practice what matters.</span></p>
+        </section>
+        <section className="login-signin" aria-labelledby="login-welcome">
+          <div className="login-signin-brand">
+            <img src="/brand/logo-mark.png" alt="" width="296" height="224" />
+            <span>JStar Study</span>
+          </div>
+          <h2 id="login-welcome">Welcome to JStar Study</h2>
+          <p className="login-subtitle">Your next study session starts here.</p>
+          {!methods && !methodsError && <p role="status" className="login-message">Loading sign-in options…</p>}
+          {methods?.password && <form onSubmit={handleEmail} className="login-email-form">
+            {registering && <label className="block text-sm">Name
+              <input required maxLength={100} autoComplete="name" value={name} onChange={event => setName(event.target.value)} className="login-input" />
+            </label>}
+            <label className="block text-sm">Email
+              <input required type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} className="login-input" />
+            </label>
+            <label className="block text-sm">Password
+              <input required type="password" minLength={8} maxLength={128} autoComplete={registering ? 'new-password' : 'current-password'} value={password} onChange={event => setPassword(event.target.value)} className="login-input" />
+            </label>
+            <button disabled={submitting} className="login-email-submit">{registering ? 'Create test account' : 'Sign in'}</button>
+            <button type="button" className="w-full text-sm underline" onClick={() => { setRegistering(!registering); setSignInError(null); }}>
+              {registering ? 'I already have an account' : 'Create a test account'}
+            </button>
+            <p className="login-message">Development only. Email verification and password recovery are not available yet.</p>
+          </form>}
+          {methods?.google && <button disabled={submitting} className="login-google" onClick={async () => {
+            setSignInError(null);
+            try {
+              const result = await authClient.signIn.social({ provider: 'google', callbackURL: window.location.origin });
+              if (result.error) setSignInError('Google sign-in is unavailable. Please try again later.');
+            } catch {
+              setSignInError('Google sign-in is unavailable. Please try again later.');
+            }
+          }}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="login-google-mark">
+              <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.61 4.61 0 0 1-2 3.02v2.51h3.24c1.89-1.74 2.98-4.3 2.98-7.36Z" />
+              <path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.51c-.9.6-2.05.96-3.38.96-2.61 0-4.82-1.76-5.61-4.13H3.04v2.59A10 10 0 0 0 12 22Z" />
+              <path fill="#FBBC05" d="M6.39 13.91a6 6 0 0 1 0-3.82V7.5H3.04a10 10 0 0 0 0 9l3.35-2.59Z" />
+              <path fill="#EA4335" d="M12 5.96c1.47 0 2.79.51 3.83 1.51l2.87-2.87A9.63 9.63 0 0 0 12 2a10 10 0 0 0-8.96 5.5l3.35 2.59C7.18 7.72 9.39 5.96 12 5.96Z" />
+            </svg>
+            Continue with Google
+          </button>}
+          {methods?.google && <p className="login-helper">Use your Google account to sign in or get started.</p>}
+          {methodsError && <p role="alert" className="login-message login-error">Sign-in options are unavailable. Reload to try again.</p>}
+          {methods && !methods.password && !methods.google && <p role="alert" className="login-message login-error">Sign-in is not configured on this deployment.</p>}
+          {signInError && <p role="alert" className="login-message login-error">{signInError}</p>}
+        </section>
+        <LoginExample />
+        <p className="login-practice">
+          <svg aria-hidden="true" viewBox="0 0 24 32" fill="currentColor"><path d="M14 0 2 18h9l-1 14 12-20h-9Z" /></svg>
+          A little practice goes a long way.
+        </p>
+      </main>
+      <footer className="login-footer"><span>JStar Study</span><span>Learn a little. Remember more.</span></footer>
+    </div>;
   }
 
   if (readyUserId !== userId) return <main role="status" className="min-h-screen grid place-items-center bg-background-dark text-white">

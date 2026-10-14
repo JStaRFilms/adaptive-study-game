@@ -1,0 +1,129 @@
+.login-page,
+.login-status {
+  color: #061622;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  background: #fff;
+  min-height: 100vh;
+  min-height: 100svh;
+}
+
+.login-status { display: grid; place-items: center; padding: 24px; }
+.login-page { display: flex; flex-direction: column; background: linear-gradient(to right, #faf9f6 57%, #fff 57%); }
+.login-page * { box-sizing: border-box; }
+.login-page :where(h1, h2, p) { margin: 0; }
+.login-header, .login-footer { margin-inline: 48px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.login-header { padding-block: 24px; }
+.login-brand { display: flex; align-items: center; gap: 16px; font-size: 24px; font-weight: 800; letter-spacing: -1px; }
+.login-brand img { width: 56px; height: auto; }
+.login-header > p { color: #52657c; font-size: 14px; }
+.login-content {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 57% 43%;
+  grid-template-areas: "intro signin" "example signin" "practice signin";
+  align-content: center;
+  padding-block: 32px;
+  row-gap: 26px;
+}
+.login-intro { grid-area: intro; margin-inline: 48px; }
+.login-eyebrow { color: #008078; font-size: 14px; font-weight: 600; letter-spacing: 2.5px; }
+.login-intro h1 { font-size: clamp(44px, 5.1vw, 72px); font-weight: 800; line-height: 1.03; letter-spacing: -3px; margin-block: 18px; }
+.login-intro h1 > span { display: block; }
+.login-intro em { color: #00a095; font-style: normal; }
+.login-support { color: #52657c; font-size: clamp(17px, 1.7vw, 24px); line-height: 1.5; }
+.login-signin { grid-area: signin; align-self: center; text-align: center; padding-inline: 48px; margin-bottom: 48px; }
+.login-signin-brand { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-bottom: 44px; font-size: 24px; line-height: 1.2; font-weight: 800; letter-spacing: -1px; }
+.login-signin-brand img { width: 76px; height: auto; }
+.login-signin h2 { font-size: clamp(26px, 3vw, 42px); font-weight: 800; line-height: 1.2; letter-spacing: -1.5px; }
+.login-subtitle { color: #52657c; font-size: 20px; line-height: 1.5; padding-top: 14px; }
+.login-google { width: 100%; min-height: 64px; margin-top: 38px; display: flex; align-items: center; justify-content: center; gap: 18px; border: 1px solid #bdc7d3; border-radius: 10px; background: #fff; color: #061622; font: inherit; font-size: 20px; font-weight: 600; cursor: pointer; }
+.login-google:hover { background: #f4faf9; border-color: #008b83; }
+.login-google-mark { width: 36px; height: 36px; flex-shrink: 0; }
+.login-page button:focus-visible, .login-page input:focus-visible { outline: 3px solid #008b83; outline-offset: 4px; }
+.login-page button:disabled { cursor: wait; opacity: .5; }
+.login-helper { color: #60718a; font-size: 15px; line-height: 1.5; padding-top: 16px; }
+.login-message { color: #52657c; font-size: 14px; line-height: 1.5; margin: 16px 0 0; }
+.login-error { color: #b42318; }
+.login-email-form { display: grid; gap: 12px; text-align: left; margin-top: 24px; }
+.login-input { display: block; width: 100%; margin-top: 4px; padding: 12px; border: 1px solid #bdc7d3; border-radius: 6px; color: #061622; background: #fff; font: inherit; }
+.login-email-submit { min-height: 44px; border-radius: 8px; padding: 12px; color: #fff; background: #007f78; font-weight: 600; }
+.login-email-form button[type="button"] { min-height: 44px; }
+.login-example { grid-area: example; margin-inline: 48px; }
+.login-example-cards { display: grid; grid-template-columns: 1.1fr 24px 1fr; gap: 16px; padding: 18px; border: 1px solid #e5e5df; border-radius: 12px; }
+.login-note, .login-question { min-width: 0; background: #ffffffa6; border: 1px solid #e9e9e4; border-radius: 8px; padding: 16px; }
+.login-note-labels { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #52657c; font-size: 10px; font-weight: 600; letter-spacing: .6px; }
+.login-biology { display: flex; align-items: center; gap: 12px; font-size: 11px; letter-spacing: 1.4px; }
+.login-biology svg { color: #008d79; width: 22px; height: 22px; flex-shrink: 0; }
+.login-page .login-note > p { margin-top: 52px; font-size: 21px; line-height: 1.5; }
+.login-note mark { color: inherit; background: #baf3e5; border-radius: 4px; padding: 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.login-example-arrow { width: 24px; height: 24px; color: #52657c; align-self: center; }
+.login-question-label { color: #52657c; font-size: 11px; line-height: 1.2; font-weight: 600; letter-spacing: 1.2px; }
+.login-question h2 { margin-top: 8px; font-size: 18px; line-height: 1.3; font-weight: 700; letter-spacing: -.5px; }
+.login-example-options { display: grid; gap: 8px; list-style: none; margin: 14px 0 0; padding: 0; }
+.login-example-options li { display: flex; align-items: center; gap: 20px; min-height: 38px; padding: 6px 14px; border: 1px solid #dce1e7; border-radius: 6px; font-size: 14px; line-height: 1.3; }
+.login-example-radio { width: 17px; height: 17px; flex-shrink: 0; border: 1.5px solid #8494a9; border-radius: 50%; }
+.login-example-options .login-example-selected { border-color: #00aaa0; background: #def6f1; }
+.login-example-selected .login-example-radio { border: 6px solid #00aaa0; background: #fff; }
+.login-practice { grid-area: practice; margin: 0 48px; display: flex; align-items: center; gap: 16px; font-size: 18px; font-weight: 600; }
+.login-practice svg { color: #00aaa0; width: 22px; height: 28px; flex-shrink: 0; }
+.login-footer { border-top: 1px solid #dce1e7; padding-block: 24px; color: #60718a; font-size: 13px; }
+.login-footer > span:first-child { color: #243a52; font-size: 14px; font-weight: 600; }
+
+@media (min-width: 901px) and (max-width: 1200px) {
+  .login-header, .login-footer { margin-inline: 32px; }
+  .login-intro, .login-example { margin-inline: 32px; }
+  .login-practice { margin-inline: 32px; }
+  .login-signin { padding-inline: 32px; }
+  .login-example-cards { gap: 10px; padding: 12px; grid-template-columns: 1fr 20px 1fr; }
+  .login-note, .login-question { padding: 12px; }
+  .login-note-labels { flex-wrap: wrap; }
+  .login-page .login-note > p { font-size: 18px; }
+  .login-biology { gap: 8px; }
+}
+
+@media (max-width: 900px) {
+  .login-page { background: #fff; }
+  .login-header, .login-footer { margin-inline: 32px; }
+  .login-header { padding-block: 22px 24px; }
+  .login-brand { font-size: 18px; gap: 12px; letter-spacing: -.6px; }
+  .login-brand img { width: 38px; }
+  .login-header > p, .login-signin-brand { display: none; }
+  .login-content { flex: none; grid-template-columns: minmax(0, 1fr); grid-template-areas: "intro" "signin" "example" "practice"; padding: 0; row-gap: 0; }
+  .login-intro, .login-signin, .login-example { width: calc(100% - 64px); max-width: 560px; margin-inline: auto; }
+  .login-eyebrow { font-size: 11px; letter-spacing: 2px; }
+  .login-intro h1 { font-size: 34px; line-height: 1.08; letter-spacing: -1.3px; margin-block: 8px; }
+  .login-support { font-size: 17px; line-height: 1.45; }
+  .login-support > span { display: block; }
+  .login-signin { padding: 20px 0; margin-bottom: 0; text-align: left; border-bottom: 1px solid #dce1e7; }
+  .login-signin h2 { font-size: 22px; letter-spacing: -.65px; }
+  .login-subtitle { padding-top: 4px; font-size: 16px; line-height: 1.5; }
+  .login-google { margin-top: 16px; min-height: 48px; font-size: 14px; gap: 12px; border-radius: 8px; }
+  .login-google-mark { width: 26px; height: 26px; }
+  .login-helper { padding-top: 10px; text-align: center; font-size: 11px; }
+  .login-example { padding-top: 18px; }
+  .login-example-cards { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0; border: none; }
+  .login-note, .login-question { padding: 12px 14px; }
+  .login-biology { font-size: 9px; gap: 10px; letter-spacing: 1px; }
+  .login-biology svg { width: 17px; height: 17px; }
+  .login-note-labels { font-size: 9px; letter-spacing: .8px; }
+  .login-page .login-note > p { margin-top: 14px; font-size: 13px; line-height: 1.6; }
+  .login-example-arrow { justify-self: center; width: 20px; height: 20px; transform: rotate(90deg); }
+  .login-question-label { font-size: 9px; letter-spacing: 1px; }
+  .login-question h2 { margin-top: 4px; font-size: 14px; line-height: 1.4; letter-spacing: -.4px; }
+  .login-example-options { margin-top: 10px; gap: 6px; }
+  .login-example-options li { min-height: 30px; padding: 4px 12px; font-size: 12px; gap: 18px; }
+  .login-example-radio { width: 15px; height: 15px; }
+  .login-example-selected .login-example-radio { border-width: 5px; }
+  .login-practice { width: calc(100% - 64px); max-width: 560px; margin: 14px auto 26px; font-size: 14px; gap: 12px; line-height: 1.5; }
+  .login-practice svg { width: 16px; height: 24px; }
+  .login-footer { padding-block: 16px 22px; gap: 12px; font-size: 11px; }
+  .login-footer > span:first-child { font-size: 12px; }
+}
+
+@media (max-width: 359px) {
+  .login-header, .login-footer { margin-inline: 24px; }
+  .login-intro, .login-signin, .login-example, .login-practice { width: calc(100% - 48px); }
+  .login-intro h1 { font-size: 30px; }
+  .login-signin h2 { font-size: 20px; }
+  .login-footer { flex-wrap: wrap; }
+}
